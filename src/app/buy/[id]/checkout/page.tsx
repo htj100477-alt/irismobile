@@ -290,10 +290,29 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
                   <CreditCard size={18} style={{ color: 'var(--accent-light)' }} /> 결제 수단
                 </h3>
                 
-                <div style={{ marginTop: '10px' }}>
-                  <div className={styles.radioItemActive} style={{ border: '1px solid var(--accent-light)', padding: '14px', borderRadius: '8px', textAlign: 'center', fontSize: '13px', fontWeight: 'bold' }}>
-                    안전 가상계좌 무통장입금
-                  </div>
+                  <button 
+                    type="submit"
+                    className={styles.radioItemActive} 
+                    style={{ 
+                      width: '100%',
+                      border: '2px solid var(--accent-light)', 
+                      padding: '14px', 
+                      borderRadius: '8px', 
+                      textAlign: 'center', 
+                      fontSize: '13px', 
+                      fontWeight: 'bold',
+                      backgroundColor: 'rgba(95, 93, 236, 0.1)',
+                      color: '#fff',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <CheckCircle2 size={16} color="var(--success-color)" /> 안전 가상계좌 무통장입금
+                  </button>
                   <div style={{
                     backgroundColor: 'var(--bg-tertiary)',
                     borderRadius: '8px',
@@ -311,7 +330,6 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
                     * 입금 확인 후 배송 및 배송 등록이 즉시 진행됩니다.
                   </div>
                 </div>
-              </div>
 
               {error && <p className={styles.errorText}>{error}</p>}
 
