@@ -112,6 +112,7 @@ export default function AdminDashboard() {
   const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
   const [catName, setCatName] = useState('');
   const [catImage, setCatImage] = useState('');
+  const [uploadingCatImage, setUploadingCatImage] = useState(false);
 
   // 모달 제어 상태
   const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false);
@@ -266,6 +267,36 @@ export default function AdminDashboard() {
       alert('이미지 처리 중 오류가 발생했습니다.');
     } finally {
       setUploadingImage(false);
+    }
+  };
+
+  const handleCategoryFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingCatImage(true);
+    try {
+      const compressedBase64 = await compressImage(file);
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Data: compressedBase64,
+          fileName: file.name
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setCatImage(data.url);
+      } else {
+        alert(data.error || '이미지 업로드 실패');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('이미지 처리 중 오류가 발생했습니다.');
+    } finally {
+      setUploadingCatImage(false);
     }
   };
 
@@ -486,7 +517,7 @@ export default function AdminDashboard() {
 
   const saveCategory = async () => {
     if (!catName || !catImage) {
-      alert('카테고리명과 이미지 URL을 모두 입력해주세요.');
+      alert('카테고리명과 대표 이미지를 모두 등록해주세요.');
       return;
     }
 
@@ -1821,16 +1852,65 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
-                <label htmlFor="catImageInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 썸네일 이미지 URL</label>
-                <input 
-                  id="catImageInput"
-                  type="text" 
-                  placeholder="https://images.unsplash.com/..."
-                  value={catImage} 
-                  onChange={(e) => setCatImage(e.target.value)}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  required
-                />
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 대표 이미지</label>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '4px' }}>
+                  {catImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img 
+                      src={catImage} 
+                      alt="미리보기" 
+                      style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '60px',
+                      height: '60px',
+                      borderRadius: '50%',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px dashed var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '10px',
+                      color: 'var(--text-secondary)',
+                      textAlign: 'center',
+                      lineHeight: '1.2'
+                    }}>
+                      사진 없음
+                    </div>
+                  )}
+                  
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      id="catImageFileInput"
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleCategoryFileChange}
+                      style={{ display: 'none' }}
+                    />
+                    <label 
+                      htmlFor="catImageFileInput"
+                      style={{
+                        display: 'inline-block',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        padding: '10px 16px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      {uploadingCatImage ? '업로드 중...' : '사진 선택'}
+                    </label>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      * 원형 아이콘으로 사용될 이미지를 등록해 주세요.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
