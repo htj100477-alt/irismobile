@@ -56,9 +56,7 @@ html, body {
 }
 
 body {
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  display: block;
 }
 
 /* 모던 스크롤바 디자인 */

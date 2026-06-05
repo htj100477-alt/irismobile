@@ -2,9 +2,10 @@
 
 .adminLayout {
   display: flex;
-  min-height: 100vh;
+  height: 100vh;
   background-color: #090d16;
   color: var(--text-primary);
+  overflow: hidden;
 }
 
 /* 사이드바 */
