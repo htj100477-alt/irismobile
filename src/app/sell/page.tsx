@@ -37,7 +37,7 @@ const COLORS = ['블랙/그레이', '화이트/실버', '블루/골드', '기타
 const BRAND_LOGOS: Record<string, string> = {
   apple: 'https://img.icons8.com/ios-filled/100/ffffff/mac-os.png',
   samsung: 'https://img.icons8.com/color/120/samsung.png',
-  lg: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/LG_logo_%282015%29.svg/120px-LG_logo_%282015%29.svg.png',
+  lg: '/lg_logo.png',
   lenovo: 'https://img.icons8.com/color/120/lenovo.png',
   google: 'https://img.icons8.com/color/120/google-logo.png',
   기타: 'https://img.icons8.com/ios-filled/100/ffffff/smartphone.png'

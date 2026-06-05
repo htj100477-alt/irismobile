@@ -162,42 +162,46 @@ export default function BuyPage() {
     <MobileLayout title="안심 중고 장터" showBack={true}>
       <div className={`${styles.buyWrapper} animate-slide-up`}>
         
-        {/* 상단 원형 카테고리 캐러셀 */}
-        <section className={styles.categoryCarousel}>
-          <div 
-            className={`${styles.categoryCard} ${selectedCategory === 'all' ? styles.categoryCardActive : ''}`}
-            onClick={() => {
-              setSelectedCategory('all');
-              setSelectedBrand('all');
-              setSelectedSeries('all');
-              setSelectedModel('all');
-            }}
-          >
-            <div className={`${styles.categoryImageCircle} ${selectedCategory === 'all' ? styles.categoryImageCircleActive : ''}`} style={{ background: 'linear-gradient(135deg, var(--accent-color) 0%, #1e1b4b 100%)' }}>
-              <Search size={22} color="#fff" />
-            </div>
-            <span className={styles.categoryName}>전체</span>
-          </div>
-
-          {categories.map((cat) => (
+        {/* 상단 원형 카테고리 캐러셀 (필터 확장 시에만 노출) */}
+        {isFilterExpanded && (
+          <section className={styles.categoryCarousel}>
             <div 
-              key={cat.id} 
-              className={`${styles.categoryCard} ${selectedCategory === cat.name ? styles.categoryCardActive : ''}`}
+              className={`${styles.categoryCard} ${selectedCategory === 'all' ? styles.categoryCardActive : ''}`}
               onClick={() => {
-                setSelectedCategory(cat.name);
+                setSelectedCategory('all');
                 setSelectedBrand('all');
                 setSelectedSeries('all');
                 setSelectedModel('all');
+                setIsFilterExpanded(false);
               }}
             >
-              <div className={`${styles.categoryImageCircle} ${selectedCategory === cat.name ? styles.categoryImageCircleActive : ''}`}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={cat.image} alt={cat.name} />
+              <div className={`${styles.categoryImageCircle} ${selectedCategory === 'all' ? styles.categoryImageCircleActive : ''}`} style={{ background: 'linear-gradient(135deg, var(--accent-color) 0%, #1e1b4b 100%)' }}>
+                <Search size={22} color="#fff" />
               </div>
-              <span className={styles.categoryName}>{cat.name}</span>
+              <span className={styles.categoryName}>전체</span>
             </div>
-          ))}
-        </section>
+
+            {categories.map((cat) => (
+              <div 
+                key={cat.id} 
+                className={`${styles.categoryCard} ${selectedCategory === cat.name ? styles.categoryCardActive : ''}`}
+                onClick={() => {
+                  setSelectedCategory(cat.name);
+                  setSelectedBrand('all');
+                  setSelectedSeries('all');
+                  setSelectedModel('all');
+                  setIsFilterExpanded(false);
+                }}
+              >
+                <div className={`${styles.categoryImageCircle} ${selectedCategory === cat.name ? styles.categoryImageCircleActive : ''}`}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={cat.image} alt={cat.name} />
+                </div>
+                <span className={styles.categoryName}>{cat.name}</span>
+              </div>
+            ))}
+          </section>
+        )}
 
         {/* 원하는 상품찾기 상세 검색 패널 (Fongabi 스타일) */}
         <section className={styles.searchPanel}>

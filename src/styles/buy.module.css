@@ -316,9 +316,11 @@
   align-items: center;
   gap: 16px;
   overflow-x: auto;
+  overflow-y: hidden;
   padding: 10px 4px;
   margin-bottom: 8px;
   width: 100%;
+  height: 92px;
 }
 .categoryCarousel::-webkit-scrollbar {
   display: none;
