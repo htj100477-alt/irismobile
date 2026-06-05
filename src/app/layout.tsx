@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "@/styles/globals.css";
+import InAppBrowserEscaper from "@/components/InAppBrowserEscaper";
 
 export const metadata: Metadata = {
   title: "트루 모바일 - 모바일 특화 중고폰 매입 & 판매",
@@ -14,6 +15,7 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
+        <InAppBrowserEscaper />
         {children}
       </body>
     </html>
