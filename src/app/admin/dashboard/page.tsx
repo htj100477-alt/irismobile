@@ -5,6 +5,48 @@ import { useRouter } from 'next/navigation';
 import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
+// 이미지 압축 헬퍼 함수
+const compressImage = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 800;
+        const MAX_HEIGHT = 800;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // JPEG로 변환, 압축 품질 0.7
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+        resolve(dataUrl);
+      };
+      img.onerror = (err) => reject(err);
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 // 타입 정의
 interface TradeIn {
   id: string;
@@ -172,6 +214,41 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       alert('서버 응답 오류가 발생했습니다.');
+    }
+  };
+
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    try {
+      // 1. 클라이언트 측 이미지 압축
+      const compressedBase64 = await compressImage(file);
+      
+      // 2. 서버 업로드 API 호출
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          base64Data: compressedBase64,
+          fileName: file.name
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setProdImage(data.url);
+      } else {
+        alert(data.error || '이미지 업로드 실패');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('이미지 처리 중 오류가 발생했습니다.');
+    } finally {
+      setUploadingImage(false);
     }
   };
 
@@ -1210,16 +1287,91 @@ export default function AdminDashboardPage() {
                 />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="imageInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>기기 사진 URL (선택)</label>
-                <input 
-                  id="imageInput"
-                  type="text" 
-                  placeholder="Unsplash 등 이미지 URL 주소"
-                  value={prodImage} 
-                  onChange={(e) => setProdImage(e.target.value)}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label htmlFor="imageFileInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기기 사진 업로드</label>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                  {prodImage ? (
+                    <div style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src={prodImage} 
+                        alt="미리보기" 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => setProdImage('')}
+                        style={{
+                          position: 'absolute',
+                          top: '2px',
+                          right: '2px',
+                          backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '50%',
+                          width: '18px',
+                          height: '18px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          cursor: 'pointer'
+                        }}
+                        title="사진 삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{
+                      width: '80px',
+                      height: '80px',
+                      borderRadius: '8px',
+                      border: '2px dashed var(--border-color)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
+                      textAlign: 'center',
+                      lineHeight: '1.2'
+                    }}>
+                      사진 없음
+                    </div>
+                  )}
+                  
+                  <div style={{ flex: 1 }}>
+                    <input 
+                      id="imageFileInput"
+                      type="file" 
+                      accept="image/*"
+                      onChange={handleImageFileChange}
+                      style={{ display: 'none' }}
+                    />
+                    <label 
+                      htmlFor="imageFileInput"
+                      style={{
+                        display: 'inline-block',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        padding: '10px 16px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'var(--transition-smooth)'
+                      }}
+                    >
+                      {uploadingImage ? '이미지 압축 및 업로드 중...' : '기기 사진 선택'}
+                    </label>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                      * 모바일에 적합하도록 가로/세로 800px로 자동 조절되어 저장됩니다.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
