@@ -97,3 +97,44 @@ VALUES
  ARRAY['https://images.unsplash.com/photo-1573148195900-7845dcb9b127?w=500&auto=format&fit=crop&q=60'], 
  '뒷면에 카메라 옆 미세 기스 있으며 잔상 없는 가성비 좋은 B급 상품입니다.', 'available')
 ON CONFLICT DO NOTHING;
+
+
+-- =========================================================================
+-- [2026-06-06 추가] 다이내믹 카테고리(기종) 및 제품 분류 확장 마이그레이션
+-- =========================================================================
+
+-- 1. 카테고리 관리 테이블 (categories) 추가
+CREATE TABLE IF NOT EXISTS public.categories (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(50) UNIQUE NOT NULL,      -- 카테고리명 (스마트폰, 태블릿, 스마트워치, 노트북, 무선이어폰 등)
+    image TEXT NOT NULL,                   -- 카테고리 썸네일 이미지 URL
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- RLS 활성화 및 권한 설정
+ALTER TABLE public.categories ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can read categories" ON public.categories FOR SELECT USING (true);
+CREATE POLICY "Anyone can modify categories for admin" ON public.categories FOR ALL USING (true) WITH CHECK (true);
+
+-- 기본 카테고리 데이터 삽입
+INSERT INTO public.categories (name, image) VALUES
+('스마트폰', 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=150'),
+('태블릿', 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=150'),
+('스마트워치', 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=150'),
+('노트북', 'https://images.unsplash.com/photo-1496181130204-7552cc14b1b0?w=150'),
+('무선이어폰', 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=150')
+ON CONFLICT (name) DO NOTHING;
+
+-- 2. 기존 테이블에 카테고리 및 시리즈 컬럼 추가
+-- (1) products (판매 상품 테이블)
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '스마트폰' NOT NULL;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS series VARCHAR(50) DEFAULT '기타 시리즈' NOT NULL;
+
+-- (2) trade_in_prices (매입 단가 기준 테이블)
+ALTER TABLE public.trade_in_prices ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '스마트폰' NOT NULL;
+ALTER TABLE public.trade_in_prices ADD COLUMN IF NOT EXISTS series VARCHAR(50) DEFAULT '기타 시리즈' NOT NULL;
+
+-- (3) trade_in_requests (매입 신청 목록 테이블)
+ALTER TABLE public.trade_in_requests ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '스마트폰' NOT NULL;
+ALTER TABLE public.trade_in_requests ADD COLUMN IF NOT EXISTS series VARCHAR(50) DEFAULT '기타 시리즈' NOT NULL;
+
