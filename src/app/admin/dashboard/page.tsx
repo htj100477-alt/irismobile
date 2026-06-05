@@ -78,8 +78,11 @@ interface Product {
   images: string[];
   description: string;
   status: 'available' | 'reserved' | 'sold';
+  created_at: string;
   category?: string;
   series?: string;
+  battery_efficiency?: string;
+  carrier_info?: string;
 }
 
 interface Order {
@@ -133,6 +136,8 @@ export default function AdminDashboard() {
   const [prodDescription, setProdDescription] = useState('');
   const [prodCategory, setProdCategory] = useState('스마트폰');
   const [prodSeries, setProdSeries] = useState('');
+  const [prodBattery, setProdBattery] = useState('95%');
+  const [prodCarrier, setProdCarrier] = useState('3사 공용 (알뜰폰/자급제 가능)');
 
   // 매입 시세 설정 모달 상태
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
@@ -321,6 +326,8 @@ export default function AdminDashboard() {
       setProdDescription(prod.description || '');
       setProdCategory(prod.category || '스마트폰');
       setProdSeries(prod.series || '');
+      setProdBattery(prod.battery_efficiency || '95%');
+      setProdCarrier(prod.carrier_info || '3사 공용 (알뜰폰/자급제 가능)');
     } else {
       // 신규 등록 모드
       setProdBrand('Apple');
@@ -333,6 +340,8 @@ export default function AdminDashboard() {
       setProdDescription('');
       setProdCategory(categories[0]?.name || '스마트폰');
       setProdSeries('');
+      setProdBattery('95%');
+      setProdCarrier('3사 공용 (알뜰폰/자급제 가능)');
     }
     setIsProductModalOpen(true);
   };
@@ -354,6 +363,8 @@ export default function AdminDashboard() {
       description: prodDescription,
       category: prodCategory,
       series: prodSeries,
+      battery_efficiency: prodBattery,
+      carrier_info: prodCarrier,
     };
 
     try {
@@ -1535,6 +1546,31 @@ export default function AdminDashboard() {
                   style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
                   required
                 />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="prodBatteryInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>배터리 효율</label>
+                  <input 
+                    id="prodBatteryInput"
+                    type="text" 
+                    placeholder="예: 95%, 100%, 96% 이상"
+                    value={prodBattery} 
+                    onChange={(e) => setProdBattery(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="prodCarrierInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>통신사 정보</label>
+                  <input 
+                    id="prodCarrierInput"
+                    type="text" 
+                    placeholder="예: 3사 공용, SKT, 자급제"
+                    value={prodCarrier} 
+                    onChange={(e) => setProdCarrier(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>

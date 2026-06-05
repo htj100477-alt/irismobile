@@ -138,3 +138,8 @@ ALTER TABLE public.trade_in_prices ADD COLUMN IF NOT EXISTS series VARCHAR(50) D
 ALTER TABLE public.trade_in_requests ADD COLUMN IF NOT EXISTS category VARCHAR(50) DEFAULT '스마트폰' NOT NULL;
 ALTER TABLE public.trade_in_requests ADD COLUMN IF NOT EXISTS series VARCHAR(50) DEFAULT '기타 시리즈' NOT NULL;
 
+-- (4) products (판매 상품 테이블 - 배터리 효율 및 통신사 컬럼 추가)
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS battery_efficiency VARCHAR(30) DEFAULT '95%' NOT NULL;
+ALTER TABLE public.products ADD COLUMN IF NOT EXISTS carrier_info VARCHAR(50) DEFAULT '3사 공용 (알뜰폰/자급제 가능)' NOT NULL;
+
+

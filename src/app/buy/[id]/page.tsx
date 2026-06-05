@@ -18,6 +18,8 @@ interface Product {
   description: string;
   status: 'available' | 'reserved' | 'sold';
   created_at: string;
+  battery_efficiency?: string;
+  carrier_info?: string;
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -131,12 +133,12 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           <div className={styles.specRow}>
             <span className={styles.specLabel}>배터리 효율</span>
             <span className={styles.specVal} style={{ color: 'var(--success-color)' }}>
-              {product.grade === 'S' ? '96% 이상' : product.grade === 'A' ? '88% 이상' : '82% 이상'} (성능 우수)
+              {product.battery_efficiency || (product.grade === 'S' ? '96% 이상' : product.grade === 'A' ? '88% 이상' : '82% 이상 성능 우수')}
             </span>
           </div>
           <div className={styles.specRow}>
             <span className={styles.specLabel}>통신사 제한</span>
-            <span className={styles.specVal}>3사 공용 (알뜰폰/자급제 가능)</span>
+            <span className={styles.specVal}>{product.carrier_info || '3사 공용 (알뜰폰/자급제 가능)'}</span>
           </div>
         </section>
 
