@@ -10,9 +10,10 @@ interface MobileLayoutProps {
   children: React.ReactNode;
   title?: string;
   showBack?: boolean;
+  onBack?: () => void;
 }
 
-export default function MobileLayout({ children, title, showBack }: MobileLayoutProps) {
+export default function MobileLayout({ children, title, showBack, onBack }: MobileLayoutProps) {
   const router = useRouter();
   const pathname = usePathname();
   const [time, setTime] = useState('09:41');
@@ -66,7 +67,7 @@ export default function MobileLayout({ children, title, showBack }: MobileLayout
         {/* 헤더 바 */}
         <header className={styles.header}>
           {shouldShowBack ? (
-            <button onClick={() => router.back()} className={styles.backButton} aria-label="뒤로가기">
+            <button onClick={() => onBack ? onBack() : router.back()} className={styles.backButton} aria-label="뒤로가기">
               <ChevronLeft size={24} />
             </button>
           ) : (

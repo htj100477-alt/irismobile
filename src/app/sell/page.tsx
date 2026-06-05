@@ -37,7 +37,7 @@ const COLORS = ['블랙/그레이', '화이트/실버', '블루/골드', '기타
 const BRAND_LOGOS: Record<string, string> = {
   apple: 'https://img.icons8.com/ios-filled/100/ffffff/mac-os.png',
   samsung: 'https://img.icons8.com/color/120/samsung.png',
-  lg: 'https://img.icons8.com/color/120/lg.png',
+  lg: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/LG_logo_%282015%29.svg/120px-LG_logo_%282015%29.svg.png',
   lenovo: 'https://img.icons8.com/color/120/lenovo.png',
   google: 'https://img.icons8.com/color/120/google-logo.png',
   기타: 'https://img.icons8.com/ios-filled/100/ffffff/smartphone.png'
@@ -283,8 +283,17 @@ function SellFlowContent() {
     r.series === series
   );
 
+  const handleBack = () => {
+    if (step > 1 && step < 8) {
+      setStep(step - 1);
+    } else {
+      router.back();
+    }
+  };
+
   return (
-    <div className={styles.sellWrapper}>
+    <MobileLayout title="내폰팔기" showBack={step < 8} onBack={handleBack}>
+      <div className={styles.sellWrapper}>
       
       {/* 진행바 (완료화면 step 8 제외) */}
       {step < 8 && (
@@ -696,13 +705,14 @@ function SellFlowContent() {
         </div>
       )}
 
-    </div>
+      </div>
+    </MobileLayout>
   );
 }
 
 export default function SellPage() {
   return (
-    <Suspense fallback={<MobileLayout><div>로딩 중...</div></MobileLayout>}>
+    <Suspense fallback={<MobileLayout title="내폰팔기"><div>로딩 중...</div></MobileLayout>}>
       <SellFlowContent />
     </Suspense>
   );

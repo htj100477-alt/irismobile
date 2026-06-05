@@ -29,6 +29,7 @@ export default function BuyPage() {
   const [loading, setLoading] = useState(true);
 
   // 필터 상태들
+  const [isFilterExpanded, setIsFilterExpanded] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedBrand, setSelectedBrand] = useState<string>('all');
   const [selectedSeries, setSelectedSeries] = useState<string>('all');
@@ -36,6 +37,26 @@ export default function BuyPage() {
   const [selectedGrade, setSelectedGrade] = useState<string>('all');
   const [selectedStorage, setSelectedStorage] = useState<string>('all');
   const [selectedPriceRange, setSelectedPriceRange] = useState<string>('all');
+
+  // 적용된 필터 요약 텍스트
+  const getFilterSummary = () => {
+    const summary = [];
+    if (selectedCategory !== 'all') summary.push(selectedCategory);
+    if (selectedBrand !== 'all') summary.push(selectedBrand);
+    if (selectedSeries !== 'all') summary.push(selectedSeries);
+    if (selectedModel !== 'all') summary.push(selectedModel);
+    if (selectedGrade !== 'all') summary.push(`${selectedGrade}급`);
+    if (selectedStorage !== 'all') summary.push(selectedStorage);
+    if (selectedPriceRange !== 'all') {
+      const pText = 
+        selectedPriceRange === 'under30' ? '30만↓' :
+        selectedPriceRange === '30to70' ? '30-70만' :
+        selectedPriceRange === '70to120' ? '70-120만' :
+        selectedPriceRange === 'over120' ? '120만↑' : '';
+      if (pText) summary.push(pText);
+    }
+    return summary.length > 0 ? summary.join(' · ') : '전체 상품';
+  };
 
   // 데이터 로드
   useEffect(() => {
@@ -185,110 +206,137 @@ export default function BuyPage() {
               <Search size={16} className="text-accent-light" />
               원하는 기기 상세검색
             </h3>
-            <button className={styles.btnReset} onClick={handleResetFilters}>
-              <RotateCcw size={12} />
-              필터 초기화
-            </button>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <button className={styles.btnReset} onClick={handleResetFilters}>
+                <RotateCcw size={12} />
+                필터 초기화
+              </button>
+              <button 
+                className={styles.btnToggleFilter}
+                onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+                aria-label="필터 접기/펼치기"
+              >
+                {isFilterExpanded ? '접기 ▲' : '펼치기 ▼'}
+              </button>
+            </div>
           </div>
 
-          {/* 1단계: 제조사 선택 */}
-          <div className={styles.filterSection}>
-            <span className={styles.filterLabel}>제조사</span>
-            <div className={styles.chipContainer}>
-              {availableBrands.map(b => (
-                <button 
-                  key={b}
-                  className={`${styles.chip} ${selectedBrand === b ? styles.chipActive : ''}`}
-                  onClick={() => {
-                    setSelectedBrand(b);
-                    setSelectedSeries('all');
-                    setSelectedModel('all');
-                  }}
+          {isFilterExpanded ? (
+            <>
+              {/* 1단계: 제조사 선택 */}
+              <div className={styles.filterSection}>
+                <span className={styles.filterLabel}>제조사</span>
+                <div className={styles.chipContainer}>
+                  {availableBrands.map(b => (
+                    <button 
+                      key={b}
+                      className={`${styles.chip} ${selectedBrand === b ? styles.chipActive : ''}`}
+                      onClick={() => {
+                        setSelectedBrand(b);
+                        setSelectedSeries('all');
+                        setSelectedModel('all');
+                      }}
+                    >
+                      {b === 'all' ? '전체' : b}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* 2단계: 시리즈 선택 (선택된 브랜드/카테고리에 따른 동적 렌더링) */}
+              {availableSeries.length > 1 && (
+                <div className={styles.filterSection}>
+                  <span className={styles.filterLabel}>시리즈</span>
+                  <div className={styles.chipContainer}>
+                    {availableSeries.map(s => (
+                      <button 
+                        key={s}
+                        className={`${styles.chip} ${selectedSeries === s ? styles.chipActive : ''}`}
+                        onClick={() => {
+                          setSelectedSeries(s);
+                          setSelectedModel('all');
+                        }}
+                      >
+                        {s === 'all' ? '전체' : s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 3단계: 모델 선택 (선택된 브랜드/카테고리/시리즈에 따른 동적 렌더링) */}
+              {availableModels.length > 1 && (
+                <div className={styles.filterSection}>
+                  <span className={styles.filterLabel}>세부 모델</span>
+                  <div className={styles.chipContainer}>
+                    {availableModels.map(m => (
+                      <button 
+                        key={m}
+                        className={`${styles.chip} ${selectedModel === m ? styles.chipActive : ''}`}
+                        onClick={() => {
+                          setSelectedModel(m);
+                          if (m !== 'all') {
+                            setIsFilterExpanded(false);
+                          }
+                        }}
+                      >
+                        {m === 'all' ? '전체' : m}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 4단계: 드롭다운 필터 (등급, 용량, 가격대) */}
+              <div className={styles.dropdownFilters}>
+                <select 
+                  className={styles.dropdownSelect}
+                  value={selectedGrade}
+                  onChange={(e) => setSelectedGrade(e.target.value)}
+                  aria-label="등급 선택"
                 >
-                  {b === 'all' ? '전체' : b}
-                </button>
-              ))}
-            </div>
-          </div>
+                  <option value="all">등급: 전체</option>
+                  <option value="S">S급 (최상급)</option>
+                  <option value="A">A급 (미세흠집)</option>
+                  <option value="B">B급 (가성비)</option>
+                </select>
 
-          {/* 2단계: 시리즈 선택 (선택된 브랜드/카테고리에 따른 동적 렌더링) */}
-          {availableSeries.length > 1 && (
-            <div className={styles.filterSection}>
-              <span className={styles.filterLabel}>시리즈</span>
-              <div className={styles.chipContainer}>
-                {availableSeries.map(s => (
-                  <button 
-                    key={s}
-                    className={`${styles.chip} ${selectedSeries === s ? styles.chipActive : ''}`}
-                    onClick={() => {
-                      setSelectedSeries(s);
-                      setSelectedModel('all');
-                    }}
-                  >
-                    {s === 'all' ? '전체' : s}
-                  </button>
-                ))}
+                <select 
+                  className={styles.dropdownSelect}
+                  value={selectedStorage}
+                  onChange={(e) => setSelectedStorage(e.target.value)}
+                  aria-label="용량 선택"
+                >
+                  <option value="all">용량: 전체</option>
+                  {availableStorages.filter(st => st !== 'all').map(st => (
+                    <option key={st} value={st}>{st}</option>
+                  ))}
+                </select>
+
+                <select 
+                  className={styles.dropdownSelect}
+                  value={selectedPriceRange}
+                  onChange={(e) => setSelectedPriceRange(e.target.value)}
+                  aria-label="가격대 선택"
+                >
+                  <option value="all">가격: 전체</option>
+                  <option value="under30">30만원 이하</option>
+                  <option value="30to70">30만 ~ 70만원</option>
+                  <option value="70to120">70만 ~ 120만원</option>
+                  <option value="over120">120만원 이상</option>
+                </select>
               </div>
+            </>
+          ) : (
+            <div className={styles.filterSummaryBar} onClick={() => setIsFilterExpanded(true)}>
+              <span className={styles.filterSummaryText}>
+                {getFilterSummary()}
+              </span>
+              <span className={styles.btnExpand}>
+                필터 변경하기 <Search size={12} />
+              </span>
             </div>
           )}
-
-          {/* 3단계: 모델 선택 (선택된 브랜드/카테고리/시리즈에 따른 동적 렌더링) */}
-          {availableModels.length > 1 && (
-            <div className={styles.filterSection}>
-              <span className={styles.filterLabel}>세부 모델</span>
-              <div className={styles.chipContainer}>
-                {availableModels.map(m => (
-                  <button 
-                    key={m}
-                    className={`${styles.chip} ${selectedModel === m ? styles.chipActive : ''}`}
-                    onClick={() => setSelectedModel(m)}
-                  >
-                    {m === 'all' ? '전체' : m}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* 4단계: 드롭다운 필터 (등급, 용량, 가격대) */}
-          <div className={styles.dropdownFilters}>
-            <select 
-              className={styles.dropdownSelect}
-              value={selectedGrade}
-              onChange={(e) => setSelectedGrade(e.target.value)}
-              aria-label="등급 선택"
-            >
-              <option value="all">등급: 전체</option>
-              <option value="S">S급 (최상급)</option>
-              <option value="A">A급 (미세흠집)</option>
-              <option value="B">B급 (가성비)</option>
-            </select>
-
-            <select 
-              className={styles.dropdownSelect}
-              value={selectedStorage}
-              onChange={(e) => setSelectedStorage(e.target.value)}
-              aria-label="용량 선택"
-            >
-              <option value="all">용량: 전체</option>
-              {availableStorages.filter(st => st !== 'all').map(st => (
-                <option key={st} value={st}>{st}</option>
-              ))}
-            </select>
-
-            <select 
-              className={styles.dropdownSelect}
-              value={selectedPriceRange}
-              onChange={(e) => setSelectedPriceRange(e.target.value)}
-              aria-label="가격대 선택"
-            >
-              <option value="all">가격: 전체</option>
-              <option value="under30">30만원 이하</option>
-              <option value="30to70">30만 ~ 70만원</option>
-              <option value="70to120">70만 ~ 120만원</option>
-              <option value="over120">120만원 이상</option>
-            </select>
-          </div>
         </section>
 
         {/* 상품 그리드 리스트 */}
