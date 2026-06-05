@@ -34,6 +34,15 @@ const CITIES_BY_PROVINCE: Record<string, string[]> = {
 const STORAGES = ['128GB', '256GB', '512GB'];
 const COLORS = ['블랙/그레이', '화이트/실버', '블루/골드', '기타 색상'];
 
+const BRAND_LOGOS: Record<string, string> = {
+  apple: 'https://img.icons8.com/ios-filled/100/ffffff/mac-os.png',
+  samsung: 'https://img.icons8.com/color/120/samsung.png',
+  lg: 'https://img.icons8.com/color/120/lg.png',
+  lenovo: 'https://img.icons8.com/color/120/lenovo.png',
+  google: 'https://img.icons8.com/color/120/google-logo.png',
+  기타: 'https://img.icons8.com/ios-filled/100/ffffff/smartphone.png'
+};
+
 function SellFlowContent() {
   const router = useRouter();
   const [step, setStep] = useState(1);
@@ -317,13 +326,14 @@ function SellFlowContent() {
                   className={`${styles.brandCard} ${brand === b ? styles.brandCardActive : ''}`}
                   onClick={() => handleBrandSelect(b)}
                 >
-                  {b.toLowerCase() === 'apple' ? (
-                    <span className={styles.brandLogo} style={{ color: '#fff' }}></span>
-                  ) : b.toLowerCase() === 'samsung' ? (
-                    <span className={styles.brandLogo} style={{ color: '#034ea2' }}>SAMSUNG</span>
-                  ) : (
-                    <span className={styles.brandLogo} style={{ fontSize: '18px' }}>{b}</span>
-                  )}
+                  <div style={{ width: '60px', height: '60px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '4px' }}>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img 
+                      src={BRAND_LOGOS[b.toLowerCase()] || BRAND_LOGOS['기타']} 
+                      alt={b} 
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
+                  </div>
                   <span className={styles.brandName}>{b}</span>
                 </div>
               ))}
