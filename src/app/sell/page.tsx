@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { Smartphone, Check, ArrowRight, ArrowLeft, Landmark, Truck, CheckCircle2 } from 'lucide-react';
+import { Check, ArrowRight, Landmark, Truck, CheckCircle2 } from 'lucide-react';
 import MobileLayout from '@/components/MobileLayout';
 import styles from '@/styles/sell.module.css';
 
@@ -40,41 +40,45 @@ function SellFlowContent() {
   const [user, setUser] = useState<any>(null);
 
   // 시세 조회 상태
-  const [brand, setBrand] = useState<'Apple' | 'Samsung' | null>(null);
+  const [brand, setBrand] = useState<string>('');
+  const [category, setCategory] = useState<string>('');
+  const [series, setSeries] = useState<string>('');
   const [model, setModel] = useState<string>('');
   const [basePrice, setBasePrice] = useState<number>(0);
+  const [grade, setGrade] = useState<'S' | 'A' | 'B' | null>(null);
   const [storage, setStorage] = useState<string>('256GB');
   const [color, setColor] = useState<string>('블랙/그레이');
 
   // 동적 시세 설정 데이터
   const [pricingRules, setPricingRules] = useState<any[]>([]);
-  const [loadingPrices, setLoadingPrices] = useState<boolean>(true);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState<boolean>(true);
 
-  // Fetch prices on mount
+  // Fetch prices and categories on mount
   useEffect(() => {
-    async function fetchPrices() {
+    async function fetchData() {
       try {
-        const res = await fetch('/api/trade-in-prices');
-        const data = await res.json();
-        if (data.success) {
-          setPricingRules(data.data);
+        const pricesRes = await fetch('/api/trade-in-prices');
+        const pricesData = await pricesRes.json();
+        if (pricesData.success) {
+          setPricingRules(pricesData.data);
+        }
+
+        const catsRes = await fetch('/api/categories');
+        const catsData = await catsRes.json();
+        if (catsData.success) {
+          setCategories(catsData.data);
         }
       } catch (err) {
-        console.error('Failed to fetch trade-in prices:', err);
+        console.error('Failed to fetch sell page metadata:', err);
       } finally {
-        setLoadingPrices(false);
+        setLoadingData(false);
       }
     }
-    fetchPrices();
+    fetchData();
   }, []);
 
   const activeRule = pricingRules.find(r => r.model_name === model) || null;
-
-  // 자가진단 항목 상태
-  const [screen, setScreen] = useState<'clean' | 'scratch' | 'broken'>('clean');
-  const [body, setBody] = useState<'clean' | 'scratch' | 'broken'>('clean');
-  const [hasCameraError, setHasCameraError] = useState(false);
-  const [hasScreenBurn, setHasScreenBurn] = useState(false);
 
   // 견적 결과 가격
   const [estimatedPrice, setEstimatedPrice] = useState(0);
@@ -119,15 +123,14 @@ function SellFlowContent() {
       try {
         const parsed = JSON.parse(pendingData);
         setBrand(parsed.brand);
+        setCategory(parsed.category);
+        setSeries(parsed.series);
         setModel(parsed.model);
         setBasePrice(parsed.basePrice);
+        setGrade(parsed.grade);
         setStorage(parsed.storage);
         setColor(parsed.color);
-        setScreen(parsed.screen);
-        setBody(parsed.body);
-        setHasCameraError(parsed.hasCameraError);
-        setHasScreenBurn(parsed.hasScreenBurn);
-        setStep(5); // 견적 화면으로 직행
+        setStep(7); // 견적 & 신청 화면으로 직행
         
         sessionStorage.removeItem('pending_trade_in');
       } catch (e) {
@@ -149,59 +152,44 @@ function SellFlowContent() {
       if (storage === '128GB') price -= activeRule.storage_128g_deduct;
       if (storage === '512GB') price += activeRule.storage_512g_add;
 
-      // 2. 액정 상태 차감
-      if (screen === 'scratch') price -= activeRule.screen_scratch_deduct;
-      if (screen === 'broken') price -= activeRule.screen_broken_deduct;
-
-      // 3. 테두리 외관 상태 차감
-      if (body === 'scratch') price -= activeRule.body_scratch_deduct;
-      if (body === 'broken') price -= activeRule.body_broken_deduct;
-
-      // 4. 기능 불량 차감
-      if (hasCameraError) price -= activeRule.camera_error_deduct;
-      if (hasScreenBurn) price -= activeRule.screen_burn_deduct;
+      // 2. 등급(자가진단 대체)에 따른 차감
+      if (grade === 'A') {
+        price -= (activeRule.screen_scratch_deduct + activeRule.body_scratch_deduct);
+      } else if (grade === 'B') {
+        price -= (activeRule.screen_broken_deduct + activeRule.body_broken_deduct);
+      }
     } else {
       // 로딩 전이나 폴백용 하드코딩 수치
       if (storage === '128GB') price -= 80000;
       if (storage === '512GB') price += 120000;
-      if (screen === 'scratch') price -= 70000;
-      if (screen === 'broken') price -= 250000;
-      if (body === 'scratch') price -= 40000;
-      if (body === 'broken') price -= 120000;
-      if (hasCameraError) price -= 100000;
-      if (hasScreenBurn) price -= 80000;
+      if (grade === 'A') price -= 110000;
+      if (grade === 'B') price -= 370000;
     }
 
     // 최소 매입 보장가
     setEstimatedPrice(Math.max(price, 30000));
-  }, [model, basePrice, storage, screen, body, hasCameraError, hasScreenBurn, activeRule]);
+  }, [model, basePrice, storage, grade, activeRule]);
 
   // 브랜드 선택 핸들러
-  const handleBrandSelect = (selected: 'Apple' | 'Samsung') => {
+  const handleBrandSelect = (selected: string) => {
     setBrand(selected);
+    setCategory('');
+    setSeries('');
     setModel('');
     setStep(2);
-  };
-
-  // 모델 선택 핸들러
-  const handleModelSelect = (selectedModel: string, base: number) => {
-    setModel(selectedModel);
-    setBasePrice(base);
-    setStep(3);
   };
 
   // 비로그인 상태일 때, 자가진단 후 로그인하러 가기
   const handleLoginRequired = () => {
     const stateToSave = {
       brand,
+      category,
+      series,
       model,
       basePrice,
+      grade,
       storage,
-      color,
-      screen,
-      body,
-      hasCameraError,
-      hasScreenBurn
+      color
     };
     sessionStorage.setItem('pending_trade_in', JSON.stringify(stateToSave));
     router.push('/auth?redirect=/sell');
@@ -220,11 +208,13 @@ function SellFlowContent() {
     setLoading(true);
     setError('');
 
+    // 등급을 바탕으로 호환성용 자가진단 항목 가공
     const conditionAnswers = {
-      screen,
-      body,
-      camera: hasCameraError ? 'bad' : 'good',
-      screen_burn: hasScreenBurn ? 'bad' : 'none'
+      screen: grade === 'S' ? 'clean' : grade === 'A' ? 'scratch' : 'broken',
+      body: grade === 'S' ? 'clean' : grade === 'A' ? 'scratch' : 'broken',
+      camera: grade === 'B' ? 'bad' : 'good',
+      screen_burn: grade === 'B' ? 'bad' : 'none',
+      grade: grade // 등급 추가
     };
 
     try {
@@ -234,6 +224,8 @@ function SellFlowContent() {
         body: JSON.stringify({
           member_id: user.id,
           brand,
+          category,
+          series,
           model_name: model,
           storage,
           color,
@@ -249,7 +241,7 @@ function SellFlowContent() {
 
       const data = await res.json();
       if (res.ok && data.success) {
-        setStep(6); // 신청 완료 완료화면 이동
+        setStep(8); // 신청 완료 완료화면 이동 (전체 스텝 수 조절)
       } else {
         setError(data.error || '매입 신청 도중 오류가 발생했습니다.');
       }
@@ -260,21 +252,51 @@ function SellFlowContent() {
     }
   };
 
+  // 데이터 기준으로 동적 제조사 추출
+  const availableBrands = Array.from(new Set(pricingRules.map(r => r.brand)));
+
+  // 선택 브랜드가 매입 가능한 기종 카테고리
+  const availableCategories = categories.filter(cat => 
+    pricingRules.some(r => r.brand.toLowerCase() === brand.toLowerCase() && r.category === cat.name)
+  );
+
+  // 선택 브랜드 & 기종의 시리즈
+  const availableSeries = Array.from(new Set(
+    pricingRules
+      .filter(r => r.brand.toLowerCase() === brand.toLowerCase() && r.category === category)
+      .map(r => r.series)
+  ));
+
+  // 선택 브랜드 & 기종 & 시리즈의 세부 모델들
+  const availableModels = pricingRules.filter(r => 
+    r.brand.toLowerCase() === brand.toLowerCase() && 
+    r.category === category && 
+    r.series === series
+  );
+
   return (
     <div className={styles.sellWrapper}>
       
-      {/* 진행바 (완료화면 step 6 제외) */}
-      {step < 6 && (
+      {/* 진행바 (완료화면 step 8 제외) */}
+      {step < 8 && (
         <div className={styles.stepHeader}>
           <div className={styles.stepProgress}>
             <div 
               className={styles.progressBar} 
-              style={{ width: `${(step / 5) * 100}%` }} 
+              style={{ width: `${(step / 7) * 100}%` }} 
             />
           </div>
           <div className={styles.stepInfo}>
-            <span>단계 {step} / 5</span>
-            <span>{step === 5 ? '견적 및 신청' : '정보 입력'}</span>
+            <span>단계 {step} / 7</span>
+            <span>
+              {step === 1 && '제조사 선택'}
+              {step === 2 && '기종 선택'}
+              {step === 3 && '시리즈 선택'}
+              {step === 4 && '모델 선택'}
+              {step === 5 && '상태 등급 선택'}
+              {step === 6 && '용량 및 색상'}
+              {step === 7 && '최종 신청서'}
+            </span>
           </div>
         </div>
       )}
@@ -282,65 +304,187 @@ function SellFlowContent() {
       {/* Step 1: 제조사 선택 */}
       {step === 1 && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <h2 className={styles.stepTitle}>판매하실 휴대폰의<br />제조사를 골라주세요</h2>
-          <div className={styles.gridOptions}>
-            <div 
-              className={`${styles.brandCard} ${brand === 'Apple' ? styles.brandCardActive : ''}`}
-              onClick={() => handleBrandSelect('Apple')}
-            >
-              <span className={styles.brandLogo} style={{ color: '#fff' }}></span>
-              <span className={styles.brandName}>애플 (Apple)</span>
-            </div>
-            <div 
-              className={`${styles.brandCard} ${brand === 'Samsung' ? styles.brandCardActive : ''}`}
-              onClick={() => handleBrandSelect('Samsung')}
-            >
-              <span className={styles.brandLogo} style={{ color: '#034ea2' }}>SAMSUNG</span>
-              <span className={styles.brandName}>삼성 (Samsung)</span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Step 2: 모델명 선택 */}
-      {step === 2 && brand && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <h2 className={styles.stepTitle}>기종 모델명을<br />선택해주세요</h2>
-          {loadingPrices ? (
+          <h2 className={styles.stepTitle}>판매하실 기기의<br />제조사를 골라주세요</h2>
+          {loadingData ? (
             <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
-              모델 정보를 불러오는 중입니다...
+              시세 정보를 불러오는 중...
             </div>
           ) : (
-            <div className={styles.listOptions}>
-              {pricingRules
-                .filter(item => item.brand.toLowerCase() === brand.toLowerCase())
-                .map((item) => (
-                  <div 
-                    key={item.id || item.model_name} 
-                    className={`${styles.modelItem} ${model === item.model_name ? styles.modelItemActive : ''}`}
-                    onClick={() => handleModelSelect(item.model_name, item.base_price)}
-                  >
-                    <span>{item.model_name}</span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>선택</span>
-                  </div>
-                ))}
-              {pricingRules.filter(item => item.brand.toLowerCase() === brand.toLowerCase()).length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
-                  등록된 모델이 없습니다.
+            <div className={styles.gridOptions}>
+              {availableBrands.map((b) => (
+                <div 
+                  key={b} 
+                  className={`${styles.brandCard} ${brand === b ? styles.brandCardActive : ''}`}
+                  onClick={() => handleBrandSelect(b)}
+                >
+                  {b.toLowerCase() === 'apple' ? (
+                    <span className={styles.brandLogo} style={{ color: '#fff' }}></span>
+                  ) : b.toLowerCase() === 'samsung' ? (
+                    <span className={styles.brandLogo} style={{ color: '#034ea2' }}>SAMSUNG</span>
+                  ) : (
+                    <span className={styles.brandLogo} style={{ fontSize: '18px' }}>{b}</span>
+                  )}
+                  <span className={styles.brandName}>{b}</span>
+                </div>
+              ))}
+              {availableBrands.length === 0 && (
+                <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  등록된 매입 가격 정보가 없습니다.
                 </div>
               )}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Step 2: 기종 카테고리 선택 */}
+      {step === 2 && brand && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <h2 className={styles.stepTitle}>어떤 종류의 기기인가요?</h2>
+          <div className={styles.gridOptions}>
+            {availableCategories.map((cat) => (
+              <div 
+                key={cat.id} 
+                className={`${styles.brandCard} ${category === cat.name ? styles.brandCardActive : ''}`}
+                onClick={() => {
+                  setCategory(cat.name);
+                  setSeries('');
+                  setModel('');
+                  setStep(3);
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img 
+                  src={cat.image} 
+                  alt={cat.name} 
+                  style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '50%', border: '1px solid var(--border-color)' }}
+                />
+                <span className={styles.brandName}>{cat.name}</span>
+              </div>
+            ))}
+            {availableCategories.length === 0 && (
+              <div style={{ gridColumn: 'span 2', padding: '40px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                이 브랜드에 대한 기종 카테고리가 없습니다.
+              </div>
+            )}
+          </div>
           <div className={styles.btnArea}>
             <button className={styles.btnBack} onClick={() => setStep(1)}>이전</button>
           </div>
         </div>
       )}
 
-      {/* Step 3: 세부 스펙 (용량 & 색상) */}
-      {step === 3 && (
+      {/* Step 3: 시리즈 선택 */}
+      {step === 3 && category && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <h2 className={styles.stepTitle}>용량과 색상을<br />입력해주세요</h2>
+          <h2 className={styles.stepTitle}>기기의 시리즈를<br />선택해주세요</h2>
+          <div className={styles.listOptions}>
+            {availableSeries.map((s) => (
+              <div 
+                key={s} 
+                className={`${styles.modelItem} ${series === s ? styles.modelItemActive : ''}`}
+                onClick={() => {
+                  setSeries(s);
+                  setModel('');
+                  setStep(4);
+                }}
+              >
+                <span>{s}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>선택</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.btnArea}>
+            <button className={styles.btnBack} onClick={() => setStep(2)}>이전</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 4: 세부 모델명 선택 */}
+      {step === 4 && series && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <h2 className={styles.stepTitle}>최종 세부 모델을<br />선택해주세요</h2>
+          <div className={styles.listOptions}>
+            {availableModels.map((item) => (
+              <div 
+                key={item.id} 
+                className={`${styles.modelItem} ${model === item.model_name ? styles.modelItemActive : ''}`}
+                onClick={() => {
+                  setModel(item.model_name);
+                  setBasePrice(item.base_price);
+                  setStep(5);
+                }}
+              >
+                <span>{item.model_name}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>선택</span>
+              </div>
+            ))}
+          </div>
+          <div className={styles.btnArea}>
+            <button className={styles.btnBack} onClick={() => setStep(3)}>이전</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 5: 안심 등급 선택 */}
+      {step === 5 && model && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <h2 className={styles.stepTitle}>기기의 실제 외관 및 작동<br />상태를 선택해주세요</h2>
+          
+          <div className={styles.listOptions} style={{ maxHeight: 'none', gap: '14px' }}>
+            <div 
+              className={`${styles.modelItem} ${grade === 'S' ? styles.modelItemActive : ''}`}
+              onClick={() => { setGrade('S'); setStep(6); }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', padding: '16px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--accent-light)' }}>S급 (흠집 없음)</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>차감 없음</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'normal', margin: 0, textAlign: 'left', lineHeight: '1.4' }}>
+                액정 화면 및 기기 전체 외관에 기스나 찍힘이 전혀 없고, 모든 작동 기능이 신품 수준으로 완벽한 상태
+              </p>
+            </div>
+
+            <div 
+              className={`${styles.modelItem} ${grade === 'A' ? styles.modelItemActive : ''}`}
+              onClick={() => { setGrade('A'); setStep(6); }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', padding: '16px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--accent-color)' }}>A급 (미세 흠집)</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>일부 차감</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'normal', margin: 0, textAlign: 'left', lineHeight: '1.4' }}>
+                화면이나 테두리/뒷면에 미세한 생활 기스, 가벼운 찍힘 흔적이 있으나 정상 작동하는 상태
+              </p>
+            </div>
+
+            <div 
+              className={`${styles.modelItem} ${grade === 'B' ? styles.modelItemActive : ''}`}
+              onClick={() => { setGrade('B'); setStep(6); }}
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '4px', padding: '16px' }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <span style={{ fontSize: '15px', fontWeight: '800', color: 'var(--danger-color)' }}>B급 (파손 및 다수 기스)</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>많은 차감</span>
+              </div>
+              <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'normal', margin: 0, textAlign: 'left', lineHeight: '1.4' }}>
+                액정/유리 깨짐, 깊은 파손 흠집이 다수 있거나 화면 잔상(Burn-in) 및 카메라 등 일부 기능에 이상이 있는 상태
+              </p>
+            </div>
+          </div>
+
+          <div className={styles.btnArea}>
+            <button className={styles.btnBack} onClick={() => setStep(4)}>이전</button>
+          </div>
+        </div>
+      )}
+
+      {/* Step 6: 용량 및 색상 선택 */}
+      {step === 6 && (
+        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <h2 className={styles.stepTitle}>기기의 세부 용량과 색상을<br />골라주세요</h2>
           
           <div style={{ marginTop: '16px' }}>
             <h3 className={styles.formLabel} style={{ marginBottom: '8px' }}>저장 용량</h3>
@@ -373,125 +517,29 @@ function SellFlowContent() {
           </div>
 
           <div className={styles.btnArea}>
-            <button className={styles.btnBack} onClick={() => setStep(2)}>이전</button>
-            <button className={styles.btnNext} onClick={() => setStep(4)}>상태 진단으로 이동</button>
+            <button className={styles.btnBack} onClick={() => setStep(5)}>이전</button>
+            <button className={styles.btnNext} onClick={() => setStep(7)}>내 예상 견적 확인</button>
           </div>
         </div>
       )}
 
-      {/* Step 4: 자가진단 (화면, 외관, 기능) */}
-      {step === 4 && (
-        <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
-          <h2 className={styles.stepTitle}>현재 폰의 상태를<br />진단해주세요</h2>
-          
-          <div style={{ marginTop: '12px' }}>
-            {/* 액정 상태 */}
-            <div className={styles.questionCard}>
-              <h3 className={styles.questionText}>1. 전면 액정 유리의 상태는 어떤가요?</h3>
-              <div className={styles.conditionGrid}>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${screen === 'clean' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setScreen('clean')}
-                >
-                  깨끗함
-                </button>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${screen === 'scratch' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setScreen('scratch')}
-                >
-                  미세 흠집 {activeRule ? `(-${(activeRule.screen_scratch_deduct / 10000).toLocaleString()}만)` : '(-7만)'}
-                </button>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${screen === 'broken' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setScreen('broken')}
-                >
-                  파손/깨짐 {activeRule ? `(-${(activeRule.screen_broken_deduct / 10000).toLocaleString()}만)` : '(-25만)'}
-                </button>
-              </div>
-            </div>
-
-            {/* 테두리 상태 */}
-            <div className={styles.questionCard}>
-              <h3 className={styles.questionText}>2. 측면 테두리 및 뒤판의 유리는 어떤가요?</h3>
-              <div className={styles.conditionGrid}>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${body === 'clean' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setBody('clean')}
-                >
-                  흠집없음
-                </button>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${body === 'scratch' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setBody('scratch')}
-                >
-                  미세 찍힘 {activeRule ? `(-${(activeRule.body_scratch_deduct / 10000).toLocaleString()}만)` : '(-4만)'}
-                </button>
-                <button 
-                  type="button" 
-                  className={`${styles.conditionBtn} ${body === 'broken' ? styles.conditionBtnActive : ''}`}
-                  onClick={() => setBody('broken')}
-                >
-                  심한 파손 {activeRule ? `(-${(activeRule.body_broken_deduct / 10000).toLocaleString()}만)` : '(-12만)'}
-                </button>
-              </div>
-            </div>
-
-            {/* 기능 하자 */}
-            <div className={styles.questionCard}>
-              <h3 className={styles.questionText}>3. 불량 또는 고장이 있는 기능이 있나요?</h3>
-              <div className={styles.checkboxList}>
-                <div 
-                  className={`${styles.checkboxItem} ${hasCameraError ? styles.checkboxItemActive : ''}`}
-                  onClick={() => setHasCameraError(!hasCameraError)}
-                >
-                  <div className={styles.checkboxBox}>
-                    {hasCameraError && <Check size={12} />}
-                  </div>
-                  <span>카메라 작동 고장 / 렌즈 손상 {activeRule ? `(-${(activeRule.camera_error_deduct / 10000).toLocaleString()}만)` : '(-10만)'}</span>
-                </div>
-
-                <div 
-                  className={`${styles.checkboxItem} ${hasScreenBurn ? styles.checkboxItemActive : ''}`}
-                  onClick={() => setHasScreenBurn(!hasScreenBurn)}
-                >
-                  <div className={styles.checkboxBox}>
-                    {hasScreenBurn && <Check size={12} />}
-                  </div>
-                  <span>화면 잔상(Burn-in) / 백화 현상 {activeRule ? `(-${(activeRule.screen_burn_deduct / 10000).toLocaleString()}만)` : '(-8만)'}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className={styles.btnArea}>
-            <button className={styles.btnBack} onClick={() => setStep(3)}>이전</button>
-            <button className={styles.btnNext} onClick={() => setStep(5)}>내 견적서 확인</button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 5: 견적서 제시 및 접수 양식 */}
-      {step === 5 && (
+      {/* Step 7: 견적서 확인 및 신청 폼 */}
+      {step === 7 && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <h2 className={styles.stepTitle}>산출된 예상 매입가를<br />확인하세요</h2>
           
           <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <div className={styles.priceEstimateCard}>
-              <span className={styles.priceLabel}>{model} ({storage}) 자가진단 예상가</span>
+              <span className={styles.priceLabel}>{model} ({storage} · {grade}급) 예상가</span>
               <span className={styles.priceNumber}>{estimatedPrice.toLocaleString()}원</span>
-              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>* 실물 검수 후 최종 매입 금액이 변동될 수 있습니다.</span>
+              <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>* 실물 검수 후 상태 분류에 따라 최종 금액이 조정될 수 있습니다.</span>
             </div>
 
             {!user ? (
               // 로그인 안 된 사용자
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', textAlign: 'center', lineHeight: '1.4' }}>
-                  매입 신청을 완료하기 위해서는<br />휴대폰 본인 인증(로그인)이 필요합니다.
+                  매입 신청을 완료하기 위해서는<br />본인 인증(전화번호 로그인)이 필요합니다.
                 </p>
                 <button 
                   onClick={handleLoginRequired} 
@@ -500,7 +548,7 @@ function SellFlowContent() {
                 >
                   인증하고 신청 계속하기 <ArrowRight size={18} />
                 </button>
-                <button className={styles.btnBack} onClick={() => setStep(4)} style={{ width: '100%' }}>이전 단계로</button>
+                <button className={styles.btnBack} onClick={() => setStep(6)} style={{ width: '100%' }}>이전 단계로</button>
               </div>
             ) : (
               // 로그인 된 사용자 -> 배송/정산 양식 노출
@@ -513,7 +561,7 @@ function SellFlowContent() {
                       onClick={() => setShippingMethod('pickup')}
                     >
                       <Truck size={16} style={{ display: 'block', margin: '0 auto 6px' }} />
-                      방문수거 (무료 우체국)
+                      방문수거 (우체국택배 무료)
                     </div>
                     <div 
                       className={`${styles.radioItem} ${shippingMethod === 'parcel' ? styles.radioItemActive : ''}`}
@@ -601,7 +649,7 @@ function SellFlowContent() {
                 {error && <p className={styles.errorText}>{error}</p>}
 
                 <div className={styles.btnArea}>
-                  <button type="button" className={styles.btnBack} onClick={() => setStep(4)}>이전</button>
+                  <button type="button" className={styles.btnBack} onClick={() => setStep(6)}>이전</button>
                   <button type="submit" className={styles.btnNext} disabled={loading}>
                     {loading ? '신청 처리 중...' : '최종 매입 신청하기'}
                   </button>
@@ -612,14 +660,14 @@ function SellFlowContent() {
         </div>
       )}
 
-      {/* Step 6: 신청 완료 화면 */}
-      {step === 6 && (
+      {/* Step 8: 신청 완료 화면 */}
+      {step === 8 && (
         <div className={`${styles.successWrapper} animate-slide-up`}>
           <CheckCircle2 size={68} color="var(--success-color)" style={{ filter: 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.4))' }} />
           <h2 className={styles.successTitle}>매입 신청이<br />성공적으로 접수되었습니다!</h2>
           <p className={styles.successDesc}>
             접수하신 수거지로 전담 택배 기사님이 배정되어 수일 내 방문합니다.<br />
-            실물 기기 검수 후, 최종 확정 견적이 발행되면 문자 알림 및 마이페이지로 최종 확인 요청을 드립니다.
+            실물 기기 수거 후 전문 검수팀의 검수를 거쳐 최종 확인 요청을 드립니다.
           </p>
           <button 
             onClick={() => router.push('/mypage')} 

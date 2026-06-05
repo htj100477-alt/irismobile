@@ -14,7 +14,7 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { brand, model_name, storage, color, price, grade, images, description, status } = body;
+    const { brand, model_name, storage, color, price, grade, images, description, status, category, series } = body;
 
     if (!brand || !model_name || !storage || !color || !price || !grade) {
       return NextResponse.json({ error: '필수 상품 정보가 누락되었습니다.' }, { status: 400 });
@@ -29,7 +29,9 @@ export async function POST(request: Request) {
       grade,
       images: images || [],
       description: description || '',
-      status: status || 'available'
+      status: status || 'available',
+      category: category || '스마트폰',
+      series: series || '기타 시리즈'
     });
 
     return NextResponse.json({ success: true, data: newProduct });

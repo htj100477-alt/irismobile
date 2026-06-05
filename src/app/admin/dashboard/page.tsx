@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 이미지 압축 헬퍼 함수
@@ -78,6 +78,8 @@ interface Product {
   images: string[];
   description: string;
   status: 'available' | 'reserved' | 'sold';
+  category?: string;
+  series?: string;
 }
 
 interface Order {
@@ -92,16 +94,24 @@ interface Order {
   products: { brand: string; model_name: string; storage: string; color: string; grade: string } | null;
 }
 
-export default function AdminDashboardPage() {
+export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories'>('home');
   const [loading, setLoading] = useState(true);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // 데이터 리스트
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [tradeInPrices, setTradeInPrices] = useState<any[]>([]);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  // 카테고리 관리 상태
+  const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<any | null>(null);
+  const [catName, setCatName] = useState('');
+  const [catImage, setCatImage] = useState('');
 
   // 모달 제어 상태
   const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false);
@@ -120,6 +130,8 @@ export default function AdminDashboardPage() {
   const [prodGrade, setProdGrade] = useState<'S' | 'A' | 'B'>('A');
   const [prodImage, setProdImage] = useState('');
   const [prodDescription, setProdDescription] = useState('');
+  const [prodCategory, setProdCategory] = useState('스마트폰');
+  const [prodSeries, setProdSeries] = useState('');
 
   // 매입 시세 설정 모달 상태
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
@@ -135,6 +147,8 @@ export default function AdminDashboardPage() {
   const [ruleBodyBrokenDeduct, setRuleBodyBrokenDeduct] = useState<number>(0);
   const [ruleCameraErrorDeduct, setRuleCameraErrorDeduct] = useState<number>(0);
   const [ruleScreenBurnDeduct, setRuleScreenBurnDeduct] = useState<number>(0);
+  const [ruleCategory, setRuleCategory] = useState('스마트폰');
+  const [ruleSeries, setRuleSeries] = useState('');
 
   // 시세 필터 및 검색 상태
   const [priceFilterBrand, setPriceFilterBrand] = useState<'All' | 'Apple' | 'Samsung'>('All');
@@ -174,6 +188,11 @@ export default function AdminDashboardPage() {
       const priceRes = await fetch('/api/trade-in-prices');
       const priceData = await priceRes.json();
       if (priceData.success) setTradeInPrices(priceData.data);
+
+      // 카테고리 데이터 로드
+      const catRes = await fetch('/api/categories');
+      const catData = await catRes.json();
+      if (catData.success) setCategories(catData.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -216,8 +235,6 @@ export default function AdminDashboardPage() {
       alert('서버 응답 오류가 발생했습니다.');
     }
   };
-
-  const [uploadingImage, setUploadingImage] = useState(false);
 
   const handleImageFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -265,6 +282,8 @@ export default function AdminDashboardPage() {
       setProdGrade(prod.grade);
       setProdImage(prod.images[0] || '');
       setProdDescription(prod.description || '');
+      setProdCategory(prod.category || '스마트폰');
+      setProdSeries(prod.series || '');
     } else {
       // 신규 등록 모드
       setProdBrand('Apple');
@@ -275,6 +294,8 @@ export default function AdminDashboardPage() {
       setProdGrade('A');
       setProdImage('');
       setProdDescription('');
+      setProdCategory(categories[0]?.name || '스마트폰');
+      setProdSeries('');
     }
     setIsProductModalOpen(true);
   };
@@ -294,6 +315,8 @@ export default function AdminDashboardPage() {
       grade: prodGrade,
       images: prodImage ? [prodImage] : ['https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=500'],
       description: prodDescription,
+      category: prodCategory,
+      series: prodSeries,
     };
 
     try {
@@ -375,6 +398,8 @@ export default function AdminDashboardPage() {
       setRuleBodyBrokenDeduct(rule.body_broken_deduct);
       setRuleCameraErrorDeduct(rule.camera_error_deduct);
       setRuleScreenBurnDeduct(rule.screen_burn_deduct);
+      setRuleCategory(rule.category || '스마트폰');
+      setRuleSeries(rule.series || '');
     } else {
       // 신규 등록 모드
       setRuleBrand('Apple');
@@ -388,6 +413,8 @@ export default function AdminDashboardPage() {
       setRuleBodyBrokenDeduct(120000);
       setRuleCameraErrorDeduct(100000);
       setRuleScreenBurnDeduct(80000);
+      setRuleCategory(categories[0]?.name || '스마트폰');
+      setRuleSeries('');
     }
     setIsPriceModalOpen(true);
   };
@@ -409,7 +436,9 @@ export default function AdminDashboardPage() {
       body_scratch_deduct: ruleBodyScratchDeduct,
       body_broken_deduct: ruleBodyBrokenDeduct,
       camera_error_deduct: ruleCameraErrorDeduct,
-      screen_burn_deduct: ruleScreenBurnDeduct
+      screen_burn_deduct: ruleScreenBurnDeduct,
+      category: ruleCategory,
+      series: ruleSeries
     };
 
     try {
@@ -439,6 +468,75 @@ export default function AdminDashboardPage() {
       }
     } catch (err) {
       alert('서버 처리 오류가 발생했습니다.');
+    }
+  };
+
+  // 6. 카테고리 관리 액션
+  const openCategoryModal = (cat: any | null = null) => {
+    setSelectedCategory(cat);
+    if (cat) {
+      setCatName(cat.name);
+      setCatImage(cat.image);
+    } else {
+      setCatName('');
+      setCatImage('');
+    }
+    setIsCategoryModalOpen(true);
+  };
+
+  const saveCategory = async () => {
+    if (!catName || !catImage) {
+      alert('카테고리명과 이미지 URL을 모두 입력해주세요.');
+      return;
+    }
+
+    const payload = {
+      name: catName,
+      image: catImage
+    };
+
+    try {
+      let res;
+      if (selectedCategory) {
+        // 수정 요청
+        res = await fetch('/api/categories', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedCategory.id, ...payload })
+        });
+      } else {
+        // 신규 등록 요청
+        res = await fetch('/api/categories', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsCategoryModalOpen(false);
+        loadAllData();
+      } else {
+        alert(data.error || '카테고리 저장 실패');
+      }
+    } catch (err) {
+      alert('서버 오류');
+    }
+  };
+
+  const deleteCat = async (id: string) => {
+    if (!confirm('정말로 이 카테고리를 삭제하시겠습니까? 연결된 상품들의 분류에 영향을 미칠 수 있습니다.')) return;
+
+    try {
+      const res = await fetch(`/api/categories?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        loadAllData();
+      } else {
+        alert('카테고리 삭제 실패');
+      }
+    } catch (err) {
+      alert('서버 오류');
     }
   };
 
@@ -514,6 +612,13 @@ export default function AdminDashboardPage() {
             className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
           >
             <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('categories')}
+            className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
+          >
+            <Layers size={18} /> 카테고리 관리 ({categories.length})
           </button>
         </nav>
 
@@ -1084,6 +1189,74 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {/* 카테고리 관리 탭 */}
+        {activeTab === 'categories' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <h2 className={styles.pageTitle}>카테고리(기종) 관리</h2>
+              <button onClick={() => openCategoryModal(null)} className={styles.btnSave} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Plus size={16} /> 신규 카테고리 추가
+              </button>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th>기종 썸네일</th>
+                      <th>카테고리명</th>
+                      <th>등록일</th>
+                      <th>작업</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {categories.map(cat => (
+                      <tr key={cat.id}>
+                        <td>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img 
+                            src={cat.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=150'} 
+                            alt={cat.name}
+                            style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                          />
+                        </td>
+                        <td style={{ fontWeight: 'bold', color: '#fff' }}>{cat.name}</td>
+                        <td>{cat.created_at ? new Date(cat.created_at).toLocaleDateString() : '기본 데이터'}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button 
+                              onClick={() => openCategoryModal(cat)} 
+                              className={styles.btnCancel} 
+                              style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}
+                            >
+                              수정
+                            </button>
+                            <button 
+                              onClick={() => deleteCat(cat.id)} 
+                              className={styles.btnCancel} 
+                              style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent' }}
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {categories.length === 0 && (
+                      <tr>
+                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          등록된 카테고리가 없습니다. [신규 카테고리 추가]를 눌러 첫 카테고리를 등록해보세요.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* 3. 모달 - 매입 검수 및 가격 조정 모달 */}
@@ -1206,6 +1379,19 @@ export default function AdminDashboardPage() {
             <div className={styles.formGrid}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="prodCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>기종 카테고리</label>
+                  <select 
+                    id="prodCategorySelect"
+                    value={prodCategory} 
+                    onChange={(e) => setProdCategory(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="brandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>제조사</label>
                   <select 
                     id="brandSelect"
@@ -1215,7 +1401,26 @@ export default function AdminDashboardPage() {
                   >
                     <option>Apple</option>
                     <option>Samsung</option>
+                    <option>LG</option>
+                    <option>Lenovo</option>
+                    <option>Google</option>
+                    <option>기타</option>
                   </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="prodSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>시리즈</label>
+                  <input 
+                    id="prodSeriesInput"
+                    type="text" 
+                    placeholder="예: 15 시리즈, 맥북 시리즈"
+                    value={prodSeries} 
+                    onChange={(e) => setProdSeries(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="gradeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>안심 등급</label>
@@ -1411,6 +1616,19 @@ export default function AdminDashboardPage() {
             <div className={styles.formGrid}>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 카테고리</label>
+                  <select 
+                    id="ruleCategorySelect"
+                    value={ruleCategory} 
+                    onChange={(e) => setRuleCategory(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  >
+                    {categories.map(c => (
+                      <option key={c.id} value={c.name}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="ruleBrandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>제조사</label>
                   <select 
                     id="ruleBrandSelect"
@@ -1420,7 +1638,26 @@ export default function AdminDashboardPage() {
                   >
                     <option>Apple</option>
                     <option>Samsung</option>
+                    <option>LG</option>
+                    <option>Lenovo</option>
+                    <option>Google</option>
+                    <option>기타</option>
                   </select>
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>시리즈</label>
+                  <input 
+                    id="ruleSeriesInput"
+                    type="text" 
+                    placeholder="예: 15 시리즈, 맥북 시리즈"
+                    value={ruleSeries} 
+                    onChange={(e) => setRuleSeries(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="ruleModelNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 명칭</label>
@@ -1552,6 +1789,54 @@ export default function AdminDashboardPage() {
             <div className={styles.btnGroup}>
               <button onClick={() => setIsPriceModalOpen(false)} className={styles.btnCancel}>취소</button>
               <button onClick={savePriceRule} className={styles.btnSave}>저장하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* 6. 모달 - 카테고리 등록 및 수정 모달 */}
+      {isCategoryModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '450px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {selectedCategory ? '카테고리 정보 수정' : '신규 카테고리 추가'}
+              </h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} style={{ color: 'var(--text-secondary)' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className={styles.formGrid} style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label htmlFor="catNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 이름</label>
+                <input 
+                  id="catNameInput"
+                  type="text" 
+                  placeholder="예: 스마트폰, 태블릿, 노트북..."
+                  value={catName} 
+                  onChange={(e) => setCatName(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                <label htmlFor="catImageInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 썸네일 이미지 URL</label>
+                <input 
+                  id="catImageInput"
+                  type="text" 
+                  placeholder="https://images.unsplash.com/..."
+                  value={catImage} 
+                  onChange={(e) => setCatImage(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+            </div>
+
+            <div className={styles.btnGroup} style={{ marginTop: '20px' }}>
+              <button onClick={() => setIsCategoryModalOpen(false)} className={styles.btnCancel}>취소</button>
+              <button onClick={saveCategory} className={styles.btnSave}>저장하기</button>
             </div>
           </div>
         </div>

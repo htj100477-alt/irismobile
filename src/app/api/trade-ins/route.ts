@@ -25,6 +25,8 @@ export async function POST(request: Request) {
     const {
       member_id,
       brand,
+      category,
+      series,
       model_name,
       storage,
       color,
@@ -45,6 +47,8 @@ export async function POST(request: Request) {
     const newRequest = await createTradeInRequest({
       member_id,
       brand,
+      category: category || '스마트폰',
+      series: series || '기타 시리즈',
       model_name,
       storage,
       color: color || '',

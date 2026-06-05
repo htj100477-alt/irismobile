@@ -13,12 +13,23 @@ export const supabase = supabaseUrl && supabaseAnonKey
 // 로컬 Mock DB 파일 경로 (서버사이드에서만 사용 가능)
 const MOCK_DB_PATH = path.join(process.cwd(), 'src/lib/mock-db.json');
 
+// 기본 샘플 카테고리 데이터
+const DEFAULT_CATEGORIES = [
+  { id: 'cat-1', name: '스마트폰', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=150' },
+  { id: 'cat-2', name: '태블릿', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=150' },
+  { id: 'cat-3', name: '스마트워치', image: 'https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=150' },
+  { id: 'cat-4', name: '노트북', image: 'https://images.unsplash.com/photo-1496181130204-7552cc14b1b0?w=150' },
+  { id: 'cat-5', name: '무선이어폰', image: 'https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=150' }
+];
+
 // 기본 샘플 상품 데이터
 const DEFAULT_PRODUCTS = [
   {
     id: 'prod-1',
     brand: 'Apple',
     model_name: '아이폰 15 프로',
+    category: '스마트폰',
+    series: '15 시리즈',
     storage: '256GB',
     color: '내추럴 티타늄',
     price: 1150000,
@@ -32,6 +43,8 @@ const DEFAULT_PRODUCTS = [
     id: 'prod-2',
     brand: 'Apple',
     model_name: '아이폰 14',
+    category: '스마트폰',
+    series: '14 시리즈',
     storage: '128GB',
     color: '스타라이트',
     price: 750000,
@@ -44,13 +57,150 @@ const DEFAULT_PRODUCTS = [
   {
     id: 'prod-3',
     brand: 'Samsung',
-    model_name: '갤럭시 S24 울라트',
+    model_name: '갤럭시 S24 울트라',
+    category: '스마트폰',
+    series: 'S24 시리즈',
     storage: '512GB',
     color: '티타늄 블랙',
     price: 1250000,
     grade: 'S',
     images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500&auto=format&fit=crop&q=60'],
     description: '개통 후 실사용 2주 미만의 거의 새 제품입니다. 최초 통화일 2024년 3월.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-4',
+    brand: 'Samsung',
+    model_name: '갤럭시 S23',
+    category: '스마트폰',
+    series: 'S23 시리즈',
+    storage: '256GB',
+    color: '크림',
+    price: 650000,
+    grade: 'B',
+    images: ['https://images.unsplash.com/photo-1573148195900-7845dcb9b127?w=500&auto=format&fit=crop&q=60'],
+    description: '뒷면에 카메라 옆 미세 기스 있으며 잔상 없는 가성비 좋은 B급 상품입니다.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-5',
+    brand: 'Apple',
+    model_name: 'M3 맥북 에어 13',
+    category: '노트북',
+    series: '맥북 시리즈',
+    storage: '256GB',
+    color: '스페이스 그레이',
+    price: 1350000,
+    grade: 'S',
+    images: ['https://images.unsplash.com/photo-1517336714731-489689fd1ca8?w=500&auto=format&fit=crop&q=60'],
+    description: '박스 및 순정 충전기 포함 풀세트이며, 배터리 효율 100% S급 상태입니다.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-6',
+    brand: 'Apple',
+    model_name: '아이패드 에어 6세대',
+    category: '태블릿',
+    series: '아이패드 시리즈',
+    storage: '128GB',
+    color: '스페이스 그레이',
+    price: 780000,
+    grade: 'S',
+    images: ['https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=500&auto=format&fit=crop&q=60'],
+    description: '실사용 거의 없는 신품급 태블릿 PC입니다. 필름 부착되어 있습니다.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-7',
+    brand: 'Apple',
+    model_name: '애플워치 9 45mm',
+    category: '스마트워치',
+    series: '애플워치 시리즈',
+    storage: '32GB',
+    color: '미드나잇',
+    price: 380000,
+    grade: 'A',
+    images: ['https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?w=500&auto=format&fit=crop&q=60'],
+    description: '테두리 미세한 생활 흠집 존재하나 전체 작동 이상 무.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-8',
+    brand: 'Apple',
+    model_name: '에어팟 프로 2세대',
+    category: '무선이어폰',
+    series: '에어팟 시리즈',
+    storage: '기본형',
+    color: '화이트',
+    price: 220000,
+    grade: 'S',
+    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop&q=60'],
+    description: '케이스 스킨스티커 미사용이며 상태 최상입니다. 철가루 방지 스티커 적용됨.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-9',
+    brand: 'Samsung',
+    model_name: '갤럭시 북 4 프로',
+    category: '노트북',
+    series: '갤럭시북 시리즈',
+    storage: '512GB',
+    color: '문스톤 그레이',
+    price: 1450000,
+    grade: 'S',
+    images: ['https://images.unsplash.com/photo-1496181130204-7552cc14b1b0?w=500&auto=format&fit=crop&q=60'],
+    description: '고사양 노트북이며 상태 S급입니다. 가죽 파우치 증정합니다.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-10',
+    brand: 'Samsung',
+    model_name: '갤럭시 탭 S9',
+    category: '태블릿',
+    series: '갤럭시탭 시리즈',
+    storage: '256GB',
+    color: '그라파이트',
+    price: 680000,
+    grade: 'A',
+    images: ['https://images.unsplash.com/photo-1573148195900-7845dcb9b127?w=500&auto=format&fit=crop&q=60'],
+    description: '펜 포함이며 기능 정상 동작합니다. 액정 보호 필름 부착됨.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-11',
+    brand: 'Samsung',
+    model_name: '갤럭시 워치 6 44mm',
+    category: '스마트워치',
+    series: '갤럭시워치 시리즈',
+    storage: '16GB',
+    color: '실버',
+    price: 210000,
+    grade: 'B',
+    images: ['https://images.unsplash.com/photo-1579586337278-3befd40fd17a?w=500&auto=format&fit=crop&q=60'],
+    description: '생활 스크래치가 다소 있는 실사용에 편한 B급 상품입니다.',
+    status: 'available',
+    created_at: new Date().toISOString()
+  },
+  {
+    id: 'prod-12',
+    brand: 'Samsung',
+    model_name: '갤럭시 버즈 2 프로',
+    category: '무선이어폰',
+    series: '갤럭시버즈 시리즈',
+    storage: '기본형',
+    color: '그라파이트',
+    price: 110000,
+    grade: 'A',
+    images: ['https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=500&auto=format&fit=crop&q=60'],
+    description: '양쪽 유닛 정상 동작하며 외관 미세한 흠집 있습니다.',
     status: 'available',
     created_at: new Date().toISOString()
   }
@@ -62,6 +212,8 @@ const DEFAULT_TRADE_INS = [
     id: 'trade-1',
     member_id: 'member-test',
     brand: 'Apple',
+    category: '스마트폰',
+    series: '13 시리즈',
     model_name: '아이폰 13 프로',
     storage: '128GB',
     color: '시이에라 블루',
@@ -97,15 +249,23 @@ const DEFAULT_MEMBERS = [
 
 // 기본 매입 기준 시세표 데이터
 const DEFAULT_PRICES = [
-  { id: 'price-1', brand: 'Apple', model_name: '아이폰 15 프로', base_price: 1150000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-2', brand: 'Apple', model_name: '아이폰 15', base_price: 750000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-3', brand: 'Apple', model_name: '아이폰 14 프로', base_price: 850000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-4', brand: 'Apple', model_name: '아이폰 13 프로', base_price: 580000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-5', brand: 'Apple', model_name: '아이폰 13', base_price: 420000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-6', brand: 'Samsung', model_name: '갤럭시 S24 울트라', base_price: 1200000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-7', brand: 'Samsung', model_name: '갤럭시 S24', base_price: 720000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-8', brand: 'Samsung', model_name: '갤럭시 S23 울트라', base_price: 780000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
-  { id: 'price-9', brand: 'Samsung', model_name: '갤럭시 Z 플립 5', base_price: 620000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() }
+  { id: 'price-1', brand: 'Apple', category: '스마트폰', series: '15 시리즈', model_name: '아이폰 15 프로', base_price: 1150000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-2', brand: 'Apple', category: '스마트폰', series: '15 시리즈', model_name: '아이폰 15', base_price: 750000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-3', brand: 'Apple', category: '스마트폰', series: '14 시리즈', model_name: '아이폰 14 프로', base_price: 850000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-4', brand: 'Apple', category: '스마트폰', series: '13 시리즈', model_name: '아이폰 13 프로', base_price: 580000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-5', brand: 'Apple', category: '스마트폰', series: '13 시리즈', model_name: '아이폰 13', base_price: 420000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-6', brand: 'Samsung', category: '스마트폰', series: 'S24 시리즈', model_name: '갤럭시 S24 울트라', base_price: 1200000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-7', brand: 'Samsung', category: '스마트폰', series: 'S24 시리즈', model_name: '갤럭시 S24', base_price: 720000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-8', brand: 'Samsung', category: '스마트폰', series: 'S23 시리즈', model_name: '갤럭시 S23 울트라', base_price: 780000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-9', brand: 'Samsung', category: '스마트폰', series: 'Z 시리즈', model_name: '갤럭시 Z 플립 5', base_price: 620000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-10', brand: 'Apple', category: '노트북', series: '맥북 시리즈', model_name: 'M3 맥북 에어 13', base_price: 1350000, storage_128g_deduct: 100000, storage_512g_add: 180000, screen_scratch_deduct: 80000, screen_broken_deduct: 350000, body_scratch_deduct: 50000, body_broken_deduct: 150000, camera_error_deduct: 80000, screen_burn_deduct: 50000, updated_at: new Date().toISOString() },
+  { id: 'price-11', brand: 'Apple', category: '태블릿', series: '아이패드 시리즈', model_name: '아이패드 에어 6세대', base_price: 780000, storage_128g_deduct: 60000, storage_512g_add: 100000, screen_scratch_deduct: 60000, screen_broken_deduct: 200000, body_scratch_deduct: 30000, body_broken_deduct: 100000, camera_error_deduct: 50000, screen_burn_deduct: 60000, updated_at: new Date().toISOString() },
+  { id: 'price-12', brand: 'Apple', category: '스마트워치', series: '애플워치 시리즈', model_name: '애플워치 9 45mm', base_price: 380000, storage_128g_deduct: 30000, storage_512g_add: 50000, screen_scratch_deduct: 40000, screen_broken_deduct: 120000, body_scratch_deduct: 20000, body_broken_deduct: 60000, camera_error_deduct: 30000, screen_burn_deduct: 30000, updated_at: new Date().toISOString() },
+  { id: 'price-13', brand: 'Apple', category: '무선이어폰', series: '에어팟 시리즈', model_name: '에어팟 프로 2세대', base_price: 220000, storage_128g_deduct: 20000, storage_512g_add: 30000, screen_scratch_deduct: 20000, screen_broken_deduct: 60000, body_scratch_deduct: 10000, body_broken_deduct: 30000, camera_error_deduct: 20000, screen_burn_deduct: 10000, updated_at: new Date().toISOString() },
+  { id: 'price-14', brand: 'Samsung', category: '노트북', series: '갤럭시북 시리즈', model_name: '갤럭시 북 4 프로', base_price: 1450000, storage_128g_deduct: 120000, storage_512g_add: 200000, screen_scratch_deduct: 90000, screen_broken_deduct: 400000, body_scratch_deduct: 60000, body_broken_deduct: 180000, camera_error_deduct: 100000, screen_burn_deduct: 60000, updated_at: new Date().toISOString() },
+  { id: 'price-15', brand: 'Samsung', category: '태블릿', series: '갤럭시탭 시리즈', model_name: '갤럭시 탭 S9', base_price: 680000, storage_128g_deduct: 50000, storage_512g_add: 80000, screen_scratch_deduct: 50000, screen_broken_deduct: 180000, body_scratch_deduct: 25000, body_broken_deduct: 90000, camera_error_deduct: 40000, screen_burn_deduct: 50000, updated_at: new Date().toISOString() },
+  { id: 'price-16', brand: 'Samsung', category: '스마트워치', series: '갤럭시워치 시리즈', model_name: '갤럭시 워치 6 44mm', base_price: 210000, storage_128g_deduct: 20000, storage_512g_add: 30000, screen_scratch_deduct: 30000, screen_broken_deduct: 90000, body_scratch_deduct: 15000, body_broken_deduct: 45000, camera_error_deduct: 20000, screen_burn_deduct: 20000, updated_at: new Date().toISOString() },
+  { id: 'price-17', brand: 'Samsung', category: '무선이어폰', series: '갤럭시버즈 시리즈', model_name: '갤럭시 버즈 2 프로', base_price: 110000, storage_128g_deduct: 10000, storage_512g_add: 20000, screen_scratch_deduct: 15000, screen_broken_deduct: 40000, body_scratch_deduct: 10000, body_broken_deduct: 20000, camera_error_deduct: 10000, screen_burn_deduct: 10000, updated_at: new Date().toISOString() }
 ];
 
 // Mock DB 구조 인터페이스
@@ -115,6 +275,7 @@ interface MockDB {
   products: any[];
   orders: any[];
   trade_in_prices: any[];
+  categories?: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
@@ -126,7 +287,8 @@ function readMockDB(): MockDB {
         trade_ins: DEFAULT_TRADE_INS,
         products: DEFAULT_PRODUCTS,
         orders: [],
-        trade_in_prices: DEFAULT_PRICES
+        trade_in_prices: DEFAULT_PRICES,
+        categories: DEFAULT_CATEGORIES
       };
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialDB, null, 2), 'utf-8');
       return initialDB;
@@ -134,15 +296,19 @@ function readMockDB(): MockDB {
     const fileContent = fs.readFileSync(MOCK_DB_PATH, 'utf-8');
     const parsed = JSON.parse(fileContent);
     
-    // 만약 기존 mock-db.json에 trade_in_prices 키가 없다면 하위 호환을 위해 추가
+    // 호환성을 위한 키 체크 및 자동 복구
     if (!parsed.trade_in_prices) {
       parsed.trade_in_prices = DEFAULT_PRICES;
+      writeMockDB(parsed);
+    }
+    if (!parsed.categories) {
+      parsed.categories = DEFAULT_CATEGORIES;
       writeMockDB(parsed);
     }
     return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);
-    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [] };
+    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [] };
   }
 }
 
@@ -565,3 +731,86 @@ export async function updateTradeInPrice(id: string, priceData: any) {
     return db.trade_in_prices[index];
   }
 }
+
+// ==========================================
+// 6. 카테고리 (Categories) 데이터 액션
+// ==========================================
+export async function getCategories() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    return db.categories || [];
+  }
+}
+
+export async function createCategory(catData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('categories')
+      .insert([catData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const newCat = {
+      id: `cat-${Date.now()}`,
+      ...catData,
+      created_at: new Date().toISOString()
+    };
+    if (!db.categories) db.categories = [];
+    db.categories.push(newCat);
+    writeMockDB(db);
+    return newCat;
+  }
+}
+
+export async function updateCategory(id: string, catData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('categories')
+      .update(catData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.categories) db.categories = [];
+    const index = db.categories.findIndex(c => c.id === id);
+    if (index === -1) throw new Error("Category not found");
+    db.categories[index] = {
+      ...db.categories[index],
+      ...catData
+    };
+    writeMockDB(db);
+    return db.categories[index];
+  }
+}
+
+export async function deleteCategory(id: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('categories')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.categories) db.categories = [];
+    const filtered = db.categories.filter(c => c.id !== id);
+    db.categories = filtered;
+    writeMockDB(db);
+    return true;
+  }
+}
+

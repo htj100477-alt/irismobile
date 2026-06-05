@@ -309,3 +309,162 @@
   cursor: not-allowed;
   box-shadow: none;
 }
+
+/* 카테고리 캐러셀 */
+.categoryCarousel {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding: 10px 4px;
+  margin-bottom: 8px;
+}
+.categoryCarousel::-webkit-scrollbar {
+  display: none;
+}
+.categoryCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.categoryCard:active {
+  transform: scale(0.95);
+}
+.categoryImageCircle {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 2px solid var(--border-color);
+  background-color: var(--bg-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.categoryImageCircle img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+.categoryCard:hover .categoryImageCircle img {
+  transform: scale(1.1);
+}
+.categoryImageCircleActive {
+  border-color: var(--accent-light);
+  box-shadow: 0 0 12px rgba(95, 93, 236, 0.4);
+  background: var(--accent-gradient);
+}
+.categoryName {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-top: 6px;
+  transition: color 0.2s ease;
+}
+.categoryCardActive .categoryName {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+/* 원하는 상품찾기 검색 패널 */
+.searchPanel {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.searchPanelTitleRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.searchPanelTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.btnReset {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.2s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.btnReset:hover {
+  color: var(--accent-light);
+  background-color: var(--bg-tertiary);
+}
+.filterSection {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.filterLabel {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.chipContainer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 4px 12px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.chip:hover {
+  border-color: var(--text-muted);
+}
+.chipActive {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+.dropdownFilters {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.dropdownSelect {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  padding: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #fff;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+.dropdownSelect:focus {
+  border-color: var(--accent-light);
+}
+

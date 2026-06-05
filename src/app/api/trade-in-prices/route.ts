@@ -25,7 +25,9 @@ export async function POST(request: Request) {
       body_scratch_deduct,
       body_broken_deduct,
       camera_error_deduct,
-      screen_burn_deduct
+      screen_burn_deduct,
+      category,
+      series
     } = body;
 
     if (!brand || !model_name) {
@@ -43,7 +45,9 @@ export async function POST(request: Request) {
       body_scratch_deduct: Number(body_scratch_deduct || 0),
       body_broken_deduct: Number(body_broken_deduct || 0),
       camera_error_deduct: Number(camera_error_deduct || 0),
-      screen_burn_deduct: Number(screen_burn_deduct || 0)
+      screen_burn_deduct: Number(screen_burn_deduct || 0),
+      category: category || '스마트폰',
+      series: series || '기타 시리즈'
     });
 
     return NextResponse.json({ success: true, data: newPrice });
