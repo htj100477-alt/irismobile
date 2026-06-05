@@ -20,6 +20,31 @@ interface Product {
   created_at: string;
 }
 
+const PROVINCES = [
+  '서울특별시', '부산광역시', '대구광역시', '인천광역시', '광주광역시', '대전광역시', '울산광역시', '세종특별자치시',
+  '경기도', '강원특별자치도', '충청북도', '충청남도', '전라북도', '전라남도', '경상북도', '경상남도', '제주특별자치도'
+];
+
+const CITIES_BY_PROVINCE: Record<string, string[]> = {
+  '서울특별시': ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'],
+  '경기도': ['수원시', '성남시', '고양시', '용인시', '부천시', '안산시', '안양시', '남양주시', '화성시', '평택시', '의정부시', '파주시', '시흥시', '김포시', '광명시', '광주시', '군포시', '오산시', '이천시', '양주시', '안성시', '구리시', '포천시', '의왕시', '하남시', '여주시', '동두천시', '양평군', '가평군', '연천군'],
+  '부산광역시': ['중구', '서구', '동구', '영도구', '부산진구', '동래구', '남구', '북구', '해운대구', '사하구', '금정구', '강서구', '연제구', '수영구', '사상구', '기장군'],
+  '인천광역시': ['중구', '동구', '미추홀구', '연수구', '남동구', '부평구', '계양구', '서구', '강화군', '옹진군'],
+  '대구광역시': ['중구', '동구', '서구', '남구', '북구', '수성구', '달서구', '달성군', '군위군'],
+  '광주광역시': ['동구', '서구', '남구', '북구', '광산구'],
+  '대전광역시': ['동구', '중구', '서구', '유성구', '대덕구'],
+  '울산광역시': ['중구', '남구', '동구', '북구', '울주군'],
+  '세종특별자치시': ['세종시'],
+  '강원특별자치도': ['춘천시', '원주시', '강릉시', '동해시', '태백시', '속초시', '삼척시', '홍천군', '횡성군', '영월군', '평창군', '정선군', '철원군', '화천군', '양구군', '인제군', '고성군', '양양군'],
+  '충청북도': ['청주시', '충주시', '제천시', '보은군', '옥천군', '영동군', '증평군', '진천군', '괴산군', '음성군', '단양군'],
+  '충청남도': ['천안시', '공주시', '보령시', '아산시', '서산시', '논산시', '계룡시', '당진시', '금산군', '부여군', '서천군', '청양군', '홍성군', '예산군', '태안군'],
+  '전라북도': ['전주시', '군산시', '익산시', '정읍시', '남원시', '김제시', '완주군', '진안군', '무주군', '장수군', '임실군', '순창군', '고창군', '부안군'],
+  '전라남도': ['목포시', '여수시', '순천시', '나주시', '광양시', '담양군', '곡성군', '구례군', '고흥군', '보성군', '화순군', '장흥군', '강진군', '해남군', '영암군', '무안군', '함평군', '영광군', '장성군', '완도군', '진도군', '신안군'],
+  '경상북도': ['포항시', '경주시', '김천시', '안동시', '구미시', '영주시', '영천시', '상주시', '문경시', '경산시', '의성군', '청송군', '영양군', '영덕군', '청도군', '고령군', '성주군', '칠곡군', '예천군', '봉화군', '울진군', '울릉군'],
+  '경상남도': ['창원시', '진주시', '통영시', '사천시', '김해시', '밀양시', '거제시', '양산시', '의령군', '함안군', '창녕군', '고성군', '남해군', '하동군', '산청군', '함양군', '거창군', '합천군'],
+  '제주특별자치도': ['제주시', '서귀포시']
+};
+
 export default function CheckoutPage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
   const router = useRouter();
@@ -33,6 +58,23 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
   const [shippingPhone, setShippingPhone] = useState('');
   const [shippingAddress, setShippingAddress] = useState('');
   
+  // 시/도 및 시/군/구 선택 상태
+  const [province, setProvince] = useState('서울특별시');
+  const [city, setCity] = useState('강남구');
+  const [detailedAddress, setDetailedAddress] = useState('');
+
+  // 시/도 변경 핸들러
+  const handleProvinceChange = (val: string) => {
+    setProvince(val);
+    const cities = CITIES_BY_PROVINCE[val] || [];
+    setCity(cities[0] || '');
+  };
+
+  // 주소 조합 자동 연동
+  useEffect(() => {
+    setShippingAddress(`${province} ${city} ${detailedAddress}`.trim());
+  }, [province, city, detailedAddress]);
+
   const [isSuccess, setIsSuccess] = useState(false);
   const [error, setError] = useState('');
 
@@ -207,15 +249,37 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
                 </div>
 
                 <div className={styles.formGroup}>
-                  <label htmlFor="shippingAddressInput" className={styles.formLabel}>수령 주소</label>
+                  <label className={styles.formLabel}>수령 주소</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '8px' }}>
+                    <select 
+                      className={styles.formInput}
+                      value={province}
+                      onChange={(e) => handleProvinceChange(e.target.value)}
+                      aria-label="시/도 선택"
+                    >
+                      {PROVINCES.map(p => (
+                        <option key={p} value={p}>{p}</option>
+                      ))}
+                    </select>
+                    <select 
+                      className={styles.formInput}
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      aria-label="구/군/시 선택"
+                    >
+                      {(CITIES_BY_PROVINCE[province] || []).map(c => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
                   <input 
-                    id="shippingAddressInput"
                     type="text" 
-                    placeholder="배송받으실 주소"
+                    placeholder="상세 주소를 입력하세요"
                     className={styles.formInput}
-                    value={shippingAddress}
-                    onChange={(e) => setShippingAddress(e.target.value)}
+                    value={detailedAddress}
+                    onChange={(e) => setDetailedAddress(e.target.value)}
                     required
+                    aria-label="상세 주소"
                   />
                 </div>
               </div>
@@ -240,11 +304,11 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
                     marginTop: '8px',
                     border: '1px dashed var(--border-color)'
                   }}>
-                    🏦 **가상 입금 계좌 안내**:<br />
-                    - **은행**: 국민은행<br />
-                    - **계좌**: `923456-04-123456`<br />
-                    - **예금주**: (주)트루모바일<br />
-                    * 주문 접수 후 24시간 이내 미입금 시 자동 취소됩니다.
+                    🏦 **무통장 입금 계좌 안내**:<br />
+                    - **은행**: 기업은행<br />
+                    - **계좌**: `010-7744-5064`<br />
+                    - **예금주**: 이상민<br />
+                    * 입금 확인 후 배송 및 배송 등록이 즉시 진행됩니다.
                   </div>
                 </div>
               </div>
@@ -262,9 +326,26 @@ export default function CheckoutPage({ params }: { params: Promise<{ id: string 
             <CheckCircle2 size={68} color="var(--success-color)" style={{ filter: 'drop-shadow(0 0 10px rgba(16, 185, 129, 0.4))' }} />
             <h2 className={styles.successTitle}>안심 중고폰 주문이<br />완료되었습니다!</h2>
             <p className={styles.successDesc}>
-              선택하신 결제 계좌로 입금이 확인되면 검수 전용 에어캡 안심 포장 과정을 거쳐 당일 배송 출발합니다.<br />
+              입금계좌로 입금이 확인되면 검수 전용 에어캡 안심 포장 과정을 거쳐 당일 배송 출발합니다.<br />
               배송이 출발하면 등록된 연락처로 등기 송장 번호 안내 문자를 전송해 드립니다.
             </p>
+            <div style={{
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              padding: '16px',
+              fontSize: '13px',
+              textAlign: 'left',
+              width: '100%',
+              margin: '16px 0',
+              lineHeight: '1.6'
+            }}>
+              <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>🏦 입금 계좌 정보</span><br />
+              - **은행**: 기업은행<br />
+              - **계좌번호**: `010-7744-5064`<br />
+              - **예금주**: 이상민<br />
+              - **입금 금액**: <span style={{ fontWeight: 'bold', color: 'var(--success-color)' }}>{product.price.toLocaleString()}원</span>
+            </div>
             <button 
               onClick={() => router.push('/mypage')} 
               className={styles.btnNext}
