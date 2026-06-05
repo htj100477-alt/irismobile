@@ -38,6 +38,30 @@ function SellFlowContent() {
   const [storage, setStorage] = useState<string>('256GB');
   const [color, setColor] = useState<string>('블랙/그레이');
 
+  // 동적 시세 설정 데이터
+  const [pricingRules, setPricingRules] = useState<any[]>([]);
+  const [loadingPrices, setLoadingPrices] = useState<boolean>(true);
+
+  // Fetch prices on mount
+  useEffect(() => {
+    async function fetchPrices() {
+      try {
+        const res = await fetch('/api/trade-in-prices');
+        const data = await res.json();
+        if (data.success) {
+          setPricingRules(data.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch trade-in prices:', err);
+      } finally {
+        setLoadingPrices(false);
+      }
+    }
+    fetchPrices();
+  }, []);
+
+  const activeRule = pricingRules.find(r => r.model_name === model) || null;
+
   // 자가진단 항목 상태
   const [screen, setScreen] = useState<'clean' | 'scratch' | 'broken'>('clean');
   const [body, setBody] = useState<'clean' | 'scratch' | 'broken'>('clean');
@@ -92,26 +116,40 @@ function SellFlowContent() {
     if (!model) return;
 
     let price = basePrice;
+    
+    if (activeRule) {
+      price = activeRule.base_price;
+      
+      // 1. 용량에 따른 증감
+      if (storage === '128GB') price -= activeRule.storage_128g_deduct;
+      if (storage === '512GB') price += activeRule.storage_512g_add;
 
-    // 1. 용량에 따른 증감
-    if (storage === '128GB') price -= 80000;
-    if (storage === '512GB') price += 120000;
+      // 2. 액정 상태 차감
+      if (screen === 'scratch') price -= activeRule.screen_scratch_deduct;
+      if (screen === 'broken') price -= activeRule.screen_broken_deduct;
 
-    // 2. 액정 상태 차감
-    if (screen === 'scratch') price -= 70000;
-    if (screen === 'broken') price -= 250000;
+      // 3. 테두리 외관 상태 차감
+      if (body === 'scratch') price -= activeRule.body_scratch_deduct;
+      if (body === 'broken') price -= activeRule.body_broken_deduct;
 
-    // 3. 테두리 외관 상태 차감
-    if (body === 'scratch') price -= 40000;
-    if (body === 'broken') price -= 120000;
-
-    // 4. 기능 불량 차감
-    if (hasCameraError) price -= 100000;
-    if (hasScreenBurn) price -= 80000;
+      // 4. 기능 불량 차감
+      if (hasCameraError) price -= activeRule.camera_error_deduct;
+      if (hasScreenBurn) price -= activeRule.screen_burn_deduct;
+    } else {
+      // 로딩 전이나 폴백용 하드코딩 수치
+      if (storage === '128GB') price -= 80000;
+      if (storage === '512GB') price += 120000;
+      if (screen === 'scratch') price -= 70000;
+      if (screen === 'broken') price -= 250000;
+      if (body === 'scratch') price -= 40000;
+      if (body === 'broken') price -= 120000;
+      if (hasCameraError) price -= 100000;
+      if (hasScreenBurn) price -= 80000;
+    }
 
     // 최소 매입 보장가
     setEstimatedPrice(Math.max(price, 30000));
-  }, [model, basePrice, storage, screen, body, hasCameraError, hasScreenBurn]);
+  }, [model, basePrice, storage, screen, body, hasCameraError, hasScreenBurn, activeRule]);
 
   // 브랜드 선택 핸들러
   const handleBrandSelect = (selected: 'Apple' | 'Samsung') => {
@@ -243,18 +281,31 @@ function SellFlowContent() {
       {step === 2 && brand && (
         <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
           <h2 className={styles.stepTitle}>기종 모델명을<br />선택해주세요</h2>
-          <div className={styles.listOptions}>
-            {MODELS_BY_BRAND[brand].map((item) => (
-              <div 
-                key={item.name} 
-                className={`${styles.modelItem} ${model === item.name ? styles.modelItemActive : ''}`}
-                onClick={() => handleModelSelect(item.name, item.basePrice)}
-              >
-                <span>{item.name}</span>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>선택</span>
-              </div>
-            ))}
-          </div>
+          {loadingPrices ? (
+            <div style={{ padding: '40px 0', textAlign: 'center', color: 'var(--text-secondary)' }}>
+              모델 정보를 불러오는 중입니다...
+            </div>
+          ) : (
+            <div className={styles.listOptions}>
+              {pricingRules
+                .filter(item => item.brand.toLowerCase() === brand.toLowerCase())
+                .map((item) => (
+                  <div 
+                    key={item.id || item.model_name} 
+                    className={`${styles.modelItem} ${model === item.model_name ? styles.modelItemActive : ''}`}
+                    onClick={() => handleModelSelect(item.model_name, item.base_price)}
+                  >
+                    <span>{item.model_name}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>선택</span>
+                  </div>
+                ))}
+              {pricingRules.filter(item => item.brand.toLowerCase() === brand.toLowerCase()).length === 0 && (
+                <div style={{ padding: '20px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '13px' }}>
+                  등록된 모델이 없습니다.
+                </div>
+              )}
+            </div>
+          )}
           <div className={styles.btnArea}>
             <button className={styles.btnBack} onClick={() => setStep(1)}>이전</button>
           </div>
@@ -325,14 +376,14 @@ function SellFlowContent() {
                   className={`${styles.conditionBtn} ${screen === 'scratch' ? styles.conditionBtnActive : ''}`}
                   onClick={() => setScreen('scratch')}
                 >
-                  미세 흠집
+                  미세 흠집 {activeRule ? `(-${(activeRule.screen_scratch_deduct / 10000).toLocaleString()}만)` : '(-7만)'}
                 </button>
                 <button 
                   type="button" 
                   className={`${styles.conditionBtn} ${screen === 'broken' ? styles.conditionBtnActive : ''}`}
                   onClick={() => setScreen('broken')}
                 >
-                  파손/깨짐 (-25만)
+                  파손/깨짐 {activeRule ? `(-${(activeRule.screen_broken_deduct / 10000).toLocaleString()}만)` : '(-25만)'}
                 </button>
               </div>
             </div>
@@ -353,14 +404,14 @@ function SellFlowContent() {
                   className={`${styles.conditionBtn} ${body === 'scratch' ? styles.conditionBtnActive : ''}`}
                   onClick={() => setBody('scratch')}
                 >
-                  미세 찍힘
+                  미세 찍힘 {activeRule ? `(-${(activeRule.body_scratch_deduct / 10000).toLocaleString()}만)` : '(-4만)'}
                 </button>
                 <button 
                   type="button" 
                   className={`${styles.conditionBtn} ${body === 'broken' ? styles.conditionBtnActive : ''}`}
                   onClick={() => setBody('broken')}
                 >
-                  심한 파손 (-12만)
+                  심한 파손 {activeRule ? `(-${(activeRule.body_broken_deduct / 10000).toLocaleString()}만)` : '(-12만)'}
                 </button>
               </div>
             </div>
@@ -376,7 +427,7 @@ function SellFlowContent() {
                   <div className={styles.checkboxBox}>
                     {hasCameraError && <Check size={12} />}
                   </div>
-                  <span>카메라 작동 고장 / 렌즈 손상 (-10만)</span>
+                  <span>카메라 작동 고장 / 렌즈 손상 {activeRule ? `(-${(activeRule.camera_error_deduct / 10000).toLocaleString()}만)` : '(-10만)'}</span>
                 </div>
 
                 <div 
@@ -386,7 +437,7 @@ function SellFlowContent() {
                   <div className={styles.checkboxBox}>
                     {hasScreenBurn && <Check size={12} />}
                   </div>
-                  <span>화면 잔상(Burn-in) / 백화 현상 (-8만)</span>
+                  <span>화면 잔상(Burn-in) / 백화 현상 {activeRule ? `(-${(activeRule.screen_burn_deduct / 10000).toLocaleString()}만)` : '(-8만)'}</span>
                 </div>
               </div>
             </div>

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 타입 정의
@@ -52,13 +52,14 @@ interface Order {
 
 export default function AdminDashboardPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices'>('home');
   const [loading, setLoading] = useState(true);
 
   // 데이터 리스트
   const [tradeIns, setTradeIns] = useState<TradeIn[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [tradeInPrices, setTradeInPrices] = useState<any[]>([]);
 
   // 모달 제어 상태
   const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false);
@@ -77,6 +78,21 @@ export default function AdminDashboardPage() {
   const [prodGrade, setProdGrade] = useState<'S' | 'A' | 'B'>('A');
   const [prodImage, setProdImage] = useState('');
   const [prodDescription, setProdDescription] = useState('');
+
+  // 매입 시세 설정 모달 상태
+  const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
+  const [selectedPriceRule, setSelectedPriceRule] = useState<any | null>(null);
+  const [ruleBrand, setRuleBrand] = useState('Apple');
+  const [ruleModelName, setRuleModelName] = useState('');
+  const [ruleBasePrice, setRuleBasePrice] = useState<number>(0);
+  const [ruleStorage128gDeduct, setRuleStorage128gDeduct] = useState<number>(0);
+  const [ruleStorage512gAdd, setRuleStorage512gAdd] = useState<number>(0);
+  const [ruleScreenScratchDeduct, setRuleScreenScratchDeduct] = useState<number>(0);
+  const [ruleScreenBrokenDeduct, setRuleScreenBrokenDeduct] = useState<number>(0);
+  const [ruleBodyScratchDeduct, setRuleBodyScratchDeduct] = useState<number>(0);
+  const [ruleBodyBrokenDeduct, setRuleBodyBrokenDeduct] = useState<number>(0);
+  const [ruleCameraErrorDeduct, setRuleCameraErrorDeduct] = useState<number>(0);
+  const [ruleScreenBurnDeduct, setRuleScreenBurnDeduct] = useState<number>(0);
 
   // 1. 관리자 토큰 검증
   useEffect(() => {
@@ -106,6 +122,11 @@ export default function AdminDashboardPage() {
       const orderRes = await fetch('/api/orders');
       const orderData = await orderRes.json();
       if (orderData.success) setOrders(orderData.data);
+
+      // 매입 시세 데이터 로드
+      const priceRes = await fetch('/api/trade-in-prices');
+      const priceData = await priceRes.json();
+      if (priceData.success) setTradeInPrices(priceData.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -256,6 +277,89 @@ export default function AdminDashboardPage() {
     }
   };
 
+  // 5. 매입 시세 관리 액션
+  const openPriceModal = (rule: any | null = null) => {
+    setSelectedPriceRule(rule);
+    if (rule) {
+      // 수정 모드
+      setRuleBrand(rule.brand);
+      setRuleModelName(rule.model_name);
+      setRuleBasePrice(rule.base_price);
+      setRuleStorage128gDeduct(rule.storage_128g_deduct);
+      setRuleStorage512gAdd(rule.storage_512g_add);
+      setRuleScreenScratchDeduct(rule.screen_scratch_deduct);
+      setRuleScreenBrokenDeduct(rule.screen_broken_deduct);
+      setRuleBodyScratchDeduct(rule.body_scratch_deduct);
+      setRuleBodyBrokenDeduct(rule.body_broken_deduct);
+      setRuleCameraErrorDeduct(rule.camera_error_deduct);
+      setRuleScreenBurnDeduct(rule.screen_burn_deduct);
+    } else {
+      // 신규 등록 모드
+      setRuleBrand('Apple');
+      setRuleModelName('');
+      setRuleBasePrice(1000000);
+      setRuleStorage128gDeduct(80000);
+      setRuleStorage512gAdd(120000);
+      setRuleScreenScratchDeduct(70000);
+      setRuleScreenBrokenDeduct(250000);
+      setRuleBodyScratchDeduct(40000);
+      setRuleBodyBrokenDeduct(120000);
+      setRuleCameraErrorDeduct(100000);
+      setRuleScreenBurnDeduct(80000);
+    }
+    setIsPriceModalOpen(true);
+  };
+
+  const savePriceRule = async () => {
+    if (!ruleModelName) {
+      alert('기종 모델명을 입력해주세요.');
+      return;
+    }
+
+    const payload = {
+      brand: ruleBrand,
+      model_name: ruleModelName,
+      base_price: ruleBasePrice,
+      storage_128g_deduct: ruleStorage128gDeduct,
+      storage_512g_add: ruleStorage512gAdd,
+      screen_scratch_deduct: ruleScreenScratchDeduct,
+      screen_broken_deduct: ruleScreenBrokenDeduct,
+      body_scratch_deduct: ruleBodyScratchDeduct,
+      body_broken_deduct: ruleBodyBrokenDeduct,
+      camera_error_deduct: ruleCameraErrorDeduct,
+      screen_burn_deduct: ruleScreenBurnDeduct
+    };
+
+    try {
+      let res;
+      if (selectedPriceRule) {
+        // 수정 요청
+        res = await fetch('/api/trade-in-prices', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedPriceRule.id, ...payload })
+        });
+      } else {
+        // 신규 추가 요청
+        res = await fetch('/api/trade-in-prices', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsPriceModalOpen(false);
+        loadAllData();
+      } else {
+        alert(data.error || '시세 정보 저장 실패');
+      }
+    } catch (err) {
+      alert('서버 처리 오류가 발생했습니다.');
+    }
+  };
+
   // 관리자 로그아웃
   const handleLogout = () => {
     sessionStorage.removeItem('admin_token');
@@ -321,6 +425,13 @@ export default function AdminDashboardPage() {
             className={`${styles.menuItem} ${activeTab === 'orders' ? styles.menuItemActive : ''}`}
           >
             <ClipboardList size={18} /> 주문 배송 관리 ({orders.length})
+          </button>
+          
+          <button 
+            onClick={() => setActiveTab('prices')}
+            className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
+          >
+            <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
           </button>
         </nav>
 
@@ -656,6 +767,76 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
+        {/* 매입 시세 설정 탭 */}
+        {activeTab === 'prices' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <h2 className={styles.pageTitle}>실시간 매입 시세 설정</h2>
+              <button onClick={() => openPriceModal(null)} className={styles.btnSave} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Plus size={16} /> 신규 매입 기종 등록
+              </button>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th>브랜드</th>
+                      <th>기종 모델명</th>
+                      <th>기본가 (256G)</th>
+                      <th>128G 감가</th>
+                      <th>512G 할증</th>
+                      <th>액정 (기스/파손)</th>
+                      <th>외관 (찍힘/파손)</th>
+                      <th>카메라 고장</th>
+                      <th>화면 잔상</th>
+                      <th>최종 수정일</th>
+                      <th>작업</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tradeInPrices.map(r => (
+                      <tr key={r.id}>
+                        <td style={{ fontWeight: 'bold' }}>{r.brand}</td>
+                        <td style={{ fontWeight: 'bold', color: '#fff' }}>{r.model_name}</td>
+                        <td style={{ color: 'var(--success-color)', fontWeight: '600' }}>{r.base_price.toLocaleString()}원</td>
+                        <td style={{ color: 'var(--danger-color)' }}>-{r.storage_128g_deduct.toLocaleString()}원</td>
+                        <td style={{ color: 'var(--accent-light)' }}>+{r.storage_512g_add.toLocaleString()}원</td>
+                        <td>
+                          <span style={{ color: 'var(--danger-color)' }}>-{r.screen_scratch_deduct.toLocaleString()}</span> / 
+                          <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.screen_broken_deduct.toLocaleString()}</span>
+                        </td>
+                        <td>
+                          <span style={{ color: 'var(--danger-color)' }}>-{r.body_scratch_deduct.toLocaleString()}</span> / 
+                          <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.body_broken_deduct.toLocaleString()}</span>
+                        </td>
+                        <td style={{ color: 'var(--danger-color)' }}>-{r.camera_error_deduct.toLocaleString()}원</td>
+                        <td style={{ color: 'var(--danger-color)' }}>-{r.screen_burn_deduct.toLocaleString()}원</td>
+                        <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          {new Date(r.updated_at).toLocaleDateString()}
+                        </td>
+                        <td>
+                          <button onClick={() => openPriceModal(r)} className={styles.btnCancel} style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}>
+                            시세 수정
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {tradeInPrices.length === 0 && (
+                      <tr>
+                        <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          등록된 매입 시세 설정 정보가 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* 3. 모달 - 매입 검수 및 가격 조정 모달 */}
@@ -887,6 +1068,168 @@ export default function AdminDashboardPage() {
             <div className={styles.btnGroup}>
               <button onClick={() => setIsProductModalOpen(false)} className={styles.btnCancel}>취소</button>
               <button onClick={saveProduct} className={styles.btnSave}>저장하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 5. 모달 - 매입 시세 수정 및 신규 등록 모달 */}
+      {isPriceModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '600px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {selectedPriceRule ? '매입 기종 시세 및 차감률 수정' : '신규 매입 기종 등록'}
+              </h3>
+              <button onClick={() => setIsPriceModalOpen(false)} style={{ color: 'var(--text-secondary)' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className={styles.formGrid}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleBrandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>제조사</label>
+                  <select 
+                    id="ruleBrandSelect"
+                    value={ruleBrand} 
+                    onChange={(e) => setRuleBrand(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  >
+                    <option>Apple</option>
+                    <option>Samsung</option>
+                  </select>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleModelNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 명칭</label>
+                  <input 
+                    id="ruleModelNameInput"
+                    type="text" 
+                    placeholder="예: 아이폰 15 프로"
+                    value={ruleModelName} 
+                    onChange={(e) => setRuleModelName(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                    disabled={!!selectedPriceRule} // 기종명은 식별자로 사용되므로 수정 모드일 때 비활성화
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleBasePriceInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기본 매입가 (256G)</label>
+                  <input 
+                    id="ruleBasePriceInput"
+                    type="number" 
+                    value={ruleBasePrice} 
+                    onChange={(e) => setRuleBasePrice(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleStorage128gDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>128GB 감가액 (-)</label>
+                  <input 
+                    id="ruleStorage128gDeductInput"
+                    type="number" 
+                    value={ruleStorage128gDeduct} 
+                    onChange={(e) => setRuleStorage128gDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleStorage512gAddInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>512GB 가산액 (+)</label>
+                  <input 
+                    id="ruleStorage512gAddInput"
+                    type="number" 
+                    value={ruleStorage512gAdd} 
+                    onChange={(e) => setRuleStorage512gAdd(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleScreenScratchDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>액정 미세 흠집 감가액 (-)</label>
+                  <input 
+                    id="ruleScreenScratchDeductInput"
+                    type="number" 
+                    value={ruleScreenScratchDeduct} 
+                    onChange={(e) => setRuleScreenScratchDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleScreenBrokenDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>액정 파손/깨짐 감가액 (-)</label>
+                  <input 
+                    id="ruleScreenBrokenDeductInput"
+                    type="number" 
+                    value={ruleScreenBrokenDeduct} 
+                    onChange={(e) => setRuleScreenBrokenDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleBodyScratchDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>테두리 미세 찍힘 감가액 (-)</label>
+                  <input 
+                    id="ruleBodyScratchDeductInput"
+                    type="number" 
+                    value={ruleBodyScratchDeduct} 
+                    onChange={(e) => setRuleBodyScratchDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleBodyBrokenDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>외관 심한 파손 감가액 (-)</label>
+                  <input 
+                    id="ruleBodyBrokenDeductInput"
+                    type="number" 
+                    value={ruleBodyBrokenDeduct} 
+                    onChange={(e) => setRuleBodyBrokenDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', borderTop: '1px solid var(--border-light)', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleCameraErrorDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카메라 고장/렌즈손상 감가액 (-)</label>
+                  <input 
+                    id="ruleCameraErrorDeductInput"
+                    type="number" 
+                    value={ruleCameraErrorDeduct} 
+                    onChange={(e) => setRuleCameraErrorDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="ruleScreenBurnDeductInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>화면 잔상(Burn-in) 감가액 (-)</label>
+                  <input 
+                    id="ruleScreenBurnDeductInput"
+                    type="number" 
+                    value={ruleScreenBurnDeduct} 
+                    onChange={(e) => setRuleScreenBurnDeduct(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.btnGroup}>
+              <button onClick={() => setIsPriceModalOpen(false)} className={styles.btnCancel}>취소</button>
+              <button onClick={savePriceRule} className={styles.btnSave}>저장하기</button>
             </div>
           </div>
         </div>

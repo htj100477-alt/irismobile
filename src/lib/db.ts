@@ -44,26 +44,13 @@ const DEFAULT_PRODUCTS = [
   {
     id: 'prod-3',
     brand: 'Samsung',
-    model_name: '갤럭시 S24 울트라',
+    model_name: '갤럭시 S24 울라트',
     storage: '512GB',
     color: '티타늄 블랙',
     price: 1250000,
     grade: 'S',
     images: ['https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500&auto=format&fit=crop&q=60'],
     description: '개통 후 실사용 2주 미만의 거의 새 제품입니다. 최초 통화일 2024년 3월.',
-    status: 'available',
-    created_at: new Date().toISOString()
-  },
-  {
-    id: 'prod-4',
-    brand: 'Samsung',
-    model_name: '갤럭시 S23',
-    storage: '256GB',
-    color: '크림',
-    price: 650000,
-    grade: 'B',
-    images: ['https://images.unsplash.com/photo-1573148195900-7845dcb9b127?w=500&auto=format&fit=crop&q=60'],
-    description: '뒷면에 카메라 옆 미세 기스 있으며 잔상 없는 가성비 좋은 B급 상품입니다.',
     status: 'available',
     created_at: new Date().toISOString()
   }
@@ -79,15 +66,15 @@ const DEFAULT_TRADE_INS = [
     storage: '128GB',
     color: '시이에라 블루',
     condition_answers: {
-      screen: 'scratch', // 미세흠집
-      body: 'clean', // 깨끗함
-      camera: 'good', // 정상
-      screen_burn: 'none' // 잔상없음
+      screen: 'scratch',
+      body: 'clean',
+      camera: 'good',
+      screen_burn: 'none'
     },
     estimated_price: 520000,
     final_price: 500000,
-    status: 'inspecting', // 검수중
-    shipping_method: 'parcel', // 택배
+    status: 'inspecting',
+    shipping_method: 'parcel',
     shipping_address: '서울시 강남구 테헤란로 123, 405호',
     bank_name: '국민은행',
     bank_account: '123-45-6789-012',
@@ -108,12 +95,26 @@ const DEFAULT_MEMBERS = [
   }
 ];
 
+// 기본 매입 기준 시세표 데이터
+const DEFAULT_PRICES = [
+  { id: 'price-1', brand: 'Apple', model_name: '아이폰 15 프로', base_price: 1150000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-2', brand: 'Apple', model_name: '아이폰 15', base_price: 750000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-3', brand: 'Apple', model_name: '아이폰 14 프로', base_price: 850000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-4', brand: 'Apple', model_name: '아이폰 13 프로', base_price: 580000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-5', brand: 'Apple', model_name: '아이폰 13', base_price: 420000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-6', brand: 'Samsung', model_name: '갤럭시 S24 울트라', base_price: 1200000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-7', brand: 'Samsung', model_name: '갤럭시 S24', base_price: 720000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-8', brand: 'Samsung', model_name: '갤럭시 S23 울트라', base_price: 780000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() },
+  { id: 'price-9', brand: 'Samsung', model_name: '갤럭시 Z 플립 5', base_price: 620000, storage_128g_deduct: 80000, storage_512g_add: 120000, screen_scratch_deduct: 70000, screen_broken_deduct: 250000, body_scratch_deduct: 40000, body_broken_deduct: 120000, camera_error_deduct: 100000, screen_burn_deduct: 80000, updated_at: new Date().toISOString() }
+];
+
 // Mock DB 구조 인터페이스
 interface MockDB {
   members: any[];
   trade_ins: any[];
   products: any[];
   orders: any[];
+  trade_in_prices: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
@@ -124,23 +125,30 @@ function readMockDB(): MockDB {
         members: DEFAULT_MEMBERS,
         trade_ins: DEFAULT_TRADE_INS,
         products: DEFAULT_PRODUCTS,
-        orders: []
+        orders: [],
+        trade_in_prices: DEFAULT_PRICES
       };
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialDB, null, 2), 'utf-8');
       return initialDB;
     }
     const fileContent = fs.readFileSync(MOCK_DB_PATH, 'utf-8');
-    return JSON.parse(fileContent);
+    const parsed = JSON.parse(fileContent);
+    
+    // 만약 기존 mock-db.json에 trade_in_prices 키가 없다면 하위 호환을 위해 추가
+    if (!parsed.trade_in_prices) {
+      parsed.trade_in_prices = DEFAULT_PRICES;
+      writeMockDB(parsed);
+    }
+    return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);
-    return { members: [], trade_ins: [], products: [], orders: [] };
+    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [] };
   }
 }
 
 // Mock DB 쓰기 함수
 function writeMockDB(data: MockDB) {
   try {
-    // 디렉토리가 존재하는지 확인
     const dir = path.dirname(MOCK_DB_PATH);
     if (!fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
@@ -395,7 +403,6 @@ export async function createOrder(orderData: any) {
       .single();
     if (error) throw error;
     
-    // 주문된 상품의 상태를 판매완료(sold)로 변경
     await supabase
       .from('products')
       .update({ status: 'sold' })
@@ -411,7 +418,6 @@ export async function createOrder(orderData: any) {
     };
     db.orders.push(newOrder);
     
-    // 상품 상태 sold 처리
     const prodIdx = db.products.findIndex(p => p.id === orderData.product_id);
     if (prodIdx !== -1) {
       db.products[prodIdx].status = 'sold';
@@ -488,5 +494,74 @@ export async function updateOrderStatus(id: string, status: string) {
     db.orders[index].status = status;
     writeMockDB(db);
     return db.orders[index];
+  }
+}
+
+// ==========================================
+// 5. 매입 기준 시세 (trade_in_prices) 데이터 액션
+// ==========================================
+export async function getTradeInPrices() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('trade_in_prices')
+      .select('*')
+      .order('brand', { ascending: true })
+      .order('model_name', { ascending: true });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    return [...db.trade_in_prices]
+      .sort((a, b) => {
+        if (a.brand !== b.brand) return a.brand.localeCompare(b.brand);
+        return a.model_name.localeCompare(b.model_name);
+      });
+  }
+}
+
+export async function createTradeInPrice(priceData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('trade_in_prices')
+      .insert([priceData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const newPrice = {
+      id: `price-${Date.now()}`,
+      ...priceData,
+      updated_at: new Date().toISOString()
+    };
+    db.trade_in_prices.push(newPrice);
+    writeMockDB(db);
+    return newPrice;
+  }
+}
+
+export async function updateTradeInPrice(id: string, priceData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('trade_in_prices')
+      .update({ ...priceData, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const index = db.trade_in_prices.findIndex(p => p.id === id);
+    if (index === -1) throw new Error("Pricing rule not found");
+
+    db.trade_in_prices[index] = {
+      ...db.trade_in_prices[index],
+      ...priceData,
+      updated_at: new Date().toISOString()
+    };
+    writeMockDB(db);
+    return db.trade_in_prices[index];
   }
 }
