@@ -151,6 +151,12 @@ export default function AdminDashboard() {
   const [ruleCategory, setRuleCategory] = useState('스마트폰');
   const [ruleSeries, setRuleSeries] = useState('');
 
+  // 기등록된 시리즈 목록 추출 (중복 제거 및 가나다 정렬)
+  const allSeries = Array.from(new Set([
+    ...(tradeInPrices || []).map(r => r.series),
+    ...(products || []).map(p => p.series)
+  ].filter(Boolean))).sort() as string[];
+
   // 시세 필터 및 검색 상태
   const [priceFilterBrand, setPriceFilterBrand] = useState<'All' | 'Apple' | 'Samsung'>('All');
   const [priceSearchQuery, setPriceSearchQuery] = useState('');
@@ -1290,6 +1296,13 @@ export default function AdminDashboard() {
 
       </main>
 
+        {/* 시리즈 자동완성 목록 */}
+        <datalist id="series-list">
+          {Array.from(new Set(tradeInPrices.map(p => p.series || '').filter(s => s))).map(s => (
+            <option key={s} value={s} />
+          ))}
+        </datalist>
+
       {/* 3. 모달 - 매입 검수 및 가격 조정 모달 */}
       {isTradeInModalOpen && selectedTradeIn && (
         <div className={styles.modalOverlay}>
@@ -1449,6 +1462,7 @@ export default function AdminDashboard() {
                     placeholder="예: 15 시리즈, 맥북 시리즈"
                     value={prodSeries} 
                     onChange={(e) => setProdSeries(e.target.value)}
+                    list="series-list"
                     style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
                     required
                   />
@@ -1686,6 +1700,7 @@ export default function AdminDashboard() {
                     placeholder="예: 15 시리즈, 맥북 시리즈"
                     value={ruleSeries} 
                     onChange={(e) => setRuleSeries(e.target.value)}
+                    list="series-list"
                     style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
                     required
                   />
