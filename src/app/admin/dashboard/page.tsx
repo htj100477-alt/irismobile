@@ -94,6 +94,10 @@ export default function AdminDashboardPage() {
   const [ruleCameraErrorDeduct, setRuleCameraErrorDeduct] = useState<number>(0);
   const [ruleScreenBurnDeduct, setRuleScreenBurnDeduct] = useState<number>(0);
 
+  // 시세 필터 및 검색 상태
+  const [priceFilterBrand, setPriceFilterBrand] = useState<'All' | 'Apple' | 'Samsung'>('All');
+  const [priceSearchQuery, setPriceSearchQuery] = useState('');
+
   // 1. 관리자 토큰 검증
   useEffect(() => {
     const token = sessionStorage.getItem('admin_token');
@@ -777,6 +781,66 @@ export default function AdminDashboardPage() {
               </button>
             </div>
 
+            {/* 필터 및 검색 컨트롤 영역 */}
+            <div style={{ 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center', 
+              marginBottom: '20px', 
+              gap: '16px', 
+              flexWrap: 'wrap',
+              background: '#0f172a',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)'
+            }}>
+              {/* 제조사 필터 버튼 */}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={() => setPriceFilterBrand('All')}
+                  className={priceFilterBrand === 'All' ? styles.btnSave : styles.btnCancel}
+                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                >
+                  전체보기
+                </button>
+                <button 
+                  onClick={() => setPriceFilterBrand('Apple')}
+                  className={priceFilterBrand === 'Apple' ? styles.btnSave : styles.btnCancel}
+                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Apple' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                >
+                   Apple
+                </button>
+                <button 
+                  onClick={() => setPriceFilterBrand('Samsung')}
+                  className={priceFilterBrand === 'Samsung' ? styles.btnSave : styles.btnCancel}
+                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Samsung' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                >
+                  SAMSUNG
+                </button>
+              </div>
+
+              {/* 검색어 입력 필드 */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기종 검색:</span>
+                <input 
+                  type="text"
+                  placeholder="예: 아이폰 15"
+                  value={priceSearchQuery}
+                  onChange={(e) => setPriceSearchQuery(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '20px',
+                    padding: '8px 16px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    minWidth: '200px'
+                  }}
+                />
+              </div>
+            </div>
+
             <div className={styles.tableSection}>
               <div className={styles.tableWrapper}>
                 <table className={styles.adminTable}>
@@ -796,37 +860,42 @@ export default function AdminDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {tradeInPrices.map(r => (
-                      <tr key={r.id}>
-                        <td style={{ fontWeight: 'bold' }}>{r.brand}</td>
-                        <td style={{ fontWeight: 'bold', color: '#fff' }}>{r.model_name}</td>
-                        <td style={{ color: 'var(--success-color)', fontWeight: '600' }}>{r.base_price.toLocaleString()}원</td>
-                        <td style={{ color: 'var(--danger-color)' }}>-{r.storage_128g_deduct.toLocaleString()}원</td>
-                        <td style={{ color: 'var(--accent-light)' }}>+{r.storage_512g_add.toLocaleString()}원</td>
-                        <td>
-                          <span style={{ color: 'var(--danger-color)' }}>-{r.screen_scratch_deduct.toLocaleString()}</span> / 
-                          <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.screen_broken_deduct.toLocaleString()}</span>
-                        </td>
-                        <td>
-                          <span style={{ color: 'var(--danger-color)' }}>-{r.body_scratch_deduct.toLocaleString()}</span> / 
-                          <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.body_broken_deduct.toLocaleString()}</span>
-                        </td>
-                        <td style={{ color: 'var(--danger-color)' }}>-{r.camera_error_deduct.toLocaleString()}원</td>
-                        <td style={{ color: 'var(--danger-color)' }}>-{r.screen_burn_deduct.toLocaleString()}원</td>
-                        <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          {new Date(r.updated_at).toLocaleDateString()}
-                        </td>
-                        <td>
-                          <button onClick={() => openPriceModal(r)} className={styles.btnCancel} style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}>
-                            시세 수정
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {tradeInPrices.length === 0 && (
+                    {tradeInPrices
+                      .filter(r => priceFilterBrand === 'All' || r.brand.toLowerCase() === priceFilterBrand.toLowerCase())
+                      .filter(r => r.model_name.toLowerCase().includes(priceSearchQuery.toLowerCase()))
+                      .map(r => (
+                        <tr key={r.id}>
+                          <td style={{ fontWeight: 'bold' }}>{r.brand}</td>
+                          <td style={{ fontWeight: 'bold', color: '#fff' }}>{r.model_name}</td>
+                          <td style={{ color: 'var(--success-color)', fontWeight: '600' }}>{r.base_price.toLocaleString()}원</td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{r.storage_128g_deduct.toLocaleString()}원</td>
+                          <td style={{ color: 'var(--accent-light)' }}>+{r.storage_512g_add.toLocaleString()}원</td>
+                          <td>
+                            <span style={{ color: 'var(--danger-color)' }}>-{r.screen_scratch_deduct.toLocaleString()}</span> / 
+                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.screen_broken_deduct.toLocaleString()}</span>
+                          </td>
+                          <td>
+                            <span style={{ color: 'var(--danger-color)' }}>-{r.body_scratch_deduct.toLocaleString()}</span> / 
+                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.body_broken_deduct.toLocaleString()}</span>
+                          </td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{r.camera_error_deduct.toLocaleString()}원</td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{r.screen_burn_deduct.toLocaleString()}원</td>
+                          <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            {new Date(r.updated_at).toLocaleDateString()}
+                          </td>
+                          <td>
+                            <button onClick={() => openPriceModal(r)} className={styles.btnCancel} style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}>
+                              시세 수정
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {tradeInPrices
+                      .filter(r => priceFilterBrand === 'All' || r.brand.toLowerCase() === priceFilterBrand.toLowerCase())
+                      .filter(r => r.model_name.toLowerCase().includes(priceSearchQuery.toLowerCase())).length === 0 && (
                       <tr>
                         <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                          등록된 매입 시세 설정 정보가 없습니다.
+                          검색되거나 조건에 부합하는 매입 시세 정보가 없습니다.
                         </td>
                       </tr>
                     )}
