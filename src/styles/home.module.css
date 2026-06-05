@@ -1,0 +1,270 @@
+/* 홈 화면 스타일 */
+
+.homeContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* 히어로 배너 슬라이더 목업 */
+.banner {
+  background: linear-gradient(135deg, rgba(95, 93, 236, 0.15) 0%, rgba(139, 92, 246, 0.05) 100%);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 24px 20px;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.banner::before {
+  content: '';
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, var(--accent-light) 0%, transparent 70%);
+  opacity: 0.15;
+  filter: blur(20px);
+}
+
+.bannerBadge {
+  background-color: var(--accent-color);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: 20px;
+  width: max-content;
+  margin-bottom: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.bannerTitle {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+
+.bannerSubtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* 퀵 액션 카드 (매입 / 판매 큰 버튼) */
+.actionGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+}
+
+.actionCard {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  position: relative;
+  overflow: hidden;
+}
+
+.actionCard:active {
+  transform: scale(0.98);
+}
+
+.actionCard:hover {
+  border-color: rgba(95, 93, 236, 0.4);
+  background: linear-gradient(135deg, var(--bg-secondary) 0%, rgba(95, 93, 236, 0.03) 100%);
+}
+
+.iconWrapper {
+  width: 52px;
+  height: 52px;
+  border-radius: var(--border-radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.sellIcon {
+  background: linear-gradient(135deg, #5f5dec 0%, #8b5cf6 100%);
+}
+
+.buyIcon {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.cardInfo {
+  flex: 1;
+}
+
+.cardTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.cardDesc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.3;
+}
+
+/* 실시간 거래 현황 전광판 (Ticker) */
+.tickerSection {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+}
+
+.sectionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.liveDot {
+  width: 6px;
+  height: 6px;
+  background-color: var(--success-color);
+  border-radius: 50%;
+  box-shadow: 0 0 8px var(--success-color);
+  display: inline-block;
+  animation: pulse 1.5s infinite;
+}
+
+.tickerWrapper {
+  height: 48px;
+  overflow: hidden;
+  position: relative;
+}
+
+.tickerList {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.5s ease-in-out;
+}
+
+.tickerItem {
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.tickerModel {
+  font-weight: 600;
+}
+
+.tickerPrice {
+  color: var(--accent-light);
+  font-weight: 700;
+}
+
+.tickerStatus {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 700;
+}
+
+.statusComplete {
+  background-color: rgba(16, 185, 129, 0.1);
+  color: var(--success-color);
+}
+
+.statusProgress {
+  background-color: rgba(245, 158, 11, 0.1);
+  color: var(--warning-color);
+}
+
+/* 시세 시각화 그리드 */
+.marketSection {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+}
+
+.marketGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.marketRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.marketRow:last-child {
+  border-bottom: none;
+}
+
+.marketInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brandLogo {
+  width: 32px;
+  height: 32px;
+  background-color: var(--bg-tertiary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.marketModel {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.marketSpec {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.marketPriceInfo {
+  text-align: right;
+}
+
+.marketPrice {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.marketTrend {
+  font-size: 10px;
+  color: var(--success-color);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 2px;
+}

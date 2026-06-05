@@ -1,0 +1,311 @@
+/* 중고폰 쇼핑몰 (구매하기) 스타일 */
+
+.buyWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: calc(100vh - 120px);
+}
+
+/* 필터 바 */
+.filterBar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 56px;
+  background-color: var(--bg-primary);
+  z-index: 8;
+  padding: 4px 0 10px 0;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.filterGroup {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.filterGroup::-webkit-scrollbar {
+  display: none; /* 필터 스크롤바 숨김 */
+}
+
+.filterTab {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.filterTabActive {
+  background-color: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #fff;
+}
+
+/* 상품 그리드 */
+.productGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.productCard {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: var(--transition-smooth);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+.productCard:active {
+  transform: scale(0.97);
+}
+
+/* 이미지 래퍼 */
+.imageWrapper {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  position: relative;
+  background-color: var(--bg-tertiary);
+  overflow: hidden;
+}
+
+.productImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.5s ease;
+}
+
+.productCard:hover .productImage {
+  transform: scale(1.05);
+}
+
+/* 등급 배지 */
+.gradeBadge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-sm);
+  z-index: 1;
+}
+
+.gradeS {
+  background-color: #d97706; /* 오렌지/골드 */
+  color: #fff;
+}
+
+.gradeA {
+  background-color: #4f46e5; /* 로얄 블루 */
+  color: #fff;
+}
+
+.gradeB {
+  background-color: #4b5563; /* 실버 그레이 */
+  color: #fff;
+}
+
+/* 품절 표시 오버레이 */
+.soldOutOverlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(3, 7, 18, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--danger-color);
+  z-index: 2;
+}
+
+/* 상품 정보 영역 */
+.productInfo {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+}
+
+.productBrand {
+  font-size: 10px;
+  color: var(--text-secondary);
+  font-weight: 700;
+}
+
+.productTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.productSpecs {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.productPrice {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--accent-light);
+  margin-top: auto;
+  padding-top: 4px;
+}
+
+/* ==========================================
+   상세페이지 스타일
+   ========================================== */
+.detailWrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.detailImageWrapper {
+  width: 100%;
+  aspect-ratio: 16 / 11;
+  background-color: var(--bg-secondary);
+  border-radius: var(--border-radius-md);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--border-color);
+}
+
+.detailImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detailMeta {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detailTitleRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.detailTitle {
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.detailSpecList {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.specRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 8px;
+}
+
+.specRow:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.specLabel {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.specVal {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.detailDesc {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+/* 하단 플로팅 구매 액션바 */
+.bottomAction {
+  position: sticky;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background-color: rgba(18, 24, 38, 0.95);
+  backdrop-filter: blur(12px);
+  border-top: 1px solid var(--border-color);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  z-index: 9;
+  margin-top: 24px;
+}
+
+.actionPriceInfo {
+  display: flex;
+  flex-direction: column;
+}
+
+.actionPriceLabel {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.actionPriceVal {
+  font-size: 20px;
+  font-weight: 900;
+  color: var(--accent-light);
+}
+
+.btnBuy {
+  flex: 1;
+  background: var(--accent-gradient);
+  color: #fff;
+  padding: 14px;
+  border-radius: var(--border-radius-md);
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  box-shadow: 0 4px 12px rgba(95, 93, 236, 0.3);
+}
+
+.btnBuy:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  box-shadow: none;
+}

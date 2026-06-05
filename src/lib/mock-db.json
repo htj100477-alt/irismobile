@@ -1,0 +1,107 @@
+{
+  "members": [
+    {
+      "id": "member-test",
+      "phone_number": "01012345678",
+      "pin_code": "1234",
+      "name": "홍길동",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    },
+    {
+      "id": "member-1780672537692",
+      "phone_number": "01077445064",
+      "pin_code": "1129",
+      "name": "한태종",
+      "created_at": "2026-06-05T15:15:37.692Z"
+    }
+  ],
+  "trade_ins": [
+    {
+      "id": "trade-1",
+      "member_id": "member-test",
+      "brand": "Apple",
+      "model_name": "아이폰 13 프로",
+      "storage": "128GB",
+      "color": "시이에라 블루",
+      "condition_answers": {
+        "screen": "scratch",
+        "body": "clean",
+        "camera": "good",
+        "screen_burn": "none"
+      },
+      "estimated_price": 520000,
+      "final_price": 500000,
+      "status": "inspecting",
+      "shipping_method": "parcel",
+      "shipping_address": "서울시 강남구 테헤란로 123, 405호",
+      "bank_name": "국민은행",
+      "bank_account": "123-45-6789-012",
+      "account_holder": "홍길동",
+      "admin_notes": "카메라 주변 테두리에 미세 기스 확인되어 2만원 최종 차감 조정함.",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    }
+  ],
+  "products": [
+    {
+      "id": "prod-1",
+      "brand": "Apple",
+      "model_name": "아이폰 15 프로",
+      "storage": "256GB",
+      "color": "내추럴 티타늄",
+      "price": 1150000,
+      "grade": "S",
+      "images": [
+        "https://images.unsplash.com/photo-1695048133142-1a20484d2569?w=500&auto=format&fit=crop&q=60"
+      ],
+      "description": "액정 및 외관 기스 전혀 없는 S급 상품입니다. 박스 포함 풀세트.",
+      "status": "available",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    },
+    {
+      "id": "prod-2",
+      "brand": "Apple",
+      "model_name": "아이폰 14",
+      "storage": "128GB",
+      "color": "스타라이트",
+      "price": 750000,
+      "grade": "A",
+      "images": [
+        "https://images.unsplash.com/photo-1510557880182-3d4d3cba35a5?w=500&auto=format&fit=crop&q=60"
+      ],
+      "description": "테두리에 미세한 생활 기스가 있으나 전체적으로 매우 깨끗합니다.",
+      "status": "available",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    },
+    {
+      "id": "prod-3",
+      "brand": "Samsung",
+      "model_name": "갤럭시 S24 울트라",
+      "storage": "512GB",
+      "color": "티타늄 블랙",
+      "price": 1250000,
+      "grade": "S",
+      "images": [
+        "https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=500&auto=format&fit=crop&q=60"
+      ],
+      "description": "개통 후 실사용 2주 미만의 거의 새 제품입니다. 최초 통화일 2024년 3월.",
+      "status": "available",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    },
+    {
+      "id": "prod-4",
+      "brand": "Samsung",
+      "model_name": "갤럭시 S23",
+      "storage": "256GB",
+      "color": "크림",
+      "price": 650000,
+      "grade": "B",
+      "images": [
+        "https://images.unsplash.com/photo-1573148195900-7845dcb9b127?w=500&auto=format&fit=crop&q=60"
+      ],
+      "description": "뒷면에 카메라 옆 미세 기스 있으며 잔상 없는 가성비 좋은 B급 상품입니다.",
+      "status": "available",
+      "created_at": "2026-06-05T15:14:58.564Z"
+    }
+  ],
+  "orders": []
+}
