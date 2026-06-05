@@ -97,6 +97,7 @@ export default function AdminDashboardPage() {
   // 시세 필터 및 검색 상태
   const [priceFilterBrand, setPriceFilterBrand] = useState<'All' | 'Apple' | 'Samsung'>('All');
   const [priceSearchQuery, setPriceSearchQuery] = useState('');
+  const [priceFilterSub, setPriceFilterSub] = useState<string>('All');
 
   // 1. 관리자 토큰 검증
   useEffect(() => {
@@ -784,61 +785,135 @@ export default function AdminDashboardPage() {
             {/* 필터 및 검색 컨트롤 영역 */}
             <div style={{ 
               display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: 'center', 
-              marginBottom: '20px', 
-              gap: '16px', 
-              flexWrap: 'wrap',
+              flexDirection: 'column',
+              gap: '12px',
               background: '#0f172a',
               padding: '16px',
               borderRadius: '8px',
-              border: '1px solid var(--border-color)'
+              border: '1px solid var(--border-color)',
+              marginBottom: '20px'
             }}>
-              {/* 제조사 필터 버튼 */}
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button 
-                  onClick={() => setPriceFilterBrand('All')}
-                  className={priceFilterBrand === 'All' ? styles.btnSave : styles.btnCancel}
-                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
-                >
-                  전체보기
-                </button>
-                <button 
-                  onClick={() => setPriceFilterBrand('Apple')}
-                  className={priceFilterBrand === 'Apple' ? styles.btnSave : styles.btnCancel}
-                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Apple' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
-                >
-                   Apple
-                </button>
-                <button 
-                  onClick={() => setPriceFilterBrand('Samsung')}
-                  className={priceFilterBrand === 'Samsung' ? styles.btnSave : styles.btnCancel}
-                  style={{ padding: '8px 16px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Samsung' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
-                >
-                  SAMSUNG
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                {/* 제조사 필터 버튼 */}
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600', marginRight: '4px' }}>제조사:</span>
+                  <button 
+                    onClick={() => { setPriceFilterBrand('All'); setPriceFilterSub('All'); }}
+                    className={priceFilterBrand === 'All' ? styles.btnSave : styles.btnCancel}
+                    style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                  >
+                    전체보기
+                  </button>
+                  <button 
+                    onClick={() => { setPriceFilterBrand('Apple'); setPriceFilterSub('All'); }}
+                    className={priceFilterBrand === 'Apple' ? styles.btnSave : styles.btnCancel}
+                    style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Apple' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                     Apple
+                  </button>
+                  <button 
+                    onClick={() => { setPriceFilterBrand('Samsung'); setPriceFilterSub('All'); }}
+                    className={priceFilterBrand === 'Samsung' ? styles.btnSave : styles.btnCancel}
+                    style={{ padding: '6px 14px', borderRadius: '20px', fontSize: '13px', border: priceFilterBrand === 'Samsung' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                  >
+                    SAMSUNG
+                  </button>
+                </div>
+
+                {/* 검색어 입력 필드 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기종 검색:</span>
+                  <input 
+                    type="text"
+                    placeholder="예: 아이폰 15"
+                    value={priceSearchQuery}
+                    onChange={(e) => setPriceSearchQuery(e.target.value)}
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '20px',
+                      padding: '6px 14px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      minWidth: '180px'
+                    }}
+                  />
+                </div>
               </div>
 
-              {/* 검색어 입력 필드 */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기종 검색:</span>
-                <input 
-                  type="text"
-                  placeholder="예: 아이폰 15"
-                  value={priceSearchQuery}
-                  onChange={(e) => setPriceSearchQuery(e.target.value)}
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '20px',
-                    padding: '8px 16px',
-                    color: '#fff',
-                    fontSize: '13px',
-                    outline: 'none',
-                    minWidth: '200px'
-                  }}
-                />
-              </div>
+              {/* 소분류 필터 (제조사가 전체가 아닐 때만 렌더링) */}
+              {priceFilterBrand !== 'All' && (
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '8px', 
+                  alignItems: 'center', 
+                  borderTop: '1px solid var(--border-light)', 
+                  paddingTop: '10px', 
+                  marginTop: '4px'
+                }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600', marginRight: '4px' }}>소분류 시리즈:</span>
+                  <button 
+                    onClick={() => setPriceFilterSub('All')}
+                    className={priceFilterSub === 'All' ? styles.btnSave : styles.btnCancel}
+                    style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                  >
+                    전체 시리즈
+                  </button>
+                  
+                  {priceFilterBrand === 'Apple' && (
+                    <>
+                      <button 
+                        onClick={() => setPriceFilterSub('15')}
+                        className={priceFilterSub === '15' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === '15' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        아이폰 15 시리즈
+                      </button>
+                      <button 
+                        onClick={() => setPriceFilterSub('14')}
+                        className={priceFilterSub === '14' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === '14' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        아이폰 14 시리즈
+                      </button>
+                      <button 
+                        onClick={() => setPriceFilterSub('13')}
+                        className={priceFilterSub === '13' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === '13' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        아이폰 13 시리즈
+                      </button>
+                    </>
+                  )}
+
+                  {priceFilterBrand === 'Samsung' && (
+                    <>
+                      <button 
+                        onClick={() => setPriceFilterSub('S24')}
+                        className={priceFilterSub === 'S24' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === 'S24' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        갤럭시 S24 시리즈
+                      </button>
+                      <button 
+                        onClick={() => setPriceFilterSub('S23')}
+                        className={priceFilterSub === 'S23' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === 'S23' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        갤럭시 S23 시리즈
+                      </button>
+                      <button 
+                        onClick={() => setPriceFilterSub('Z')}
+                        className={priceFilterSub === 'Z' ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '5px 12px', borderRadius: '15px', fontSize: '12px', border: priceFilterSub === 'Z' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        Z 플립/폴드 시리즈
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
 
             <div className={styles.tableSection}>
@@ -862,6 +937,19 @@ export default function AdminDashboardPage() {
                   <tbody>
                     {tradeInPrices
                       .filter(r => priceFilterBrand === 'All' || r.brand.toLowerCase() === priceFilterBrand.toLowerCase())
+                      .filter(r => {
+                        if (priceFilterSub === 'All') return true;
+                        if (priceFilterBrand === 'Apple') {
+                          return r.model_name.includes(priceFilterSub);
+                        }
+                        if (priceFilterBrand === 'Samsung') {
+                          if (priceFilterSub === 'Z') {
+                            return r.model_name.includes('Z') || r.model_name.includes('플립') || r.model_name.includes('폴드');
+                          }
+                          return r.model_name.includes(priceFilterSub);
+                        }
+                        return true;
+                      })
                       .filter(r => r.model_name.toLowerCase().includes(priceSearchQuery.toLowerCase()))
                       .map(r => (
                         <tr key={r.id}>
@@ -892,6 +980,19 @@ export default function AdminDashboardPage() {
                       ))}
                     {tradeInPrices
                       .filter(r => priceFilterBrand === 'All' || r.brand.toLowerCase() === priceFilterBrand.toLowerCase())
+                      .filter(r => {
+                        if (priceFilterSub === 'All') return true;
+                        if (priceFilterBrand === 'Apple') {
+                          return r.model_name.includes(priceFilterSub);
+                        }
+                        if (priceFilterBrand === 'Samsung') {
+                          if (priceFilterSub === 'Z') {
+                            return r.model_name.includes('Z') || r.model_name.includes('플립') || r.model_name.includes('폴드');
+                          }
+                          return r.model_name.includes(priceFilterSub);
+                        }
+                        return true;
+                      })
                       .filter(r => r.model_name.toLowerCase().includes(priceSearchQuery.toLowerCase())).length === 0 && (
                       <tr>
                         <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
