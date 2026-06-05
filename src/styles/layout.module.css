@@ -4,7 +4,9 @@
   width: 100%;
   max-width: 480px;
   min-height: 100vh;
+  min-height: 100dvh;
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background-color: var(--bg-primary);
@@ -171,3 +173,11 @@
 .navItemActive .navIconWrapper {
   transform: translateY(-2px);
 }
+
+/* 모바일 기기에서 키보드가 올라올 때(입력창 포커스 시) 하단 탭 바를 숨겨 가독성 확보 및 레이아웃 밀림 방지 */
+@media (max-width: 480px) {
+  body:has(input:focus, textarea:focus, select:focus) .bottomNav {
+    display: none !important;
+  }
+}
+
