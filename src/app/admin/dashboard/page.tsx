@@ -614,12 +614,13 @@ export default function AdminDashboard() {
     const totalCost = targetDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
 
     const modelMap: Record<string, { modelName: string; count: number; cost: number }> = {};
-    const gradeMap: Record<string, { grade: string; count: number; cost: number }> = {};
+    const modelGradeMap: Record<string, { modelName: string; grade: string; count: number; cost: number }> = {};
 
     targetDevices.forEach(item => {
       const model = item.model_name || '기형 미확인 / 未知型号';
       const rawGrade = item.notes?.trim() || '';
       const grade = rawGrade || (displayLang === 'zh' ? '无' : '공란');
+      const key = `${model}_${grade}`;
 
       if (!modelMap[model]) {
         modelMap[model] = { modelName: model, count: 0, cost: 0 };
@@ -627,21 +628,21 @@ export default function AdminDashboard() {
       modelMap[model].count++;
       modelMap[model].cost += Number(item.purchase_cost) || 0;
 
-      if (!gradeMap[grade]) {
-        gradeMap[grade] = { grade, count: 0, cost: 0 };
+      if (!modelGradeMap[key]) {
+        modelGradeMap[key] = { modelName: model, grade, count: 0, cost: 0 };
       }
-      gradeMap[grade].count++;
-      gradeMap[grade].cost += Number(item.purchase_cost) || 0;
+      modelGradeMap[key].count++;
+      modelGradeMap[key].cost += Number(item.purchase_cost) || 0;
     });
 
     const modelsList = Object.values(modelMap).sort((a, b) => b.cost - a.cost);
-    const gradesList = Object.values(gradeMap).sort((a, b) => b.cost - a.cost);
+    const modelGradesList = Object.values(modelGradeMap).sort((a, b) => b.cost - a.cost);
 
     return {
       totalCount,
       totalCost,
       modelsList,
-      gradesList
+      modelGradesList
     };
   }, [hongkongInventory, inventoryStatsBasis, displayLang, getModelDisplayName]);
 
@@ -5131,10 +5132,10 @@ export default function AdminDashboard() {
                   </div>
                 </div>
 
-                {/* 우측: 등급별 통계 */}
+                {/* 우측: 기종별 등급 세부 요약 */}
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
                   <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)', marginBottom: '10px' }}>
-                    📊 {displayLang === 'zh' ? '按等级资产统计 / 等级统计' : '등급별 재고 자산 요약'}
+                    📊 {displayLang === 'zh' ? '按机型 & 等级细分 / 细分统计' : '기종별 등급 세부 요약'}
                   </h4>
                   <div style={{
                     maxHeight: '400px',
@@ -5146,31 +5147,33 @@ export default function AdminDashboard() {
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: '#fff' }}>
                       <thead>
                         <tr style={{ backgroundColor: '#0f172a', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
-                          <th style={{ padding: '10px 12px' }}>{displayLang === 'zh' ? '等级' : '등급'}</th>
+                          <th style={{ padding: '10px 12px' }}>{displayLang === 'zh' ? '机型' : '모델명'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '等级' : '등급'}</th>
                           <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '数量' : '수량'}</th>
                           <th style={{ padding: '10px 12px', textAlign: 'right' }}>{displayLang === 'zh' ? '总成本' : '원가 합계'}</th>
                           <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '价值比' : '비중'}</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {stats.gradesList.map(g => {
-                          const costPct = stats.totalCost > 0 ? (g.cost / stats.totalCost) * 100 : 0;
+                        {stats.modelGradesList.map(mg => {
+                          const costPct = stats.totalCost > 0 ? (mg.cost / stats.totalCost) * 100 : 0;
                           return (
-                            <tr key={g.grade} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                              <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>
+                            <tr key={`${mg.modelName}_${mg.grade}`} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>{getModelDisplayName(mg.modelName)}</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
                                 <span style={{
                                   padding: '3px 8px',
                                   borderRadius: '12px',
                                   fontSize: '11px',
                                   fontWeight: 'bold',
-                                  backgroundColor: g.grade === '공란' || g.grade === '无' ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.1)',
-                                  color: g.grade === '공란' || g.grade === '无' ? 'var(--text-muted)' : 'var(--primary-color)'
+                                  backgroundColor: mg.grade === '공란' || mg.grade === '无' ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.1)',
+                                  color: mg.grade === '공란' || mg.grade === '无' ? 'var(--text-muted)' : 'var(--primary-color)'
                                 }}>
-                                  {g.grade}
+                                  {mg.grade}
                                 </span>
                               </td>
-                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{g.count}대</td>
-                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 'bold' }}>₩{Math.round(g.cost).toLocaleString()}</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{mg.count}대</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 'bold' }}>₩{Math.round(mg.cost).toLocaleString()}</td>
                               <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>{costPct.toFixed(1)}%</td>
                             </tr>
                           );
