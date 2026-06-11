@@ -164,7 +164,6 @@ const HKInventoryRow = memo(function HKInventoryRow({
       <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
       <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
       <td>{item.color || '-'}</td>
-      <td>{item.battery_pct}%</td>
       <td style={{ color: 'var(--text-secondary)' }}>
         ₩{Number(item.purchase_cost || 0).toLocaleString()}
       </td>
@@ -2765,9 +2764,6 @@ export default function AdminDashboard() {
                       <th onClick={() => handleHKSort('color')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '颜色' : '색상'} {renderSortIcon('color')}
                       </th>
-                      <th onClick={() => handleHKSort('battery_pct')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        {displayLang === 'zh' ? '电池' : '배터리'} {renderSortIcon('battery_pct')}
-                      </th>
                       <th onClick={() => handleHKSort('purchase_cost')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '成本' : '입고가'} {renderSortIcon('purchase_cost')}
                       </th>
@@ -4232,7 +4228,7 @@ export default function AdminDashboard() {
                 <textarea
                   id="bulkPasteTextarea"
                   rows={6}
-                  placeholder="예시:&#10;Sticker&#9;Date&#9;Model&#9;IMEI&#9;Color&#9;Battery&#9;Cost&#9;Price&#9;Location&#9;Notes&#10;SN001&#9;24-06-10&#9;아이폰 15&#9;35829381&#9;Black&#9;98&#9;450&#9;550&#9;HK-A&#9;Test"
+                  placeholder="예시:&#10;Sticker&#9;Date&#9;Model&#9;IMEI&#9;Color&#9;Cost&#9;Price&#9;Location&#9;Notes&#10;SN001&#9;24-06-10&#9;아이폰 15&#9;35829381&#9;Black&#9;450&#9;550&#9;HK-A&#9;Test"
                   value={pasteText}
                   onChange={(e) => handlePasteChange(e.target.value)}
                   style={{
@@ -4314,7 +4310,6 @@ export default function AdminDashboard() {
                             <th>모델명</th>
                             <th>IMEI</th>
                             <th>색상</th>
-                            <th>배터리</th>
                             <th>원가</th>
                             <th>판매가</th>
                             <th>위치</th>
@@ -4329,7 +4324,6 @@ export default function AdminDashboard() {
                               <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(r.model_name)}</td>
                               <td style={{ fontFamily: 'monospace' }}>{r.imei || '-'}</td>
                               <td>{r.color}</td>
-                              <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
                               <td>{r.purchase_cost ? `₩${(Number(String(r.purchase_cost).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
                               <td>{r.selling_price ? `HK$${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
                               <td>{r.stock_location}</td>
