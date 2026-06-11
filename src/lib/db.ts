@@ -840,11 +840,12 @@ export async function getHongKongInventory() {
 
 export async function importHongKongInventory(records: any[]) {
   const formattedRecords = records.map(r => {
+    const cleanImei = r.imei ? String(r.imei).trim().replace(/\s+/g, '') : '';
     const item: any = {
       sticker: r.sticker || '',
       site_date: r.site_date || new Date().toLocaleDateString('ko-KR').slice(2),
       model_name: r.model_name || '',
-      imei: r.imei ? String(r.imei).trim().replace(/\s+/g, '') : '',
+      imei: cleanImei || `NO_IMEI-${r.sticker || 'TEMP-' + Math.random().toString(36).substring(2, 10).toUpperCase()}`,
       color: r.color || '',
       battery_pct: r.battery_pct ? String(r.battery_pct).replace(/[^0-9]/g, '') : '100',
       purchase_cost: Number(String(r.purchase_cost || '').replace(/[^0-9.-]/g, '')) || 0,

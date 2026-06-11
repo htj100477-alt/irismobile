@@ -897,7 +897,7 @@ export default function ScannerPage() {
                   fontSize: '12px' 
                 }}
               >
-                <span>#{idx + 1} | Sticker: <strong>{item.sticker || 'IMEI:' + item.imei}</strong></span>
+                <span>#{idx + 1} | Sticker: <strong>{item.sticker || (item.imei?.startsWith('NO_IMEI-') ? 'IMEI 없음' : 'IMEI:' + item.imei)}</strong></span>
                 <button
                   onClick={() => {
                     setScannedItems(prev => prev.filter(x => x.id !== item.id));

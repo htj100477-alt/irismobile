@@ -824,9 +824,9 @@ export default function AdminDashboard() {
       alert('가져올 데이터가 없습니다. 클립보드 데이터를 확인해주세요.');
       return;
     }
-    const validRecords = parsedImportRows.filter(r => r.imei && r.model_name);
+    const validRecords = parsedImportRows.filter(r => r.model_name);
     if (validRecords.length === 0) {
-      alert('유효한 모델명과 IMEI를 가진 행이 없습니다.');
+      alert('유효한 모델명을 가진 행이 없습니다.');
       return;
     }
 
@@ -1138,10 +1138,10 @@ export default function AdminDashboard() {
           justifyContent: 'space-between',
           alignItems: 'center',
           backgroundColor: '#0f172a',
-          padding: '12px 20px',
+          padding: '8px 16px',
           borderRadius: '8px',
           border: '1px solid var(--border-color)',
-          marginBottom: '24px',
+          marginBottom: '16px',
           fontSize: '13px',
           flexWrap: 'wrap',
           gap: '12px'
@@ -1508,10 +1508,10 @@ export default function AdminDashboard() {
               flexDirection: 'column',
               gap: '12px',
               background: '#0f172a',
-              padding: '16px',
+              padding: '12px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              marginBottom: '20px'
+              marginBottom: '12px'
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
                 {/* 제조사 필터 버튼 */}
@@ -1858,10 +1858,10 @@ export default function AdminDashboard() {
               justifyContent: 'space-between',
               alignItems: 'center',
               background: '#0f172a',
-              padding: '16px',
+              padding: '12px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              marginBottom: '16px',
+              marginBottom: '12px',
               gap: '16px',
               flexWrap: 'wrap'
             }}>
@@ -1912,10 +1912,10 @@ export default function AdminDashboard() {
               justifyContent: 'space-between',
               alignItems: 'center',
               backgroundColor: 'rgba(30, 41, 59, 0.4)',
-              padding: '12px 20px',
+              padding: '8px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              marginBottom: '20px',
+              marginBottom: '12px',
               fontSize: '13px',
               flexWrap: 'wrap',
               gap: '12px'
@@ -2051,7 +2051,7 @@ export default function AdminDashboard() {
                         <td>{item.site_date}</td>
                         <td>{item.sticker || '-'}</td>
                         <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
-                        <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                         <td>{item.color || '-'}</td>
                         <td>{item.battery_pct}%</td>
                         <td style={{ color: 'var(--text-secondary)' }}>
@@ -2165,7 +2165,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* 승인 대기 지표 요약 카드 */}
-              <div className={styles.metricsGrid} style={{ marginBottom: '20px' }}>
+              <div className={styles.metricsGrid} style={{ marginBottom: '12px' }}>
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>승인 대기 수량 / 待审批数量</span>
@@ -2215,10 +2215,10 @@ export default function AdminDashboard() {
               justifyContent: 'space-between',
               alignItems: 'center',
               background: '#0f172a',
-              padding: '16px',
+              padding: '12px 16px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              marginBottom: '20px',
+              marginBottom: '12px',
               gap: '16px',
               flexWrap: 'wrap'
             }}>
@@ -2358,7 +2358,7 @@ export default function AdminDashboard() {
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
-                            <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>{item.color || '-'}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
@@ -2466,7 +2466,7 @@ export default function AdminDashboard() {
               </div>
 
               {/* 정산 지표 요약 카드 */}
-              <div className={styles.metricsGrid} style={{ marginBottom: '20px' }}>
+              <div className={styles.metricsGrid} style={{ marginBottom: '12px' }}>
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>총 매출액 / 占销售额</span>
@@ -2506,10 +2506,10 @@ export default function AdminDashboard() {
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 background: '#0f172a',
-                padding: '16px',
+                padding: '12px 16px',
                 borderRadius: '8px',
                 border: '1px solid var(--border-color)',
-                marginBottom: '20px',
+                marginBottom: '12px',
                 gap: '16px',
                 flexWrap: 'wrap'
               }}>
@@ -2582,7 +2582,7 @@ export default function AdminDashboard() {
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
-                            <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
                               ¥{Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
@@ -3412,7 +3412,7 @@ export default function AdminDashboard() {
                               <td>{r.sticker}</td>
                               <td>{r.site_date}</td>
                               <td style={{ fontWeight: 'bold' }}>{r.model_name}</td>
-                              <td style={{ fontFamily: 'monospace' }}>{r.imei}</td>
+                              <td style={{ fontFamily: 'monospace' }}>{r.imei || '-'}</td>
                               <td>{r.color}</td>
                               <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
                               <td>{r.purchase_cost ? `₩${(Number(String(r.purchase_cost).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
@@ -3634,7 +3634,7 @@ export default function AdminDashboard() {
                                       </span>
                                     </div>
                                     <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                      {dev.color ? `${dev.color} | ` : ''}Sticker: {dev.sticker || '-'} | IMEI: {dev.imei}
+                                      {dev.color ? `${dev.color} | ` : ''}Sticker: {dev.sticker || '-'} | IMEI: {dev.imei?.startsWith('NO_IMEI-') ? '-' : dev.imei}
                                     </span>
                                   </label>
                                 );
