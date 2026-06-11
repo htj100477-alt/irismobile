@@ -220,34 +220,31 @@ export default function AdminDashboard() {
   const loadAllData = async () => {
     setLoading(true);
     try {
-      // 매입 데이터 로드
-      const tradeRes = await fetch('/api/trade-ins');
-      const tradeData = await tradeRes.json();
+      // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes] = await Promise.all([
+        fetch('/api/trade-ins'),
+        fetch('/api/products'),
+        fetch('/api/orders'),
+        fetch('/api/trade-in-prices'),
+        fetch('/api/categories'),
+        fetch('/api/hongkong-inventory')
+      ]);
+
+      // 응답 JSON 파싱도 병렬로 처리
+      const [tradeData, prodData, orderData, priceData, catData, hkData] = await Promise.all([
+        tradeRes.json(),
+        prodRes.json(),
+        orderRes.json(),
+        priceRes.json(),
+        catRes.json(),
+        hkRes.json()
+      ]);
+
       if (tradeData.success) setTradeIns(tradeData.data);
-
-      // 상품 데이터 로드
-      const prodRes = await fetch('/api/products');
-      const prodData = await prodRes.json();
       if (prodData.success) setProducts(prodData.data);
-
-      // 주문 데이터 로드
-      const orderRes = await fetch('/api/orders');
-      const orderData = await orderRes.json();
       if (orderData.success) setOrders(orderData.data);
-
-      // 매입 시세 데이터 로드
-      const priceRes = await fetch('/api/trade-in-prices');
-      const priceData = await priceRes.json();
       if (priceData.success) setTradeInPrices(priceData.data);
-
-      // 카테고리 데이터 로드
-      const catRes = await fetch('/api/categories');
-      const catData = await catRes.json();
       if (catData.success) setCategories(catData.data);
-
-      // 홍콩 재고 데이터 로드
-      const hkRes = await fetch('/api/hongkong-inventory');
-      const hkData = await hkRes.json();
       if (hkData.success) setHongkongInventory(hkData.data);
     } catch (err) {
       console.error(err);
