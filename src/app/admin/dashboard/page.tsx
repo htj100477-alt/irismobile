@@ -4951,6 +4951,7 @@ export default function AdminDashboard() {
                 const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
 
                 const totalCostKRW = soldDevices.reduce((sum, d) => sum + (Number(d.purchase_cost) || 0), 0);
+                const avgCostKRW = soldDevices.length > 0 ? totalCostKRW / soldDevices.length : 0;
                 const unitPriceHKD = Number(cardBulkUnitPrice) || 0;
                 const totalSellingPriceHKD = unitPriceHKD * soldDevices.length;
                 const totalSellingPriceKRW = totalSellingPriceHKD * cnyRate;
@@ -4973,6 +4974,30 @@ export default function AdminDashboard() {
                         <strong style={{ fontSize: '14px', color: 'var(--warning-color)' }}>{excludedDevices.length}대</strong>
                       </div>
                     </div>
+
+                    {/* 선택된 기기들의 평균 매입가 안내 카드 (항상 노출) */}
+                    {soldDevices.length > 0 && (
+                      <div style={{ 
+                        padding: '10px 14px', 
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                        borderRadius: '6px', 
+                        border: '1px solid var(--border-color)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        fontSize: '12px'
+                      }}>
+                        <span style={{ color: 'var(--text-secondary)' }}>
+                          {displayLang === 'zh' ? '所选设备的平均成本:' : '선택된 기기들의 평균 매입가:'}
+                        </span>
+                        <strong style={{ fontSize: '13px', color: 'var(--accent-light)' }}>
+                          ₩{Math.round(avgCostKRW).toLocaleString()} 
+                          <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '6px' }}>
+                            (총 ₩{totalCostKRW.toLocaleString()} / {soldDevices.length}대)
+                          </span>
+                        </strong>
+                      </div>
+                    )}
 
                     {/* 실시간 마진 계산 출력 */}
                     {unitPriceHKD > 0 && soldDevices.length > 0 && (
