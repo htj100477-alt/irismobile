@@ -70,6 +70,10 @@ export default function ScannerPage() {
   // html5-qrcode 인스턴스 래퍼
   const html5QrCodeRef = useRef<any>(null);
 
+  // 동일 바코드 연속 스캔 방지용 쿨다운 레프
+  const lastScannedCodeRef = useRef<string>('');
+  const lastScanTimeRef = useRef<number>(0);
+
   // 카메라 장치 목록 불러오기 함수
   const loadCameraDevices = async () => {
     try {
@@ -238,8 +242,6 @@ export default function ScannerPage() {
           const wasAdded = handleScanSuccess(decodedText);
           if (wasAdded) {
             setScanStatus({ text: `[${decodedText}] 터치 스냅샷 분석 성공! 제외 완료.`, isError: false });
-            // 성공했으므로 실시간 카메라 정지
-            await stopScanner();
           }
         } catch (scanErr) {
           console.warn(scanErr);
@@ -295,17 +297,19 @@ export default function ScannerPage() {
     };
 
     const successCallback = async (decodedText: string) => {
-      const wasAdded = handleScanSuccess(decodedText);
-      if (wasAdded) {
-        try {
-          if (html5QrCodeRef.current) {
-            await html5QrCodeRef.current.stop();
-          }
-          setIsScanning(false);
-        } catch (err) {
-          console.error('Failed to stop camera:', err);
-        }
+      const now = Date.now();
+      const code = decodedText.trim();
+      
+      // 2초 내 동일 바코드 스캔 시 쿨다운 처리 (중복 비프/에러 비프 스패밍 방지)
+      if (code === lastScannedCodeRef.current && (now - lastScanTimeRef.current) < 2000) {
+        return;
       }
+      
+      lastScannedCodeRef.current = code;
+      lastScanTimeRef.current = now;
+
+      // 스캔 처리 (카메라를 끄지 않고 연속 실행 상태를 유지)
+      handleScanSuccess(code);
     };
 
     await scanner.start(
