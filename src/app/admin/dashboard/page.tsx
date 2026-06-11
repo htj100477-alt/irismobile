@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
@@ -162,17 +162,26 @@ export default function AdminDashboard() {
   const [savingPetName, setSavingPetName] = useState(false);
   const [petSearchQuery, setPetSearchQuery] = useState('');
 
-  // 다국어 펫네임 매핑 조회 헬퍼 함수
-  const getModelDisplayName = (modelName: string): string => {
+  // ✅ 성능 최적화: 펫네임 Map 빌드 (O(1) 조회)
+  const petNameMap = useMemo(() => {
+    const map = new Map<string, { ko: string; zh: string }>();
+    for (const x of modelPetNames) {
+      map.set(x.model_code.trim().toUpperCase(), { ko: x.pet_name_ko, zh: x.pet_name_zh });
+    }
+    return map;
+  }, [modelPetNames]);
+
+  // 다국어 펫네임 매핑 조회 헬퍼 함수 (Map으로 O(1) 조회)
+  const getModelDisplayName = useCallback((modelName: string): string => {
     if (!modelName) return '';
     const cleanModel = modelName.trim().toUpperCase();
-    const found = modelPetNames.find(x => x.model_code.trim().toUpperCase() === cleanModel);
+    const found = petNameMap.get(cleanModel);
     if (found) {
-      const petName = displayLang === 'zh' ? found.pet_name_zh : found.pet_name_ko;
+      const petName = displayLang === 'zh' ? found.zh : found.ko;
       return `${petName} (${modelName})`;
     }
     return modelName;
-  };
+  }, [petNameMap, displayLang]);
   
   // 일괄 판매 처리 상태
   const [bulkSaleDate, setBulkSaleDate] = useState('');
@@ -219,8 +228,12 @@ export default function AdminDashboard() {
       : <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px' }}>▼</span>;
   };
 
-  // 홍콩 재고 필터링 리스트 계산
-  const filteredHKItems = hongkongInventory
+  // ✅ 성능 최적화: 선택된 ID Set (O(1) 조회)
+  const selectedHKIdsSet = useMemo(() => new Set(selectedHKIds), [selectedHKIds]);
+  const selectedPendingIdsSet = useMemo(() => new Set(selectedPendingIds), [selectedPendingIds]);
+
+  // ✅ 성능 최적화: filteredHKItems useMemo 적용
+  const filteredHKItems = useMemo(() => hongkongInventory
     .filter(item => {
       if (hkStatusFilter === 'available') return !item.is_sold;
       if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
@@ -236,10 +249,11 @@ export default function AdminDashboard() {
         (item.imei || '').toLowerCase().includes(q) ||
         (item.sticker || '').toLowerCase().includes(q)
       );
-    });
+    }),
+  [hongkongInventory, hkStatusFilter, hkSearchQuery, getModelDisplayName]);
 
-  // 홍콩 재고 정렬 리스트 계산
-  const sortedHKItems = [...filteredHKItems].sort((a, b) => {
+  // ✅ 성능 최적화: sortedHKItems useMemo 적용
+  const sortedHKItems = useMemo(() => [...filteredHKItems].sort((a, b) => {
     if (!hkSortColumn) return 0;
 
     let valA = a[hkSortColumn] ?? '';
@@ -268,7 +282,7 @@ export default function AdminDashboard() {
     if (valA < valB) return hkSortDirection === 'asc' ? -1 : 1;
     if (valA > valB) return hkSortDirection === 'asc' ? 1 : -1;
     return 0;
-  });
+  }), [filteredHKItems, hkSortColumn, hkSortDirection]);
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
 
@@ -1163,7 +1177,8 @@ export default function AdminDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        setSelectedHKIds(selectedHKIds.filter(id => !deviceIds.includes(id)));
+        const deviceIdSet = new Set(deviceIds);
+        setSelectedHKIds(prev => prev.filter(id => !deviceIdSet.has(id)));
         loadAllData();
       } else {
         alert(data.error || '판매 취소 실패');
@@ -2223,7 +2238,7 @@ export default function AdminDashboard() {
                           }}
                           checked={
                             filteredHKItems.length > 0 &&
-                            filteredHKItems.every(x => selectedHKIds.includes(x.id))
+                            filteredHKItems.every(x => selectedHKIdsSet.has(x.id))
                           }
                         />
                       </th>
@@ -2266,12 +2281,13 @@ export default function AdminDashboard() {
                           <input
                             type="checkbox"
                             aria-label={`${item.model_name} 선택`}
-                            checked={selectedHKIds.includes(item.id)}
+                            checked={selectedHKIdsSet.has(item.id)}
                             onChange={(e) => {
+                              const id = item.id;
                               if (e.target.checked) {
-                                setSelectedHKIds([...selectedHKIds, item.id]);
+                                setSelectedHKIds(prev => [...prev, id]);
                               } else {
-                                setSelectedHKIds(selectedHKIds.filter(id => id !== item.id));
+                                setSelectedHKIds(prev => prev.filter(x => x !== id));
                               }
                             }}
                           />
@@ -2532,7 +2548,7 @@ export default function AdminDashboard() {
                                   (item.seller_name || '').toLowerCase().includes(q)
                                 );
                               })
-                              .every(x => selectedPendingIds.includes(x.id))
+                              .every(x => selectedPendingIdsSet.has(x.id))
                           }
                         />
                       </th>
@@ -2576,12 +2592,13 @@ export default function AdminDashboard() {
                                 <input
                                   type="checkbox"
                                   aria-label={`${item.model_name} 승인 선택`}
-                                  checked={selectedPendingIds.includes(item.id)}
+                                  checked={selectedPendingIdsSet.has(item.id)}
                                   onChange={(e) => {
+                                    const id = item.id;
                                     if (e.target.checked) {
-                                      setSelectedPendingIds([...selectedPendingIds, item.id]);
+                                      setSelectedPendingIds(prev => [...prev, id]);
                                     } else {
-                                      setSelectedPendingIds(selectedPendingIds.filter(id => id !== item.id));
+                                      setSelectedPendingIds(prev => prev.filter(x => x !== id));
                                     }
                                   }}
                                 />
