@@ -370,6 +370,7 @@ export default function AdminDashboard() {
   const [hkPageSize, setHkPageSize] = useState<number | 'all'>(50);
   const [hkViewMode, setHkViewMode] = useState<'list' | 'card'>('list');
   const [settlementViewMode, setSettlementViewMode] = useState<'list' | 'card'>('list');
+  const [hkCardSortMode, setHkCardSortMode] = useState<'count' | 'name'>('count');
 
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
@@ -390,7 +391,6 @@ export default function AdminDashboard() {
     grades: string[];
   } | null>(null);
 
-  const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
 
@@ -591,9 +591,16 @@ export default function AdminDashboard() {
       g.colors[c] = (g.colors[c] || 0) + 1;
     }
 
-    // 수량 순으로 정렬
-    return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [filteredHKItems, displayLang]);
+    // 정렬 방식 적용
+    return Object.values(groups).sort((a, b) => {
+      if (hkCardSortMode === 'name') {
+        const nameA = getModelDisplayName(a.modelName);
+        const nameB = getModelDisplayName(b.modelName);
+        return nameA.localeCompare(nameB);
+      }
+      return b.total - a.total;
+    });
+  }, [filteredHKItems, displayLang, hkCardSortMode, getModelDisplayName]);
 
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementMonth, setSettlementMonth] = useState('All');
@@ -1728,7 +1735,7 @@ export default function AdminDashboard() {
             onClick={() => setActiveTab('completed-sales')}
             className={`${styles.menuItem} ${activeTab === 'completed-sales' ? styles.menuItemActive : ''}`}
           >
-            <CheckCircle2 size={18} /> 판매 완료 내역
+            <CheckCircle2 size={18} /> {displayLang === 'zh' ? '销售审批' : '판매 승인'}
           </button>
 
           <button 
@@ -2731,12 +2738,53 @@ export default function AdminDashboard() {
             </div>
 
             {hkViewMode === 'card' ? (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: '16px',
-                marginTop: '16px'
-              }}>
+              <>
+                {/* 카드 정렬 컨트롤 바 */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'flex-end',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '12px',
+                  marginBottom: '12px'
+                }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                    {displayLang === 'zh' ? '排序:' : '정렬 기준:'}
+                  </span>
+                  <button
+                    onClick={() => setHkCardSortMode('count')}
+                    className={hkCardSortMode === 'count' ? styles.btnSave : styles.btnCancel}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      border: hkCardSortMode === 'count' ? 'none' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {displayLang === 'zh' ? '按数量' : '개수 많은 순'}
+                  </button>
+                  <button
+                    onClick={() => setHkCardSortMode('name')}
+                    className={hkCardSortMode === 'name' ? styles.btnSave : styles.btnCancel}
+                    style={{
+                      padding: '4px 10px',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      border: hkCardSortMode === 'name' ? 'none' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {displayLang === 'zh' ? '按名称' : '기종 이름 순'}
+                  </button>
+                </div>
+
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '16px',
+                  marginTop: '4px'
+                }}>
                 {groupedHKModels.map(g => {
                   const displayName = getModelDisplayName(g.modelName);
                   return (
@@ -2896,7 +2944,8 @@ export default function AdminDashboard() {
                   </div>
                 )}
               </div>
-            ) : (
+            </>
+          ) : (
               <div className={styles.tableSection}>
               <div className={styles.tableWrapper}>
                 <table className={styles.adminTable}>
@@ -3078,9 +3127,9 @@ export default function AdminDashboard() {
             <div className="animate-fade-in">
               <div className={styles.headerRow}>
                 <div>
-                  <h2 className={styles.pageTitle}>판매 완료 승인 대기 내역 / 销售完成审批</h2>
+                  <h2 className={styles.pageTitle}>판매 승인 관리 / 销售审批</h2>
                   <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                    판매원이 판매완료 처리한 기기들을 조회하고, 최종 정산 마진 장부에 넘기기 위해 최종 승인합니다.
+                    판매원이 판매완료 처리한 기기들을 최종 승인하여 마진 및 정산 장부에 등록합니다.
                   </p>
                 </div>
                 <div>
@@ -3143,7 +3192,7 @@ export default function AdminDashboard() {
             {/* 필터 및 검색 컨트롤 */}
             <div style={{
               display: 'flex',
-              justifyContent: 'space-between',
+              justifyContent: 'flex-end',
               alignItems: 'center',
               background: '#0f172a',
               padding: '12px 16px',
@@ -3153,25 +3202,6 @@ export default function AdminDashboard() {
               gap: '16px',
               flexWrap: 'wrap'
             }}>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>승인 상태 / 审批状态:</span>
-                {(['all', 'sold_pending', 'sold'] as const).map(status => {
-                  let label = '전체 / 全部';
-                  if (status === 'sold_pending') label = '최종승인 대기 / 待审批';
-                  if (status === 'sold') label = '승인 완료 / 已审批';
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setCompletedSalesFilter(status)}
-                      className={completedSalesFilter === status ? styles.btnSave : styles.btnCancel}
-                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: completedSalesFilter === status ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
-              </div>
-
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
                 <input
@@ -3253,11 +3283,7 @@ export default function AdminDashboard() {
                   </thead>
                   <tbody>
                     {hongkongInventory
-                      .filter(item => {
-                        if (completedSalesFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                        if (completedSalesFilter === 'sold') return item.is_sold && item.is_approved;
-                        return item.is_sold;
-                      })
+                      .filter(item => item.is_sold && !item.is_approved)
                       .filter(item => {
                         const q = completedSalesSearch.toLowerCase();
                         const displayName = getModelDisplayName(item.model_name).toLowerCase();
@@ -3275,23 +3301,19 @@ export default function AdminDashboard() {
                         return (
                           <tr key={item.id}>
                             <td style={{ textAlign: 'center' }}>
-                              {item.is_sold && !item.is_approved ? (
-                                <input
-                                  type="checkbox"
-                                  aria-label={`${item.model_name} 승인 선택`}
-                                  checked={selectedPendingIdsSet.has(item.id)}
-                                  onChange={(e) => {
-                                    const id = item.id;
-                                    if (e.target.checked) {
-                                      setSelectedPendingIds(prev => [...prev, id]);
-                                    } else {
-                                      setSelectedPendingIds(prev => prev.filter(x => x !== id));
-                                    }
-                                  }}
-                                />
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>✓</span>
-                              )}
+                              <input
+                                type="checkbox"
+                                aria-label={`${item.model_name} 승인 선택`}
+                                checked={selectedPendingIdsSet.has(item.id)}
+                                onChange={(e) => {
+                                  const id = item.id;
+                                  if (e.target.checked) {
+                                    setSelectedPendingIds(prev => [...prev, id]);
+                                  } else {
+                                    setSelectedPendingIds(prev => prev.filter(x => x !== id));
+                                  }
+                                }}
+                              />
                             </td>
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
@@ -3317,34 +3339,26 @@ export default function AdminDashboard() {
                                 borderRadius: '12px',
                                 fontSize: '11px',
                                 fontWeight: 'bold',
-                                backgroundColor: !item.is_approved ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                                color: !item.is_approved ? 'var(--warning-color)' : 'var(--success-color)'
+                                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                color: 'var(--warning-color)'
                               }}>
-                                {!item.is_approved ? '최종 승인 대기 / 待审批' : '승인 완료 / 已审批'}
+                                최종 승인 대기 / 待审批
                               </span>
                             </td>
                             <td>
-                              {!item.is_approved ? (
-                                <button
-                                  onClick={() => executeFinalApproval([item.id])}
-                                  className={styles.btnSave}
-                                  style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
-                                >
-                                  승인 / 审批
-                                </button>
-                              ) : (
-                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>장부 기재됨</span>
-                              )}
+                              <button
+                                onClick={() => executeFinalApproval([item.id])}
+                                className={styles.btnSave}
+                                style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
+                              >
+                                승인 / 审批
+                              </button>
                             </td>
                           </tr>
                         );
                       })}
                     {hongkongInventory
-                      .filter(item => {
-                        if (completedSalesFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                        if (completedSalesFilter === 'sold') return item.is_sold && item.is_approved;
-                        return item.is_sold;
-                      })
+                      .filter(item => item.is_sold && !item.is_approved)
                       .filter(item => {
                         const q = completedSalesSearch.toLowerCase();
                         return (
@@ -3355,7 +3369,7 @@ export default function AdminDashboard() {
                       }).length === 0 && (
                       <tr>
                         <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                          판매 완료 처리된 기기 내역이 없습니다.
+                          판매 승인 대기 중인 기기 내역이 없습니다.
                         </td>
                       </tr>
                     )}
