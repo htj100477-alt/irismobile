@@ -143,10 +143,18 @@ export default function ScannerPage() {
         html5QrCodeRef.current = scanner;
 
         await scanner.start(
-          { facingMode: 'environment' }, // 후면 카메라 우선
+          { 
+            facingMode: 'environment',
+            width: { ideal: 1920, min: 1024 },
+            height: { ideal: 1080, min: 768 }
+          },
           {
-            fps: 10,
-            qrbox: { width: 260, height: 130 } // 바코드에 맞는 직사각형 가이드 박스
+            fps: 15,
+            qrbox: (width, height) => {
+              // 바코드 비율에 맞는 최적의 크기로 가이드 박스 조절
+              const size = Math.min(width, height);
+              return { width: Math.round(size * 0.85), height: Math.round(size * 0.45) };
+            }
           },
           async (decodedText) => {
             // 바코드 인식 성공 콜백
