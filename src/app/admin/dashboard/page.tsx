@@ -596,6 +596,7 @@ export default function AdminDashboard() {
   }, [filteredHKItems, displayLang]);
 
   const [settlementSeller, setSettlementSeller] = useState('All');
+  const [settlementMonth, setSettlementMonth] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
 
   // 고정 엑셀 양식 열 선택 상태 (체크 시 반영, 해제 시 공란)
@@ -3372,6 +3373,7 @@ export default function AdminDashboard() {
             .filter(item => item.is_sold && item.is_approved)
             .filter(item => {
               if (settlementSeller !== 'All' && item.seller_name !== settlementSeller) return false;
+              if (settlementMonth !== 'All' && getYearMonth(item.sale_date || '') !== settlementMonth) return false;
               const q = settlementSearch.toLowerCase();
               const displayName = getModelDisplayName(item.model_name).toLowerCase();
               return (
@@ -3425,6 +3427,14 @@ export default function AdminDashboard() {
               .filter(item => item.is_sold && item.is_approved && item.seller_name)
               .map(item => item.seller_name)
           ));
+
+          // 판매완료 연/월 고유 목록 추출
+          const monthsList = Array.from(new Set(
+            hongkongInventory
+              .filter(item => item.is_sold && item.is_approved && item.sale_date)
+              .map(item => getYearMonth(item.sale_date || ''))
+              .filter(m => m !== '기타/날짜없음')
+          )).sort((a, b) => b.localeCompare(a));
 
           return (
             <div className="animate-fade-in">
@@ -3485,25 +3495,50 @@ export default function AdminDashboard() {
                 gap: '16px',
                 flexWrap: 'wrap'
               }}>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원별 필터 / 销售员:</span>
-                  <button
-                    onClick={() => setSettlementSeller('All')}
-                    className={settlementSeller === 'All' ? styles.btnSave : styles.btnCancel}
-                    style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
-                  >
-                    전체 / 全部
-                  </button>
-                  {sellersList.map(seller => (
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원별 필터 / 销售员:</span>
                     <button
-                      key={seller}
-                      onClick={() => setSettlementSeller(seller)}
-                      className={settlementSeller === seller ? styles.btnSave : styles.btnCancel}
-                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === seller ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      onClick={() => setSettlementSeller('All')}
+                      className={settlementSeller === 'All' ? styles.btnSave : styles.btnCancel}
+                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
                     >
-                      {seller}
+                      전체 / 全部
                     </button>
-                  ))}
+                    {sellersList.map(seller => (
+                      <button
+                        key={seller}
+                        onClick={() => setSettlementSeller(seller)}
+                        className={settlementSeller === seller ? styles.btnSave : styles.btnCancel}
+                        style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === seller ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                      >
+                        {seller}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '16px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>정산 월 필터 / 月份:</span>
+                    <select
+                      value={settlementMonth}
+                      onChange={(e) => setSettlementMonth(e.target.value)}
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '20px',
+                        padding: '6px 14px',
+                        color: '#fff',
+                        fontSize: '12px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value="All">{displayLang === 'zh' ? '全部月份' : '전체 월'}</option>
+                      {monthsList.map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
