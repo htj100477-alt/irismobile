@@ -125,6 +125,9 @@ export default function AdminDashboard() {
   const [bulkSellerName, setBulkSellerName] = useState('');
   const [bulkRemainingInput, setBulkRemainingInput] = useState('');
   const [processingBulkSale, setProcessingBulkSale] = useState(false);
+  const [selectedBulkModels, setSelectedBulkModels] = useState<string[]>([]);
+  const [unsoldBulkDeviceIds, setUnsoldBulkDeviceIds] = useState<string[]>([]);
+  const [expandedBulkModels, setExpandedBulkModels] = useState<Record<string, boolean>>({});
 
   // 신규 탭 검색, 필터링 및 선택 상태
   const [hkStatusFilter, setHkStatusFilter] = useState<'all' | 'available' | 'sold_pending' | 'sold'>('all');
@@ -771,7 +774,7 @@ export default function AdminDashboard() {
     }
   };
 
-  // 일괄 판매완료 처리
+  // 일괄 판매완료 처리 (그룹 모델 기준)
   const executeBulkSale = async () => {
     if (!bulkSellerName.trim()) {
       alert('판매원 이름을 입력해주세요. / 请输入销售员姓名。');
@@ -781,16 +784,32 @@ export default function AdminDashboard() {
       alert('판매 날짜를 선택해주세요. / 请选择销售日期。');
       return;
     }
-    if (selectedHKIds.length === 0) {
-      alert('판매 완료 처리할 대상 기기를 선택해주세요.');
+    if (selectedBulkModels.length === 0) {
+      alert('판매 완료 처리할 기종을 하나 이상 선택해주세요.');
       return;
     }
+
+    const availableHKDevices = hongkongInventory.filter(x => !x.is_sold);
+    const candidateDevices = availableHKDevices.filter(x => selectedBulkModels.includes(x.model_name));
+    const soldDevices = candidateDevices.filter(x => !unsoldBulkDeviceIds.includes(x.id));
+    const unsoldDevices = candidateDevices.filter(x => unsoldBulkDeviceIds.includes(x.id));
+
+    if (soldDevices.length === 0) {
+      alert('선택한 기종 중 판매 완료할 기기가 없습니다. 모든 기기가 미판매로 제외되었습니다.');
+      return;
+    }
+
+    const confirmMsg = `선택하신 기종(${selectedBulkModels.join(', ')}) 총 ${candidateDevices.length}대 중\n` +
+      `- 판매 완료 처리: ${soldDevices.length}대\n` +
+      `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n\n` +
+      `정말로 판매 완료 처리를 실행하시겠습니까?`;
+
+    if (!confirm(confirmMsg)) return;
+
     setProcessingBulkSale(true);
     try {
-      const remainingList = bulkRemainingInput
-        .split(/[\n,]/)
-        .map(x => x.trim())
-        .filter(Boolean);
+      const remainingIdentifiers = unsoldDevices.map(d => d.imei || d.sticker).filter(Boolean);
+      const soldIds = candidateDevices.map(d => d.id);
 
       const res = await fetch('/api/hongkong-inventory', {
         method: 'PUT',
@@ -799,23 +818,26 @@ export default function AdminDashboard() {
           action: 'sell',
           saleDate: bulkSaleDate,
           sellerName: bulkSellerName.trim(),
-          soldIds: selectedHKIds,
-          remainingIdentifiers: remainingList
+          soldIds,
+          remainingIdentifiers
         })
       });
       const data = await res.json();
       if (data.success) {
-        alert(`일괄 판매 처리가 완료되었습니다! (총 ${data.count}대 판매완료) \n批量销售处理完成！(共 ${data.count} 台已售)`);
+        alert(`성공적으로 판매 처리가 완료되었습니다! (총 ${data.count}대 판매완료)\nSuccessfully processed ${data.count} sales!`);
         setIsBulkSaleModalOpen(false);
-        setBulkRemainingInput('');
+        // Reset states
+        setSelectedBulkModels([]);
+        setUnsoldBulkDeviceIds([]);
+        setExpandedBulkModels({});
         setBulkSellerName('');
-        setSelectedHKIds([]);
+        setBulkSaleDate('');
         loadAllData();
       } else {
-        alert(data.error || '판매 처리 실패');
+        alert(data.error || '판매 완료 처리 실패');
       }
     } catch (e) {
-      alert('서버 처리 중 오류가 발생했습니다.');
+      alert('서버 처리 오류가 발생했습니다.');
     } finally {
       setProcessingBulkSale(false);
     }
@@ -1627,9 +1649,9 @@ export default function AdminDashboard() {
                     backgroundColor: 'transparent',
                     cursor: 'pointer'
                   }}
-                  disabled={selectedHKIds.length === 0}
+                  disabled={hongkongInventory.filter(x => !x.is_sold).length === 0}
                 >
-                  <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售 ({selectedHKIds.length}대 선택됨)
+                  <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售
                 </button>
               </div>
             </div>
@@ -3150,52 +3172,130 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label htmlFor="bulkRemainingInputTextarea" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', display: 'block', marginBottom: '6px' }}>
-                  제외할 (남은) 재고 식별자 / 未售出（剩余）设备 (IMEI 또는 스티커 번호, 엔터 또는 쉼표 구분)
-                </label>
-                <textarea
-                  id="bulkRemainingInputTextarea"
-                  rows={4}
-                  placeholder="선택한 기기 중 아직 안 팔린(제외할) 기기들의 IMEI 또는 스티커번호를 입력하세요.&#10;여기에 입력한 기기는 판매 완료되지 않고 재고 상태로 보존됩니다."
-                  value={bulkRemainingInput}
-                  onChange={(e) => setBulkRemainingInput(e.target.value)}
-                  style={{
-                    width: '100%',
-                    backgroundColor: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '6px',
-                    padding: '10px',
-                    color: '#fff',
-                    fontSize: '12px',
-                    outline: 'none',
-                    resize: 'vertical'
-                  }}
-                />
-              </div>
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', display: 'block', marginBottom: '6px' }}>
-                  선택한 기기 목록 / 已选择设备 (총 {selectedHKIds.length}대)
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', display: 'block', marginBottom: '10px' }}>
+                  판매할 기종 및 미판매 제외 선택 / 选择销售기종 및 未售出 排除
                 </span>
+                
                 <div style={{
-                  maxHeight: '120px',
+                  maxHeight: '280px',
                   overflowY: 'auto',
                   background: 'rgba(255,255,255,0.02)',
-                  padding: '8px',
+                  padding: '12px',
                   borderRadius: '6px',
                   border: '1px solid var(--border-color)',
-                  fontSize: '11px'
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
                 }}>
-                  {hongkongInventory
-                    .filter(x => selectedHKIds.includes(x.id))
-                    .map(x => (
-                      <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                        <span>{x.model_name} ({x.color})</span>
-                        <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
-                          IMEI: {x.imei} {x.sticker ? `| Sticker: ${x.sticker}` : ''}
-                        </span>
-                      </div>
-                    ))}
+                  {(() => {
+                    const availableHKDevices = hongkongInventory.filter(x => !x.is_sold);
+                    const groupedHKDevices: Record<string, typeof availableHKDevices> = {};
+                    availableHKDevices.forEach(item => {
+                      if (!groupedHKDevices[item.model_name]) {
+                        groupedHKDevices[item.model_name] = [];
+                      }
+                      groupedHKDevices[item.model_name].push(item);
+                    });
+
+                    const groups = Object.entries(groupedHKDevices);
+                    if (groups.length === 0) {
+                      return <span style={{ color: 'var(--text-muted)', fontSize: '12px', textAlign: 'center', padding: '20px 0' }}>판매 가능한 재고가 없습니다.</span>;
+                    }
+
+                    return groups.map(([modelName, items]) => {
+                      const isModelSelected = selectedBulkModels.includes(modelName);
+                      const isExpanded = expandedBulkModels[modelName];
+
+                      return (
+                        <div key={modelName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                              <input
+                                type="checkbox"
+                                checked={isModelSelected}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedBulkModels([...selectedBulkModels, modelName]);
+                                  } else {
+                                    setSelectedBulkModels(selectedBulkModels.filter(m => m !== modelName));
+                                    const modelDeviceIds = items.map(x => x.id);
+                                    setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => !modelDeviceIds.includes(id)));
+                                  }
+                                }}
+                                style={{ cursor: 'pointer' }}
+                              />
+                              <span style={{ fontSize: '12px', fontWeight: 'bold', color: isModelSelected ? '#fff' : 'var(--text-secondary)' }}>
+                                {modelName} ({items.length}대)
+                              </span>
+                            </label>
+                            
+                            <button
+                              type="button"
+                              onClick={() => setExpandedBulkModels({ ...expandedBulkModels, [modelName]: !isExpanded })}
+                              style={{
+                                fontSize: '11px',
+                                color: 'var(--accent-light)',
+                                cursor: 'pointer',
+                                background: 'none',
+                                border: 'none',
+                                outline: 'none'
+                              }}
+                            >
+                              {isExpanded ? '접기 ▲' : '기기 상세 ▼'}
+                            </button>
+                          </div>
+
+                          {isExpanded && (
+                            <div style={{ paddingLeft: '22px', marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                              {items.map(dev => {
+                                const isUnsold = unsoldBulkDeviceIds.includes(dev.id);
+                                return (
+                                  <label
+                                    key={dev.id}
+                                    style={{
+                                      display: 'flex',
+                                      justifyContent: 'space-between',
+                                      alignItems: 'center',
+                                      fontSize: '11px',
+                                      padding: '6px 10px',
+                                      backgroundColor: isUnsold ? 'rgba(245, 158, 11, 0.05)' : 'rgba(255,255,255,0.01)',
+                                      borderRadius: '4px',
+                                      border: isUnsold ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid transparent',
+                                      opacity: isModelSelected ? 1 : 0.5,
+                                      cursor: isModelSelected ? 'pointer' : 'default',
+                                      userSelect: 'none'
+                                    }}
+                                  >
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                      <input
+                                        type="checkbox"
+                                        disabled={!isModelSelected}
+                                        checked={isUnsold}
+                                        onChange={(e) => {
+                                          if (e.target.checked) {
+                                            setUnsoldBulkDeviceIds([...unsoldBulkDeviceIds, dev.id]);
+                                          } else {
+                                            setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => id !== dev.id));
+                                          }
+                                        }}
+                                        style={{ cursor: isModelSelected ? 'pointer' : 'default' }}
+                                      />
+                                      <span style={{ color: isUnsold ? 'var(--warning-color)' : '#fff', fontWeight: isUnsold ? 'bold' : 'normal' }}>
+                                        {isUnsold ? '★ 미판매 제외 / 排除未售' : '판매 완료 / 确认销售'}
+                                      </span>
+                                    </div>
+                                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
+                                      {dev.color ? `${dev.color} | ` : ''}Sticker: {dev.sticker || '-'} | IMEI: {dev.imei}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             </div>
@@ -3205,7 +3305,7 @@ export default function AdminDashboard() {
               <button
                 onClick={executeBulkSale}
                 className={styles.btnSave}
-                disabled={processingBulkSale || selectedHKIds.length === 0}
+                disabled={processingBulkSale || selectedBulkModels.length === 0}
               >
                 {processingBulkSale ? '판매 처리 중...' : '판매 처리 실행 / 确认销售'}
               </button>
