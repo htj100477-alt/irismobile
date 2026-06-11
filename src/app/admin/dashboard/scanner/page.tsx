@@ -150,6 +150,80 @@ export default function ScannerPage() {
     }
   };
 
+  // 3.2. 실시간 비디오 프레임 스냅샷을 캡처하여 즉시 해독 시도
+  const captureSnapshotAndScan = async () => {
+    if (!isScanning) return;
+    
+    const video = document.querySelector('#scanner-reader-container video') as HTMLVideoElement;
+    if (!video) return;
+
+    setScanStatus({ text: '스냅샷 분석 중... / 正在分析快照...', isError: false });
+
+    // 화면 플래시 피드백 효과
+    const container = document.getElementById('scanner-reader-container');
+    if (container) {
+      container.style.opacity = '0.3';
+      setTimeout(() => {
+        container.style.opacity = '1.0';
+      }, 80);
+    }
+
+    try {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
+      // 비디오의 현재 프레임을 캔버스에 그리기
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      // 캔버스를 블롭 파일로 변환하여 분석 시작
+      canvas.toBlob(async (blob) => {
+        if (!blob) {
+          setScanStatus({ text: '스냅샷 생성 실패', isError: true });
+          return;
+        }
+        
+        const file = new File([blob], "snapshot.png", { type: "image/png" });
+        
+        try {
+          const { Html5Qrcode } = await import('html5-qrcode');
+          
+          // 실시간 스캐너와 엉키지 않도록 별개의 임시 엘리먼트로 스캔 실행
+          const tempDiv = document.createElement('div');
+          tempDiv.id = 'temp-scanner-container-snapshot';
+          tempDiv.style.display = 'none';
+          document.body.appendChild(tempDiv);
+          
+          const tempScanner = new Html5Qrcode('temp-scanner-container-snapshot');
+          const decodedText = await tempScanner.scanFile(file, false);
+          
+          // 임시 엘리먼트 소멸
+          document.body.removeChild(tempDiv);
+          
+          const wasAdded = handleScanSuccess(decodedText);
+          if (wasAdded) {
+            setScanStatus({ text: `[${decodedText}] 터치 스냅샷 분석 성공! 제외 완료.`, isError: false });
+            // 성공했으므로 실시간 카메라 정지
+            await stopScanner();
+          }
+        } catch (scanErr) {
+          console.warn(scanErr);
+          setScanStatus({ 
+            text: '스냅샷 인식 실패: 이미지 화질이 흐립니다. 조금 더 멀리서 초점을 맞춰보세요.', 
+            isError: true 
+          });
+          playBeep('warning');
+        }
+      }, 'image/png');
+    } catch (e: any) {
+      console.error(e);
+      setScanStatus({ text: `스냅샷 분석 실패: ${e.message || String(e)}`, isError: true });
+      playBeep('warning');
+    }
+  };
+
   // 4. 스캐너 켜기/끄기 기능 (Html5Qrcode 직접 제어)
   const toggleScanner = async () => {
     if (!selectedModel) {
@@ -621,18 +695,44 @@ export default function ScannerPage() {
           </div>
 
           {/* 카메라 비디오 캔버스 컨테이너 (scanFile 분석을 위해 항상 DOM에 유지하되 숨김/노출 처리) */}
-          <div 
-            id="scanner-reader-container" 
-            style={{ 
-              width: '100%', 
-              borderRadius: '8px', 
-              overflow: 'hidden', 
-              border: '1px solid #334155',
-              backgroundColor: '#000',
-              aspectRatio: '1.33',
-              display: isScanning ? 'block' : 'none'
-            }} 
-          />
+          <div style={{ position: 'relative', display: isScanning ? 'block' : 'none' }}>
+            <div 
+              id="scanner-reader-container" 
+              onClick={captureSnapshotAndScan}
+              style={{ 
+                width: '100%', 
+                borderRadius: '8px', 
+                overflow: 'hidden', 
+                border: '1px solid #334155',
+                backgroundColor: '#000',
+                aspectRatio: '1.33',
+                cursor: 'pointer',
+                transition: 'opacity 0.08s ease'
+              }} 
+            />
+            <div style={{
+              position: 'absolute',
+              bottom: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              backgroundColor: 'rgba(3, 7, 18, 0.75)',
+              color: '#34d399',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              pointerEvents: 'none',
+              zIndex: 30,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.5)',
+              border: '1px solid rgba(52, 211, 153, 0.2)',
+              whiteSpace: 'nowrap',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}>
+              📸 화면 터치 시 즉시 현재 화면 분석
+            </div>
+          </div>
 
           {!isScanning && (
             <div style={{ width: '100%', height: '140px', borderRadius: '8px', border: '2px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>
