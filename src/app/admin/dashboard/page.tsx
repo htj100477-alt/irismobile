@@ -1205,6 +1205,7 @@ export default function AdminDashboard() {
   // ==========================================
 
   // 고정 엑셀 열 레이아웃 파싱 공통 헬퍼 (붙여넣은 헤더 첫 행에서 인덱스를 동적으로 찾아 정렬)
+  // 고정 엑셀 열 레이아웃 파싱 공통 헬퍼 (붙여넣은 헤더 첫 행에서 인덱스를 동적으로 찾아 정렬)
   const recalculateParsedRows = (
     text: string,
     fields: Record<string, boolean>
@@ -1217,33 +1218,132 @@ export default function AdminDashboard() {
     const firstRow = lines[0] || [];
     const firstRowClean = firstRow.map(h => h.toLowerCase().replace(/\s+/g, ''));
 
-    // 헤더 열이 있으면 인덱스를 찾아 매칭하고, 없을 시 기본 순번 기준 인덱스로 대체 (순번 복사 안 한 경우 고려)
+    // 헤더 식별용 키워드 목록
+    const headerKeywords = [
+      '순번', 'p/g', 'pg', 'sticker', '일련번호', '스티커', 'pgno',
+      '모델명', 'model', 'code', '机型', '型号',
+      '펫네임', 'name', '기종', '名称', '품명',
+      'imei', '串号', '일련', 'sn', 'serial',
+      '색상', 'color', '颜色',
+      '실판매가', 'price', 'cost', '매입가', '금액', '원가', '가격',
+      '차감항목', '비고', '등급', 'notes', 'remark', 'grade', '等级'
+    ];
+
+    const hasHeader = firstRowClean.some(h => headerKeywords.some(k => h.includes(k)));
+    const startIndex = hasHeader ? 1 : 0;
+
+    const hasSeq = hasHeader && firstRowClean.some(h => h.includes('순번'));
+    const offset = hasSeq ? 1 : 0;
+
     const findIdx = (keywords: string[], fallback: number) => {
       const idx = firstRowClean.findIndex(h => keywords.some(k => h.includes(k)));
       return idx > -1 ? idx : fallback;
     };
 
-    // exact match helper
     const findExactIdx = (keywords: string[], fallback: number) => {
       const idx = firstRowClean.findIndex(h => keywords.some(k => h === k));
       return idx > -1 ? idx : fallback;
     };
 
-    // 순번 포함 시: pgNo=1, modelName=2, petName=3, imei=5, color=7, sellPrice=10, deductionItem=11
-    // 순번 미포함 시: pgNo=0, modelName=1, petName=2, imei=4, color=6, sellPrice=9, deductionItem=10
-    const hasSeq = firstRowClean.some(h => h.includes('순번'));
-    const offset = hasSeq ? 1 : 0;
+    // 기본 헤더 파싱 규칙 (헤더 매칭 성공 시)
+    let pgIdx = findIdx(['p/g', 'pg', 'sticker', '일련번호', '스티커', 'pgno'], 0 + offset);
+    let modelIdx = findIdx(['모델명', 'model', 'code', '机型', '型号'], 1 + offset);
+    let petIdx = findIdx(['펫네임', 'name', '기종', '名称', '품명'], 2 + offset);
+    let imeiIdx = findExactIdx(['imei'], findIdx(['imei', '串号', '일련', 'sn', 'serial'], 4 + offset));
+    let colorIdx = findIdx(['색상', 'color', '颜色'], 6 + offset);
+    let priceIdx = findExactIdx(['실판매가'], findIdx(['실판매가', 'price', 'cost', '매입가', '금액', '원가', '가격'], 9 + offset));
+    let deductionItemIdx = findExactIdx(['차감항목', '비고', '등급'], findIdx(['차감항목', '비고', '등급', 'notes', 'remark', 'grade', '等级'], 10 + offset));
 
-    const pgIdx = findIdx(['p/g', 'pg'], 0 + offset);
-    const modelIdx = findIdx(['모델명'], 1 + offset);
-    const petIdx = findIdx(['펫네임'], 2 + offset);
-    const imeiIdx = findExactIdx(['imei'], findIdx(['imei'], 4 + offset));
-    const colorIdx = findIdx(['색상', 'color'], 6 + offset);
-    const priceIdx = findExactIdx(['실판매가'], findIdx(['실판매가', 'price'], 9 + offset));
-    const deductionItemIdx = findExactIdx(['차감항목', '비고', '등급'], findIdx(['차감항목', '비고', '등급', 'notes', 'remark'], 10 + offset));
+    if (!hasHeader) {
+      // 헤더가 없는 경우 데이터 행 샘플링 분석으로 최적의 인덱스 자동 매핑
+      const sampleRows = lines.slice(0, 10).filter(r => r.length >= 5);
+      if (sampleRows.length > 0) {
+        const colCount = sampleRows[0].length;
+        let foundImei = -1;
+        let foundPrice = -1;
+        let foundGrade = -1;
+        let foundStorage = -1;
+        let foundSticker = -1;
+        let foundColor = -1;
+
+        for (let col = 0; col < colCount; col++) {
+          let imeiScore = 0;
+          let priceScore = 0;
+          let gradeScore = 0;
+          let storageScore = 0;
+          let stickerScore = 0;
+          let colorScore = 0;
+
+          sampleRows.forEach(row => {
+            if (col >= row.length) return;
+            const val = row[col].trim();
+            if (!val) return;
+
+            // IMEI: 15자리 숫자
+            if (/^\d{15}$/.test(val)) {
+              imeiScore += 10;
+            }
+
+            // Sticker: 예: M080186268, 알파벳으로 시작하는 대량입고 일련번호 형식
+            if (/^[A-Za-z]\d{9}$/.test(val) || /^[A-Za-z]\d+$/.test(val)) {
+              stickerScore += 10;
+            }
+
+            // 용량: 64, 128, 256, 512, 1024 등
+            if (/^(64|128|256|512|1024|1000|2000)$/.test(val)) {
+              storageScore += 8;
+            }
+
+            // 가격: 콤마 포함 혹은 1000 ~ 10,000,000 사이 정수
+            const cleanNum = val.replace(/,/g, '');
+            if (/^\d+$/.test(cleanNum)) {
+              const num = parseInt(cleanNum, 10);
+              if (num >= 1000 && num <= 10000000) {
+                priceScore += 5;
+              }
+            }
+
+            // 등급: A, B, C, D, LCD, S, 0
+            if (/^(A|B|C|D|LCD|S|0)$/i.test(val)) {
+              gradeScore += 10;
+            }
+
+            // 색상: 영어/한글 주요 색상명 포함
+            if (/^(black|white|red|blue|green|gold|silver|grey|gray|starlight|midnight|pink|purple|yellow|orange|violet|brown|bronze|블랙|화이트|골드|실버|그레이|레드|블루|그린|핑크|퍼플|옐로우|오렌지|브론즈)$/i.test(val)) {
+              colorScore += 10;
+            }
+          });
+
+          if (imeiScore > 5) foundImei = col;
+          if (stickerScore > 5) foundSticker = col;
+          if (storageScore > 5) foundStorage = col;
+          if (priceScore > 3 && col !== foundImei && col !== foundSticker && col !== foundStorage) {
+            foundPrice = col;
+          }
+          if (gradeScore > 5) foundGrade = col;
+          if (colorScore > 5 && col !== foundSticker && col !== foundImei && col !== foundStorage && col !== foundPrice) {
+            foundColor = col;
+          }
+        }
+
+        if (foundSticker > -1) pgIdx = foundSticker;
+        if (foundImei > -1) imeiIdx = foundImei;
+        if (foundPrice > -1) priceIdx = foundPrice;
+        if (foundGrade > -1) deductionItemIdx = foundGrade;
+        if (foundColor > -1) colorIdx = foundColor;
+
+        if (colCount >= 7) {
+          modelIdx = (pgIdx === 0) ? 1 : 0;
+          petIdx = (pgIdx === 0) ? 2 : 1;
+        } else if (colCount >= 5) {
+          modelIdx = 1;
+          petIdx = 2;
+        }
+      }
+    }
 
     const parsedRows: any[] = [];
-    for (let i = 1; i < lines.length; i++) {
+    for (let i = startIndex; i < lines.length; i++) {
       const row = lines[i];
       if (row.length === 0 || (row.length === 1 && !row[0])) continue;
       
@@ -1263,7 +1363,7 @@ export default function AdminDashboard() {
       item.imei = fields.imei && imeiIdx < row.length && row[imeiIdx] ? row[imeiIdx] : '';
 
       // 4. 색상
-      item.color = fields.color && colorIdx < row.length && row[colorIdx] ? row[colorIdx] : '';
+      item.color = fields.color && colorIdx > -1 && colorIdx < row.length && row[colorIdx] ? row[colorIdx] : '';
 
       // 5. 원가 (Excel의 실판매가가 우리에게는 원가!)
       item.purchase_cost = fields.sellPrice && priceIdx < row.length && row[priceIdx] ? row[priceIdx] : '0';
@@ -1277,7 +1377,7 @@ export default function AdminDashboard() {
       // 8. 위치 (기본 Hong Kong)
       item.stock_location = 'Hong Kong';
 
-      // 9. 비고 (차감항목만 비고 필드에 저장)
+      // 9. 등급/비고 (차감항목/비고/등급을 비고 필드에 저장)
       item.notes = fields.deductionItem && deductionItemIdx < row.length && row[deductionItemIdx] ? row[deductionItemIdx] : '';
 
       parsedRows.push(item);
