@@ -178,19 +178,46 @@ export default function ScannerPage() {
           );
         } catch (firstErr) {
           console.warn('High resolution initialization failed, retrying with default environment camera...', firstErr);
-          // 2차 시도: 기본 후면 카메라 모드
-          await scanner.start(
-            { facingMode: 'environment' },
-            qrConfig,
-            successCallback,
-            () => {}
-          );
+          try {
+            // 2차 시도: 기본 후면 카메라 모드
+            await scanner.start(
+              { facingMode: 'environment' },
+              qrConfig,
+              successCallback,
+              () => {}
+            );
+          } catch (secondErr) {
+            console.warn('Standard environment camera failed, querying device list to bind camera...', secondErr);
+            // 3차 시도: 카메라 하드웨어 목록을 직접 조회하여 바인딩
+            const devices = await Html5Qrcode.getCameras();
+            if (devices && devices.length > 0) {
+              const backCamera = devices.find(d => 
+                d.label.toLowerCase().includes('back') || 
+                d.label.toLowerCase().includes('rear') ||
+                d.label.toLowerCase().includes('후면') ||
+                d.label.toLowerCase().includes('environment') ||
+                d.label.toLowerCase().includes('camera 0')
+              );
+              const selectedCameraId = backCamera ? backCamera.id : devices[0].id;
+              console.log('Selected camera deviceId:', selectedCameraId, 'label:', backCamera ? backCamera.label : devices[0].label);
+              
+              await scanner.start(
+                selectedCameraId,
+                qrConfig,
+                successCallback,
+                () => {}
+              );
+            } else {
+              throw new Error('인식된 카메라 기기가 없습니다. / No camera hardware detected.');
+            }
+          }
         }
 
         setScanStatus({ text: '바코드/QR을 빨간 가이드 박스 안에 맞춰주세요.', isError: false });
       } catch (err: any) {
         console.error(err);
-        setScanStatus({ text: `카메라 실행 실패: ${err.message || '권한을 승인해주세요'}`, isError: true });
+        const errMsg = err.message || err.name || String(err);
+        setScanStatus({ text: `카메라 실행 실패: ${errMsg}`, isError: true });
         setIsScanning(false);
         playBeep('warning');
       }
