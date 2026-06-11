@@ -74,6 +74,18 @@ export default function ScannerPage() {
   const lastScannedCodeRef = useRef<string>('');
   const lastScanTimeRef = useRef<number>(0);
 
+  // 리액트 클로저 문제(Stale Closure) 해결용 실시간 레프 참조
+  const scannedItemsRef = useRef<any[]>([]);
+  const inventoryRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    scannedItemsRef.current = scannedItems;
+  }, [scannedItems]);
+
+  useEffect(() => {
+    inventoryRef.current = inventory;
+  }, [inventory]);
+
   // 카메라 장치 목록 불러오기 함수
   const loadCameraDevices = async () => {
     try {
@@ -419,7 +431,7 @@ export default function ScannerPage() {
     const rawCode = decodedText.trim();
     if (!rawCode) return false;
 
-    const availableForModel = inventory.filter(
+    const availableForModel = inventoryRef.current.filter(
       item => !item.is_sold && item.model_name === selectedModel
     );
 
@@ -436,7 +448,7 @@ export default function ScannerPage() {
       return false;
     }
 
-    const isAlreadyScanned = scannedItems.some(item => item.id === matchedDevice.id);
+    const isAlreadyScanned = scannedItemsRef.current.some(item => item.id === matchedDevice.id);
     if (isAlreadyScanned) {
       setScanStatus({ text: `[${matchedDevice.sticker || matchedDevice.imei}] 이미 제외 등록된 단말기입니다.`, isError: true });
       playBeep('warning');
