@@ -135,15 +135,6 @@ export default function ScannerPage() {
       try {
         const { Html5Qrcode } = await import('html5-qrcode');
         
-        if (html5QrCodeRef.current) {
-          try {
-            await html5QrCodeRef.current.stop();
-          } catch (e) {}
-        }
-
-        const scanner = new Html5Qrcode('scanner-reader-container');
-        html5QrCodeRef.current = scanner;
-
         const qrConfig = {
           fps: 15,
           qrbox: (width: number, height: number) => {
@@ -156,7 +147,9 @@ export default function ScannerPage() {
           const wasAdded = handleScanSuccess(decodedText);
           if (wasAdded) {
             try {
-              await scanner.stop();
+              if (html5QrCodeRef.current) {
+                await html5QrCodeRef.current.stop();
+              }
               setIsScanning(false);
             } catch (err) {
               console.error('Failed to stop camera:', err);
@@ -164,51 +157,81 @@ export default function ScannerPage() {
           }
         };
 
-        try {
-          // 1차 시도: 1080p 고화질 설정 (이상적인 높이/너비로 제한은 완화)
+        // 매 시도마다 깨끗한 인스턴스를 생성하는 헬퍼 함수
+        const runStart = async (cameraConstraints: any) => {
+          if (html5QrCodeRef.current) {
+            try {
+              await html5QrCodeRef.current.stop();
+            } catch (e) {}
+            html5QrCodeRef.current = null;
+          }
+          const scanner = new Html5Qrcode('scanner-reader-container');
+          html5QrCodeRef.current = scanner;
           await scanner.start(
-            { 
-              facingMode: 'environment',
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            },
+            cameraConstraints,
             qrConfig,
             successCallback,
             () => {}
           );
-        } catch (firstErr) {
-          console.warn('High resolution initialization failed, retrying with default environment camera...', firstErr);
+        };
+
+        try {
+          // 1차 시도: 카메라 장비 목록을 조회하여 후면(rear/back) 카메라 ID 직접 바인딩 + 고화질
+          let devices: any[] = [];
           try {
-            // 2차 시도: 기본 후면 카메라 모드
-            await scanner.start(
-              { facingMode: 'environment' },
-              qrConfig,
-              successCallback,
-              () => {}
+            devices = await Html5Qrcode.getCameras();
+          } catch (e) {
+            console.warn('Failed to query camera devices list (possibly no permission yet):', e);
+          }
+
+          let selectedCameraId = "";
+          if (devices && devices.length > 0) {
+            const backCamera = devices.find(d => 
+              d.label.toLowerCase().includes('back') || 
+              d.label.toLowerCase().includes('rear') ||
+              d.label.toLowerCase().includes('후면') ||
+              d.label.toLowerCase().includes('environment') ||
+              d.label.toLowerCase().includes('camera 0')
             );
-          } catch (secondErr) {
-            console.warn('Standard environment camera failed, querying device list to bind camera...', secondErr);
-            // 3차 시도: 카메라 하드웨어 목록을 직접 조회하여 바인딩
-            const devices = await Html5Qrcode.getCameras();
-            if (devices && devices.length > 0) {
-              const backCamera = devices.find(d => 
-                d.label.toLowerCase().includes('back') || 
-                d.label.toLowerCase().includes('rear') ||
-                d.label.toLowerCase().includes('후면') ||
-                d.label.toLowerCase().includes('environment') ||
-                d.label.toLowerCase().includes('camera 0')
-              );
-              const selectedCameraId = backCamera ? backCamera.id : devices[0].id;
-              console.log('Selected camera deviceId:', selectedCameraId, 'label:', backCamera ? backCamera.label : devices[0].label);
-              
-              await scanner.start(
-                selectedCameraId,
-                qrConfig,
-                successCallback,
-                () => {}
-              );
+            selectedCameraId = backCamera ? backCamera.id : devices[0].id;
+          }
+
+          try {
+            if (selectedCameraId) {
+              await runStart({
+                deviceId: { exact: selectedCameraId },
+                width: { ideal: 1920 },
+                height: { ideal: 1080 }
+              });
             } else {
-              throw new Error('인식된 카메라 기기가 없습니다. / No camera hardware detected.');
+              throw new Error('Device list empty');
+            }
+          } catch (err1) {
+            console.warn('Device ID start failed, trying facingMode environment with resolution...', err1);
+            // 2차 시도: facingMode environment + 고화질
+            await runStart({
+              facingMode: 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            });
+          }
+        } catch (err2) {
+          console.warn('High resolution constraints failed, retrying with standard facingMode environment...', err2);
+          try {
+            // 3차 시도: 기본 후면 카메라 모드 (해상도 제한 없음)
+            await runStart({ facingMode: 'environment' });
+          } catch (err3) {
+            console.warn('FacingMode environment failed, trying fallback to first camera device ID...', err3);
+            try {
+              // 4차 시도: 획득한 기기 목록 중 첫 번째 기기로 직접 구동
+              const devices = await Html5Qrcode.getCameras();
+              if (devices && devices.length > 0) {
+                await runStart(devices[0].id);
+              } else {
+                throw err3;
+              }
+            } catch (err4: any) {
+              throw err4; // 최종 에러 처리 블록으로 이동
             }
           }
         }
