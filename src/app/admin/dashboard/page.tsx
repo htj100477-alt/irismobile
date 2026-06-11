@@ -99,7 +99,7 @@ interface Order {
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement'>('home');
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -109,6 +109,42 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [tradeInPrices, setTradeInPrices] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+
+  // 홍콩 재고 관리 상태 및 벌크 파서 상태
+  const [hongkongInventory, setHongkongInventory] = useState<any[]>([]);
+  const [selectedHKIds, setSelectedHKIds] = useState<string[]>([]);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isBulkSaleModalOpen, setIsBulkSaleModalOpen] = useState(false);
+  const [pasteText, setPasteText] = useState('');
+  const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
+  const [headerMappings, setHeaderMappings] = useState<Record<string, string>>({});
+  const [parsedImportRows, setParsedImportRows] = useState<any[]>([]);
+  
+  // 일괄 판매 처리 상태
+  const [bulkSaleDate, setBulkSaleDate] = useState('');
+  const [bulkSellerName, setBulkSellerName] = useState('');
+  const [bulkRemainingInput, setBulkRemainingInput] = useState('');
+  const [processingBulkSale, setProcessingBulkSale] = useState(false);
+
+  // 신규 탭 검색, 필터링 및 선택 상태
+  const [hkStatusFilter, setHkStatusFilter] = useState<'all' | 'available' | 'sold_pending' | 'sold'>('all');
+  const [hkSearchQuery, setHkSearchQuery] = useState('');
+  const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
+  const [completedSalesSearch, setCompletedSalesSearch] = useState('');
+  const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
+  const [settlementSeller, setSettlementSeller] = useState('All');
+  const [settlementSearch, setSettlementSearch] = useState('');
+
+  // 고정 엑셀 양식 열 선택 상태 (체크 시 반영, 해제 시 공란)
+  const [importFields, setImportFields] = useState<Record<string, boolean>>({
+    pgNo: true,
+    modelName: true,
+    petName: true,
+    imei: true,
+    color: true,
+    sellPrice: true,
+    deductionItem: true
+  });
 
   // 카테고리 관리 상태
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
@@ -205,6 +241,11 @@ export default function AdminDashboard() {
       const catRes = await fetch('/api/categories');
       const catData = await catRes.json();
       if (catData.success) setCategories(catData.data);
+
+      // 홍콩 재고 데이터 로드
+      const hkRes = await fetch('/api/hongkong-inventory');
+      const hkData = await hkRes.json();
+      if (hkData.success) setHongkongInventory(hkData.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -594,6 +635,234 @@ export default function AdminDashboard() {
     router.push('/admin/login');
   };
 
+  // ==========================================
+  // 홍콩 재고 및 정산 관리 핸들러 함수
+  // ==========================================
+
+  // 고정 엑셀 열 레이아웃 파싱 공통 헬퍼 (붙여넣은 헤더 첫 행에서 인덱스를 동적으로 찾아 정렬)
+  const recalculateParsedRows = (
+    text: string,
+    fields: Record<string, boolean>
+  ) => {
+    if (!text.trim()) {
+      setParsedImportRows([]);
+      return;
+    }
+    const lines = text.trim().split(/\r?\n/).map(row => row.split('\t').map(cell => cell.trim()));
+    const firstRow = lines[0] || [];
+    const firstRowClean = firstRow.map(h => h.toLowerCase().replace(/\s+/g, ''));
+
+    // 헤더 열이 있으면 인덱스를 찾아 매칭하고, 없을 시 기본 순번 기준 인덱스로 대체 (순번 복사 안 한 경우 고려)
+    const findIdx = (keywords: string[], fallback: number) => {
+      const idx = firstRowClean.findIndex(h => keywords.some(k => h.includes(k)));
+      return idx > -1 ? idx : fallback;
+    };
+
+    // exact match helper
+    const findExactIdx = (keywords: string[], fallback: number) => {
+      const idx = firstRowClean.findIndex(h => keywords.some(k => h === k));
+      return idx > -1 ? idx : fallback;
+    };
+
+    // 순번 포함 시: pgNo=1, modelName=2, petName=3, imei=5, color=7, sellPrice=10, deductionItem=11
+    // 순번 미포함 시: pgNo=0, modelName=1, petName=2, imei=4, color=6, sellPrice=9, deductionItem=10
+    const hasSeq = firstRowClean.some(h => h.includes('순번'));
+    const offset = hasSeq ? 1 : 0;
+
+    const pgIdx = findIdx(['p/g', 'pg'], 0 + offset);
+    const modelIdx = findIdx(['모델명'], 1 + offset);
+    const petIdx = findIdx(['펫네임'], 2 + offset);
+    const imeiIdx = findExactIdx(['imei'], findIdx(['imei'], 4 + offset));
+    const colorIdx = findIdx(['색상', 'color'], 6 + offset);
+    const priceIdx = findExactIdx(['실판매가'], findIdx(['실판매가', 'price'], 9 + offset));
+    const deductionItemIdx = findExactIdx(['차감항목'], findIdx(['차감항목'], 10 + offset));
+
+    const parsedRows: any[] = [];
+    for (let i = 1; i < lines.length; i++) {
+      const row = lines[i];
+      if (row.length === 0 || (row.length === 1 && !row[0])) continue;
+      
+      const item: any = {};
+      
+      // 1. 모델명 & 펫네임 조합
+      let mName = '';
+      if (fields.petName && petIdx < row.length && row[petIdx]) {
+        mName = row[petIdx];
+      }
+      if (fields.modelName && modelIdx < row.length && row[modelIdx]) {
+        mName = mName ? `${mName} (${row[modelIdx]})` : row[modelIdx];
+      }
+      item.model_name = mName || '기형 미확인 / 未知型号';
+
+      // 2. 일련번호 (Sticker) -> P/G No가 Sticker이다!
+      item.sticker = fields.pgNo && pgIdx < row.length && row[pgIdx] ? row[pgIdx] : '';
+
+      // 3. IMEI
+      item.imei = fields.imei && imeiIdx < row.length && row[imeiIdx] ? row[imeiIdx] : '';
+
+      // 4. 색상
+      item.color = fields.color && colorIdx < row.length && row[colorIdx] ? row[colorIdx] : '';
+
+      // 5. 원가 (Excel의 실판매가가 우리에게는 원가!)
+      item.purchase_cost = fields.sellPrice && priceIdx < row.length && row[priceIdx] ? row[priceIdx] : '0';
+
+      // 6. 판매가 (입고 시점에는 판매가가 아직 없으므로 0)
+      item.selling_price = '0';
+
+      // 7. 배터리 (기본 100%)
+      item.battery_pct = '100';
+
+      // 8. 위치 (기본 Hong Kong)
+      item.stock_location = 'Hong Kong';
+
+      // 9. 비고 (차감항목만 비고 필드에 저장)
+      item.notes = fields.deductionItem && deductionItemIdx < row.length && row[deductionItemIdx] ? row[deductionItemIdx] : '';
+
+      parsedRows.push(item);
+    }
+    setParsedImportRows(parsedRows);
+  };
+
+  // 대량 붙여넣기 파싱 실행
+  const handlePasteChange = (text: string) => {
+    setPasteText(text);
+    if (!text.trim()) {
+      setDetectedHeaders([]);
+      setParsedImportRows([]);
+      return;
+    }
+    const lines = text.trim().split(/\r?\n/).map(row => row.split('\t').map(cell => cell.trim()));
+    const firstRow = lines[0] || [];
+    setDetectedHeaders(firstRow);
+    recalculateParsedRows(text, importFields);
+  };
+
+  // 대량 입고 데이터 저장 실행
+  const executeImport = async () => {
+    if (parsedImportRows.length === 0) {
+      alert('가져올 데이터가 없습니다. 클립보드 데이터를 확인해주세요.');
+      return;
+    }
+    const validRecords = parsedImportRows.filter(r => r.imei && r.model_name);
+    if (validRecords.length === 0) {
+      alert('유효한 모델명과 IMEI를 가진 행이 없습니다.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ records: validRecords })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`성공적으로 ${validRecords.length}대의 재고를 입고했습니다! (Successfully imported ${validRecords.length} devices)`);
+        setIsImportModalOpen(false);
+        setPasteText('');
+        setDetectedHeaders([]);
+        setParsedImportRows([]);
+        loadAllData();
+      } else {
+        alert(data.error || '입고 처리 실패');
+      }
+    } catch (e) {
+      alert('네트워크 또는 서버 오류가 발생했습니다.');
+    }
+  };
+
+  // 일괄 판매완료 처리
+  const executeBulkSale = async () => {
+    if (!bulkSellerName.trim()) {
+      alert('판매원 이름을 입력해주세요. / 请输入销售员姓名。');
+      return;
+    }
+    if (!bulkSaleDate) {
+      alert('판매 날짜를 선택해주세요. / 请选择销售日期。');
+      return;
+    }
+    if (selectedHKIds.length === 0) {
+      alert('판매 완료 처리할 대상 기기를 선택해주세요.');
+      return;
+    }
+    setProcessingBulkSale(true);
+    try {
+      const remainingList = bulkRemainingInput
+        .split(/[\n,]/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sell',
+          saleDate: bulkSaleDate,
+          sellerName: bulkSellerName.trim(),
+          soldIds: selectedHKIds,
+          remainingIdentifiers: remainingList
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`일괄 판매 처리가 완료되었습니다! (총 ${data.count}대 판매완료) \n批量销售处理完成！(共 ${data.count} 台已售)`);
+        setIsBulkSaleModalOpen(false);
+        setBulkRemainingInput('');
+        setBulkSellerName('');
+        setSelectedHKIds([]);
+        loadAllData();
+      } else {
+        alert(data.error || '판매 처리 실패');
+      }
+    } catch (e) {
+      alert('서버 처리 중 오류가 발생했습니다.');
+    } finally {
+      setProcessingBulkSale(false);
+    }
+  };
+
+  // 판매완료 기기 최종 정산 승인
+  const executeFinalApproval = async (deviceIds: string[]) => {
+    if (deviceIds.length === 0) return;
+    if (!confirm(`선택한 ${deviceIds.length}건의 판매를 최종 승인하고 마진 장부에 등록하시겠습니까? \n确认最终审批这 ${deviceIds.length} 笔销售并记入利润账本吗？`)) return;
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'approve',
+          deviceIds
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('판매 건 최종 승인이 완료되었습니다! / 销售最终审批已完成！');
+        loadAllData();
+      } else {
+        alert(data.error || '승인 처리 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
+  // 홍콩 재고 단건 삭제
+  const executeDeleteHK = async (id: string) => {
+    if (!confirm('정말로 이 재고를 목록에서 삭제하시겠습니까?')) return;
+    try {
+      const res = await fetch(`/api/hongkong-inventory?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        loadAllData();
+      } else {
+        alert(data.error || '삭제 실패');
+      }
+    } catch (e) {
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
   // 지표 계산기
   const getStats = () => {
     const totalPaid = tradeIns
@@ -667,6 +936,29 @@ export default function AdminDashboard() {
             className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
           >
             <Layers size={18} /> 카테고리 관리 ({categories.length})
+          </button>
+
+          <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
+
+          <button 
+            onClick={() => setActiveTab('hongkong-inventory')}
+            className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
+          >
+            <Smartphone size={18} /> 홍콩 재고 관리
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('completed-sales')}
+            className={`${styles.menuItem} ${activeTab === 'completed-sales' ? styles.menuItemActive : ''}`}
+          >
+            <CheckCircle2 size={18} /> 판매 완료 내역
+          </button>
+
+          <button 
+            onClick={() => setActiveTab('margin-settlement')}
+            className={`${styles.menuItem} ${activeTab === 'margin-settlement' ? styles.menuItemActive : ''}`}
+          >
+            <Coins size={18} /> 마진 및 정산
           </button>
         </nav>
 
@@ -1304,6 +1596,693 @@ export default function AdminDashboard() {
             </div>
           </div>
         )}
+
+        {/* 홍콩 재고 관리 탭 */}
+        {activeTab === 'hongkong-inventory' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>홍콩 재고 관리 / 香港库存管理</h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  홍콩 입고된 기기의 상태를 조회하고 일괄 판매완료 처리합니다.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setIsImportModalOpen(true)}
+                  className={styles.btnSave}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                >
+                  <Plus size={16} /> 대량 입고 (엑셀 붙여넣기) / 批量导入
+                </button>
+                <button
+                  onClick={() => setIsBulkSaleModalOpen(true)}
+                  className={styles.btnCancel}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid var(--warning-color)',
+                    color: 'var(--warning-color)',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                  disabled={selectedHKIds.length === 0}
+                >
+                  <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售 ({selectedHKIds.length}대 선택됨)
+                </button>
+              </div>
+            </div>
+
+            {/* 필터 및 검색 컨트롤 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#0f172a',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              marginBottom: '20px',
+              gap: '16px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 상태 / 销售状态:</span>
+                {(['all', 'available', 'sold_pending', 'sold'] as const).map(status => {
+                  let label = '전체 / 全部';
+                  if (status === 'available') label = '판매 가능 / 可售';
+                  if (status === 'sold_pending') label = '승인 대기 / 待审批';
+                  if (status === 'sold') label = '판매 완료 / 已售';
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setHkStatusFilter(status)}
+                      className={hkStatusFilter === status ? styles.btnSave : styles.btnCancel}
+                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: hkStatusFilter === status ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
+                <input
+                  type="text"
+                  placeholder="IMEI / 모델 / 스티커 번호"
+                  value={hkSearchQuery}
+                  onChange={(e) => setHkSearchQuery(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    minWidth: '200px'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          aria-label="전체 선택"
+                          onChange={(e) => {
+                            const filtered = hongkongInventory
+                              .filter(item => {
+                                if (hkStatusFilter === 'available') return !item.is_sold;
+                                if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                                if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
+                                return true;
+                              })
+                              .filter(item => {
+                                const q = hkSearchQuery.toLowerCase();
+                                return (
+                                  (item.model_name || '').toLowerCase().includes(q) ||
+                                  (item.imei || '').toLowerCase().includes(q) ||
+                                  (item.sticker || '').toLowerCase().includes(q)
+                                );
+                              });
+                            if (e.target.checked) {
+                              setSelectedHKIds(filtered.map(x => x.id));
+                            } else {
+                              setSelectedHKIds([]);
+                            }
+                          }}
+                          checked={
+                            hongkongInventory.length > 0 &&
+                            hongkongInventory
+                              .filter(item => {
+                                if (hkStatusFilter === 'available') return !item.is_sold;
+                                if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                                if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
+                                return true;
+                              })
+                              .filter(item => {
+                                const q = hkSearchQuery.toLowerCase();
+                                return (
+                                  (item.model_name || '').toLowerCase().includes(q) ||
+                                  (item.imei || '').toLowerCase().includes(q) ||
+                                  (item.sticker || '').toLowerCase().includes(q)
+                                );
+                              })
+                              .every(x => selectedHKIds.includes(x.id))
+                          }
+                        />
+                      </th>
+                      <th>입고일 / 导入日期</th>
+                      <th>스티커 / 贴纸</th>
+                      <th>모델명 / 机型</th>
+                      <th>IMEI / 串号</th>
+                      <th>색상 / 颜色</th>
+                      <th>배터리 / 电池</th>
+                      <th>입고가 / 成本</th>
+                      <th>판매가 / 售价</th>
+                      <th>위치 / 仓库</th>
+                      <th>비고 / 备注</th>
+                      <th>상태 / 状态</th>
+                      <th>작업 / 操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hongkongInventory
+                      .filter(item => {
+                        if (hkStatusFilter === 'available') return !item.is_sold;
+                        if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                        if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
+                        return true;
+                      })
+                      .filter(item => {
+                        const q = hkSearchQuery.toLowerCase();
+                        return (
+                          (item.model_name || '').toLowerCase().includes(q) ||
+                          (item.imei || '').toLowerCase().includes(q) ||
+                          (item.sticker || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map(item => (
+                        <tr key={item.id}>
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              aria-label={`${item.model_name} 선택`}
+                              checked={selectedHKIds.includes(item.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedHKIds([...selectedHKIds, item.id]);
+                                } else {
+                                  setSelectedHKIds(selectedHKIds.filter(id => id !== item.id));
+                                }
+                              }}
+                            />
+                          </td>
+                          <td>{item.site_date}</td>
+                          <td>{item.sticker || '-'}</td>
+                          <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                          <td>{item.color || '-'}</td>
+                          <td>{item.battery_pct}%</td>
+                          <td style={{ color: 'var(--text-secondary)' }}>
+                            ₩{(item.purchase_cost || 0).toLocaleString()}
+                          </td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+                            ₩{(item.selling_price || 0).toLocaleString()}
+                          </td>
+                          <td>{item.stock_location || '-'}</td>
+                          <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            {item.notes || '-'}
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              backgroundColor: !item.is_sold
+                                ? 'rgba(16, 185, 129, 0.1)'
+                                : !item.is_approved
+                                  ? 'rgba(245, 158, 11, 0.1)'
+                                  : 'rgba(255, 255, 255, 0.05)',
+                              color: !item.is_sold
+                                ? 'var(--success-color)'
+                                : !item.is_approved
+                                  ? 'var(--warning-color)'
+                                  : 'var(--text-secondary)'
+                            }}>
+                              {!item.is_sold
+                                ? '판매 가능 / 可售'
+                                : !item.is_approved
+                                  ? '승인 대기 / 待审批'
+                                  : '판매 완료 / 已售'}
+                            </span>
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => executeDeleteHK(item.id)}
+                              className={styles.btnCancel}
+                              style={{ padding: '6px 10px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                            >
+                              삭제 / 删除
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    {hongkongInventory
+                      .filter(item => {
+                        if (hkStatusFilter === 'available') return !item.is_sold;
+                        if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                        if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
+                        return true;
+                      })
+                      .filter(item => {
+                        const q = hkSearchQuery.toLowerCase();
+                        return (
+                          (item.model_name || '').toLowerCase().includes(q) ||
+                          (item.imei || '').toLowerCase().includes(q) ||
+                          (item.sticker || '').toLowerCase().includes(q)
+                        );
+                      }).length === 0 && (
+                      <tr>
+                        <td colSpan={13} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 판매 완료 승인 대기 탭 */}
+        {activeTab === 'completed-sales' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>판매 완료 승인 대기 내역 / 销售完成审批</h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  판매원이 판매완료 처리한 기기들을 조회하고, 최종 정산 마진 장부에 넘기기 위해 최종 승인합니다.
+                </p>
+              </div>
+              <div>
+                <button
+                  onClick={() => executeFinalApproval(selectedPendingIds)}
+                  className={styles.btnSave}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                  disabled={selectedPendingIds.length === 0}
+                >
+                  <CheckCircle2 size={16} /> 선택 항목 최종 승인 / 最终审批 ({selectedPendingIds.length}건)
+                </button>
+              </div>
+            </div>
+
+            {/* 필터 및 검색 컨트롤 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: '#0f172a',
+              padding: '16px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              marginBottom: '20px',
+              gap: '16px',
+              flexWrap: 'wrap'
+            }}>
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>승인 상태 / 审批状态:</span>
+                {(['all', 'sold_pending', 'sold'] as const).map(status => {
+                  let label = '전체 / 全部';
+                  if (status === 'sold_pending') label = '최종승인 대기 / 待审批';
+                  if (status === 'sold') label = '승인 완료 / 已审批';
+                  return (
+                    <button
+                      key={status}
+                      onClick={() => setCompletedSalesFilter(status)}
+                      className={completedSalesFilter === status ? styles.btnSave : styles.btnCancel}
+                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: completedSalesFilter === status ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                    >
+                      {label}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
+                <input
+                  type="text"
+                  placeholder="IMEI / 모델 / 판매원"
+                  value={completedSalesSearch}
+                  onChange={(e) => setCompletedSalesSearch(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '20px',
+                    padding: '6px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    outline: 'none',
+                    minWidth: '200px'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          aria-label="전체 대기 승인 선택"
+                          onChange={(e) => {
+                            const pendings = hongkongInventory
+                              .filter(item => item.is_sold && !item.is_approved)
+                              .filter(item => {
+                                const q = completedSalesSearch.toLowerCase();
+                                return (
+                                  (item.model_name || '').toLowerCase().includes(q) ||
+                                  (item.imei || '').toLowerCase().includes(q) ||
+                                  (item.seller_name || '').toLowerCase().includes(q)
+                                );
+                              });
+                            if (e.target.checked) {
+                              setSelectedPendingIds(pendings.map(x => x.id));
+                            } else {
+                              setSelectedPendingIds([]);
+                            }
+                          }}
+                          checked={
+                            hongkongInventory.filter(item => item.is_sold && !item.is_approved).length > 0 &&
+                            hongkongInventory
+                              .filter(item => item.is_sold && !item.is_approved)
+                              .filter(item => {
+                                const q = completedSalesSearch.toLowerCase();
+                                return (
+                                  (item.model_name || '').toLowerCase().includes(q) ||
+                                  (item.imei || '').toLowerCase().includes(q) ||
+                                  (item.seller_name || '').toLowerCase().includes(q)
+                                );
+                              })
+                              .every(x => selectedPendingIds.includes(x.id))
+                          }
+                        />
+                      </th>
+                      <th>판매 일자 / 销售日期</th>
+                      <th>판매원 / 销售员</th>
+                      <th>모델명 / 机型</th>
+                      <th>IMEI / 串号</th>
+                      <th>색상 / 颜色</th>
+                      <th>입고가 / 成本</th>
+                      <th>판매가 / 售价</th>
+                      <th>정산 상태 / 结算状态</th>
+                      <th>승인 처리 / 审批</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hongkongInventory
+                      .filter(item => {
+                        if (completedSalesFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                        if (completedSalesFilter === 'sold') return item.is_sold && item.is_approved;
+                        return item.is_sold;
+                      })
+                      .filter(item => {
+                        const q = completedSalesSearch.toLowerCase();
+                        return (
+                          (item.model_name || '').toLowerCase().includes(q) ||
+                          (item.imei || '').toLowerCase().includes(q) ||
+                          (item.seller_name || '').toLowerCase().includes(q)
+                        );
+                      })
+                      .map(item => (
+                        <tr key={item.id}>
+                          <td style={{ textAlign: 'center' }}>
+                            {item.is_sold && !item.is_approved ? (
+                              <input
+                                type="checkbox"
+                                aria-label={`${item.model_name} 승인 선택`}
+                                checked={selectedPendingIds.includes(item.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setSelectedPendingIds([...selectedPendingIds, item.id]);
+                                  } else {
+                                    setSelectedPendingIds(selectedPendingIds.filter(id => id !== item.id));
+                                  }
+                                }}
+                              />
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>✓</span>
+                            )}
+                          </td>
+                          <td>{item.sale_date || '-'}</td>
+                          <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
+                          <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                          <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                          <td>{item.color || '-'}</td>
+                          <td>₩{(item.purchase_cost || 0).toLocaleString()}</td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+                            ₩{(item.selling_price || 0).toLocaleString()}
+                          </td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: '12px',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              backgroundColor: !item.is_approved ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                              color: !item.is_approved ? 'var(--warning-color)' : 'var(--success-color)'
+                            }}>
+                              {!item.is_approved ? '최종 승인 대기 / 待审批' : '승인 완료 / 已审批'}
+                            </span>
+                          </td>
+                          <td>
+                            {!item.is_approved ? (
+                              <button
+                                onClick={() => executeFinalApproval([item.id])}
+                                className={styles.btnSave}
+                                style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
+                              >
+                                승인 / 审批
+                              </button>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>장부 기재됨</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    {hongkongInventory
+                      .filter(item => {
+                        if (completedSalesFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+                        if (completedSalesFilter === 'sold') return item.is_sold && item.is_approved;
+                        return item.is_sold;
+                      })
+                      .filter(item => {
+                        const q = completedSalesSearch.toLowerCase();
+                        return (
+                          (item.model_name || '').toLowerCase().includes(q) ||
+                          (item.imei || '').toLowerCase().includes(q) ||
+                          (item.seller_name || '').toLowerCase().includes(q)
+                        );
+                      }).length === 0 && (
+                      <tr>
+                        <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          판매 완료 처리된 기기 내역이 없습니다.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 마진 및 정산 탭 */}
+        {activeTab === 'margin-settlement' && (() => {
+          const settledDevices = hongkongInventory
+            .filter(item => item.is_sold && item.is_approved)
+            .filter(item => {
+              if (settlementSeller !== 'All' && item.seller_name !== settlementSeller) return false;
+              const q = settlementSearch.toLowerCase();
+              return (
+                (item.model_name || '').toLowerCase().includes(q) ||
+                (item.imei || '').toLowerCase().includes(q)
+              );
+            });
+
+          const totalRevenue = settledDevices.reduce((sum, item) => sum + (item.selling_price || 0), 0);
+          const totalCost = settledDevices.reduce((sum, item) => sum + (item.purchase_cost || 0), 0);
+          const totalMargin = totalRevenue - totalCost;
+          const averageMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
+
+          // 판매원 고유 목록 추출
+          const sellersList = Array.from(new Set(
+            hongkongInventory
+              .filter(item => item.is_sold && item.is_approved && item.seller_name)
+              .map(item => item.seller_name)
+          ));
+
+          return (
+            <div className="animate-fade-in">
+              <div className={styles.headerRow}>
+                <div>
+                  <h2 className={styles.pageTitle}>마진 및 정산 관리 / 利润 & 结算</h2>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    최종 승인된 판매 기기들을 기준으로 총 마진액 및 마진율을 실시간 집계합니다. (태국어 비표시)
+                  </p>
+                </div>
+              </div>
+
+              {/* 정산 지표 요약 카드 */}
+              <div className={styles.metricsGrid} style={{ marginBottom: '20px' }}>
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>총 매출액 / 占销售额</span>
+                    <span className={styles.metricVal}>₩{totalRevenue.toLocaleString()}</span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
+                    <Coins size={22} />
+                  </div>
+                </div>
+
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>총 원가 / 总成本</span>
+                    <span className={styles.metricVal}>₩{totalCost.toLocaleString()}</span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
+                    <Coins size={22} />
+                  </div>
+                </div>
+
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>총 마진 및 평균 마진율 / 利润 & 利润率</span>
+                    <span className={styles.metricVal}>
+                      ₩{totalMargin.toLocaleString()} ({averageMarginRate.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}>
+                    <CheckCircle2 size={22} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 필터 및 검색 컨트롤 */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#0f172a',
+                padding: '16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                marginBottom: '20px',
+                gap: '16px',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원별 필터 / 销售员:</span>
+                  <button
+                    onClick={() => setSettlementSeller('All')}
+                    className={settlementSeller === 'All' ? styles.btnSave : styles.btnCancel}
+                    style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === 'All' ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                  >
+                    전체 / 全部
+                  </button>
+                  {sellersList.map(seller => (
+                    <button
+                      key={seller}
+                      onClick={() => setSettlementSeller(seller)}
+                      className={settlementSeller === seller ? styles.btnSave : styles.btnCancel}
+                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: settlementSeller === seller ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
+                    >
+                      {seller}
+                    </button>
+                  ))}
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
+                  <input
+                    type="text"
+                    placeholder="IMEI 또는 모델명"
+                    value={settlementSearch}
+                    onChange={(e) => setSettlementSearch(e.target.value)}
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '20px',
+                      padding: '6px 14px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      minWidth: '200px'
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* 상세 마진 테이블 */}
+              <div className={styles.tableSection}>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.adminTable}>
+                    <thead>
+                      <tr>
+                        <th>정산일자 / 结算日期</th>
+                        <th>판매원 / 销售员</th>
+                        <th>모델명 / 机型</th>
+                        <th>IMEI / 串号</th>
+                        <th>입고원가 / 成本</th>
+                        <th>판매가 / 售价</th>
+                        <th>순마진 / 利润</th>
+                        <th>마진율 / 利润率</th>
+                        <th>상태</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {settledDevices.map(item => {
+                        const margin = (item.selling_price || 0) - (item.purchase_cost || 0);
+                        const rate = item.selling_price > 0 ? (margin / item.selling_price) * 100 : 0;
+                        return (
+                          <tr key={item.id}>
+                            <td>{item.sale_date || '-'}</td>
+                            <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
+                            <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                            <td>₩{(item.purchase_cost || 0).toLocaleString()}</td>
+                            <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
+                              ₩{(item.selling_price || 0).toLocaleString()}
+                            </td>
+                            <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
+                              ₩{margin.toLocaleString()}
+                            </td>
+                            <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                              {rate.toFixed(1)}%
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                color: 'var(--success-color)'
+                              }}>
+                                정산확정
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {settledDevices.length === 0 && (
+                        <tr>
+                          <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                            정산 조건에 맞는 판매 내역이 없습니다.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
       </main>
 
@@ -1968,6 +2947,268 @@ export default function AdminDashboard() {
             <div className={styles.btnGroup} style={{ marginTop: '20px' }}>
               <button onClick={() => setIsCategoryModalOpen(false)} className={styles.btnCancel}>취소</button>
               <button onClick={saveCategory} className={styles.btnSave}>저장하기</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 홍콩 재고 대량 가져오기 모달 */}
+      {isImportModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '800px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                홍콩 재고 대량 입고 / 批量导入库存 (Excel / Sheets Paste)
+              </h3>
+              <button onClick={() => {
+                setIsImportModalOpen(false);
+                setPasteText('');
+                setDetectedHeaders([]);
+                setParsedImportRows([]);
+              }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+              <div>
+                <label htmlFor="bulkPasteTextarea" style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                  엑셀(Excel) 또는 스프레드시트의 행 데이터를 아래에 붙여넣으세요. (첫 줄 헤더 포함)
+                </label>
+                <textarea
+                  id="bulkPasteTextarea"
+                  rows={6}
+                  placeholder="예시:&#10;Sticker&#9;Date&#9;Model&#9;IMEI&#9;Color&#9;Battery&#9;Cost&#9;Price&#9;Location&#9;Notes&#10;SN001&#9;24-06-10&#9;아이폰 15&#9;35829381&#9;Black&#9;98&#9;450&#9;550&#9;HK-A&#9;Test"
+                  value={pasteText}
+                  onChange={(e) => handlePasteChange(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    color: '#fff',
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    outline: 'none',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              {detectedHeaders.length > 0 && (
+                <div style={{ background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '10px', color: 'var(--accent-light)' }}>
+                    가져올 열 항목 선택 / 导入列选择 (체크 시 데이터 반영, 해제 시 빈 값 처리)
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '12px' }}>
+                    {[
+                      { field: 'pgNo', label: 'P/G No (Sticker)' },
+                      { field: 'modelName', label: '모델명' },
+                      { field: 'petName', label: '펫네임' },
+                      { field: 'imei', label: 'IMEI' },
+                      { field: 'color', label: '색상' },
+                      { field: 'sellPrice', label: '실판매가 (판매가)' },
+                      { field: 'deductionItem', label: '차감항목' }
+                    ].map(cfg => (
+                      <label 
+                        key={cfg.field} 
+                        style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '8px', 
+                          padding: '8px 12px', 
+                          background: importFields[cfg.field] ? 'rgba(79, 70, 229, 0.1)' : 'rgba(255,255,255,0.02)',
+                          borderRadius: '6px',
+                          border: importFields[cfg.field] ? '1px solid var(--accent-color)' : '1px solid var(--border-color)',
+                          cursor: 'pointer',
+                          userSelect: 'none',
+                          transition: 'var(--transition-smooth)'
+                        }}
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={importFields[cfg.field] !== false}
+                          onChange={(e) => {
+                            const updated = { ...importFields, [cfg.field]: e.target.checked };
+                            setImportFields(updated);
+                            recalculateParsedRows(pasteText, updated);
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span style={{ fontSize: '12px', fontWeight: '500', color: importFields[cfg.field] ? '#fff' : 'var(--text-secondary)' }}>
+                          {cfg.label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {parsedImportRows.length > 0 && (
+                <div>
+                  <span style={{ fontSize: '12px', fontWeight: 'bold', display: 'block', marginBottom: '6px' }}>
+                    파싱 미리보기 / 数据预览 (총 {parsedImportRows.length}행 중 상위 5개 미리보기)
+                  </span>
+                  <div className={styles.tableSection}>
+                    <div className={styles.tableWrapper}>
+                      <table className={styles.adminTable} style={{ fontSize: '11px' }}>
+                        <thead>
+                          <tr>
+                            <th>스티커</th>
+                            <th>입고일</th>
+                            <th>모델명</th>
+                            <th>IMEI</th>
+                            <th>색상</th>
+                            <th>배터리</th>
+                            <th>원가</th>
+                            <th>판매가</th>
+                            <th>위치</th>
+                            <th>비고</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {parsedImportRows.slice(0, 5).map((r, idx) => (
+                            <tr key={idx}>
+                              <td>{r.sticker}</td>
+                              <td>{r.site_date}</td>
+                              <td style={{ fontWeight: 'bold' }}>{r.model_name}</td>
+                              <td style={{ fontFamily: 'monospace' }}>{r.imei}</td>
+                              <td>{r.color}</td>
+                              <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
+                              <td>{r.purchase_cost ? `₩${(Number(String(r.purchase_cost).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
+                              <td>{r.selling_price ? `₩${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
+                              <td>{r.stock_location}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{r.notes}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.btnGroup}>
+              <button onClick={() => {
+                setIsImportModalOpen(false);
+                setPasteText('');
+                setDetectedHeaders([]);
+                setParsedImportRows([]);
+              }} className={styles.btnCancel}>닫기</button>
+              <button
+                onClick={executeImport}
+                className={styles.btnSave}
+                disabled={parsedImportRows.length === 0}
+              >
+                가져오기 실행 / 确认导入
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 일괄 판매 처리 모달 */}
+      {isBulkSaleModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '600px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                일괄 판매 처리 / 批量销售
+              </h3>
+              <button onClick={() => setIsBulkSaleModalOpen(false)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className={styles.formGrid}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="bulkSellerNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 이름 / 销售员 (필수)</label>
+                  <input
+                    id="bulkSellerNameInput"
+                    type="text"
+                    placeholder="예: 홍길동"
+                    value={bulkSellerName}
+                    onChange={(e) => setBulkSellerName(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="bulkSaleDateInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 일자 / 销售日期 (필수)</label>
+                  <input
+                    id="bulkSaleDateInput"
+                    type="date"
+                    value={bulkSaleDate}
+                    onChange={(e) => setBulkSaleDate(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label htmlFor="bulkRemainingInputTextarea" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', display: 'block', marginBottom: '6px' }}>
+                  제외할 (남은) 재고 식별자 / 未售出（剩余）设备 (IMEI 또는 스티커 번호, 엔터 또는 쉼표 구분)
+                </label>
+                <textarea
+                  id="bulkRemainingInputTextarea"
+                  rows={4}
+                  placeholder="선택한 기기 중 아직 안 팔린(제외할) 기기들의 IMEI 또는 스티커번호를 입력하세요.&#10;여기에 입력한 기기는 판매 완료되지 않고 재고 상태로 보존됩니다."
+                  value={bulkRemainingInput}
+                  onChange={(e) => setBulkRemainingInput(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '10px',
+                    color: '#fff',
+                    fontSize: '12px',
+                    outline: 'none',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600', display: 'block', marginBottom: '6px' }}>
+                  선택한 기기 목록 / 已选择设备 (총 {selectedHKIds.length}대)
+                </span>
+                <div style={{
+                  maxHeight: '120px',
+                  overflowY: 'auto',
+                  background: 'rgba(255,255,255,0.02)',
+                  padding: '8px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)',
+                  fontSize: '11px'
+                }}>
+                  {hongkongInventory
+                    .filter(x => selectedHKIds.includes(x.id))
+                    .map(x => (
+                      <div key={x.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                        <span>{x.model_name} ({x.color})</span>
+                        <span style={{ fontFamily: 'monospace', color: 'var(--text-secondary)' }}>
+                          IMEI: {x.imei} {x.sticker ? `| Sticker: ${x.sticker}` : ''}
+                        </span>
+                      </div>
+                    ))}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.btnGroup}>
+              <button onClick={() => setIsBulkSaleModalOpen(false)} className={styles.btnCancel}>취소</button>
+              <button
+                onClick={executeBulkSale}
+                className={styles.btnSave}
+                disabled={processingBulkSale || selectedHKIds.length === 0}
+              >
+                {processingBulkSale ? '판매 처리 중...' : '판매 처리 실행 / 确认销售'}
+              </button>
             </div>
           </div>
         </div>

@@ -276,6 +276,7 @@ interface MockDB {
   orders: any[];
   trade_in_prices: any[];
   categories?: any[];
+  hongkong_inventory?: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
@@ -288,7 +289,8 @@ function readMockDB(): MockDB {
         products: DEFAULT_PRODUCTS,
         orders: [],
         trade_in_prices: DEFAULT_PRICES,
-        categories: DEFAULT_CATEGORIES
+        categories: DEFAULT_CATEGORIES,
+        hongkong_inventory: []
       };
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialDB, null, 2), 'utf-8');
       return initialDB;
@@ -305,10 +307,14 @@ function readMockDB(): MockDB {
       parsed.categories = DEFAULT_CATEGORIES;
       writeMockDB(parsed);
     }
+    if (!parsed.hongkong_inventory) {
+      parsed.hongkong_inventory = [];
+      writeMockDB(parsed);
+    }
     return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);
-    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [] };
+    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [], hongkong_inventory: [] };
   }
 }
 
@@ -809,6 +815,189 @@ export async function deleteCategory(id: string) {
     if (!db.categories) db.categories = [];
     const filtered = db.categories.filter(c => c.id !== id);
     db.categories = filtered;
+    writeMockDB(db);
+    return true;
+  }
+}
+
+// ==========================================
+// 7. 홍콩 재고 관리 (Hong Kong Inventory) 데이터 액션
+// ==========================================
+export async function getHongKongInventory() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('hongkong_inventory')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const inv = db.hongkong_inventory || [];
+    return [...inv].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+  }
+}
+
+export async function importHongKongInventory(records: any[]) {
+  const formattedRecords = records.map(r => ({
+    id: r.id || (supabase ? undefined : `hk-prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
+    sticker: r.sticker || '',
+    site_date: r.site_date || new Date().toLocaleDateString('ko-KR').slice(2),
+    model_name: r.model_name || '',
+    imei: r.imei ? String(r.imei).trim().replace(/\s+/g, '') : '',
+    color: r.color || '',
+    battery_pct: r.battery_pct ? String(r.battery_pct).replace(/[^0-9]/g, '') : '100',
+    purchase_cost: Number(String(r.purchase_cost || '').replace(/[^0-9.-]/g, '')) || 0,
+    selling_price: Number(String(r.selling_price || '').replace(/[^0-9.-]/g, '')) || 0,
+    stock_location: r.stock_location || 'Hong Kong',
+    notes: r.notes || '',
+    is_sold: r.is_sold || false,
+    sale_date: r.sale_date || null,
+    seller_name: r.seller_name || null,
+    is_approved: r.is_approved || false,
+    created_at: r.created_at || new Date().toISOString()
+  }));
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('hongkong_inventory')
+      .upsert(formattedRecords, { onConflict: 'imei' })
+      .select();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    const insertedOrUpdated: any[] = [];
+    formattedRecords.forEach(newRec => {
+      const idx = db.hongkong_inventory!.findIndex(x => x.imei === newRec.imei);
+      if (idx > -1) {
+        db.hongkong_inventory![idx] = {
+          ...db.hongkong_inventory![idx],
+          ...newRec,
+          id: db.hongkong_inventory![idx].id
+        };
+        insertedOrUpdated.push(db.hongkong_inventory![idx]);
+      } else {
+        db.hongkong_inventory!.push(newRec);
+        insertedOrUpdated.push(newRec);
+      }
+    });
+
+    writeMockDB(db);
+    return insertedOrUpdated;
+  }
+}
+
+export async function processHongKongBulkSale(
+  saleDate: string,
+  sellerName: string,
+  soldIds: string[],
+  remainingIdentifiers: string[]
+) {
+  const cleanRemains = remainingIdentifiers.map(x => String(x).trim().toLowerCase().replace(/\s+/g, '')).filter(Boolean);
+
+  if (supabase) {
+    const { data: devices, error: fetchErr } = await supabase
+      .from('hongkong_inventory')
+      .select('id, imei, sticker')
+      .in('id', soldIds);
+
+    if (fetchErr) throw fetchErr;
+
+    const toUpdateIds = (devices || [])
+      .filter(d => {
+        const cleanImei = d.imei ? d.imei.toLowerCase().replace(/\s+/g, '') : '';
+        const cleanSticker = d.sticker ? d.sticker.toLowerCase().replace(/\s+/g, '') : '';
+        const isRemaining = cleanRemains.includes(cleanImei) || cleanRemains.includes(cleanSticker);
+        return !isRemaining;
+      })
+      .map(d => d.id);
+
+    if (toUpdateIds.length === 0) {
+      return { count: 0 };
+    }
+
+    const { error: updateErr } = await supabase
+      .from('hongkong_inventory')
+      .update({
+        is_sold: true,
+        sale_date: saleDate,
+        seller_name: sellerName,
+        is_approved: false
+      })
+      .in('id', toUpdateIds);
+
+    if (updateErr) throw updateErr;
+
+    return { count: toUpdateIds.length };
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    let count = 0;
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (soldIds.includes(d.id)) {
+        const cleanImei = d.imei ? d.imei.toLowerCase().replace(/\s+/g, '') : '';
+        const cleanSticker = d.sticker ? d.sticker.toLowerCase().replace(/\s+/g, '') : '';
+        const isRemaining = cleanRemains.includes(cleanImei) || cleanRemains.includes(cleanSticker);
+
+        if (!isRemaining) {
+          count++;
+          return {
+            ...d,
+            is_sold: true,
+            sale_date: saleDate,
+            seller_name: sellerName,
+            is_approved: false
+          };
+        }
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return { count };
+  }
+}
+
+export async function approveHongKongSales(deviceIds: string[]) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({ is_approved: true })
+      .in('id', deviceIds);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (deviceIds.includes(d.id)) {
+        return { ...d, is_approved: true };
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return true;
+  }
+}
+
+export async function deleteHongKongInventory(id: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+    db.hongkong_inventory = db.hongkong_inventory.filter(d => d.id !== id);
     writeMockDB(db);
     return true;
   }

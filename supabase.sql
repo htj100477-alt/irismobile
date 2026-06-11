@@ -143,3 +143,32 @@ ALTER TABLE public.products ADD COLUMN IF NOT EXISTS battery_efficiency VARCHAR(
 ALTER TABLE public.products ADD COLUMN IF NOT EXISTS carrier_info VARCHAR(50) DEFAULT '3사 공용 (알뜰폰/자급제 가능)' NOT NULL;
 
 
+-- =========================================================================
+-- [2026-06-11 추가] 홍콩 재고 관리 (hongkong_inventory) 테이블 추가
+-- =========================================================================
+CREATE TABLE IF NOT EXISTS public.hongkong_inventory (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sticker VARCHAR(100),
+    site_date VARCHAR(50),
+    model_name VARCHAR(100) NOT NULL,
+    imei VARCHAR(100) UNIQUE NOT NULL,
+    color VARCHAR(100),
+    battery_pct VARCHAR(20) DEFAULT '100',
+    purchase_cost NUMERIC DEFAULT 0 NOT NULL,
+    selling_price NUMERIC DEFAULT 0 NOT NULL,
+    stock_location VARCHAR(100) DEFAULT 'Hong Kong',
+    notes TEXT,
+    is_sold BOOLEAN DEFAULT false NOT NULL,
+    sale_date VARCHAR(50),
+    seller_name VARCHAR(100),
+    is_approved BOOLEAN DEFAULT false NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- RLS 활성화 및 데모 정책
+ALTER TABLE public.hongkong_inventory ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Anyone can manage hongkong_inventory for demo" ON public.hongkong_inventory 
+    FOR ALL USING (true) WITH CHECK (true);
+
+
+
