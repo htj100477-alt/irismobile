@@ -496,7 +496,7 @@ export default function ScannerPage() {
       return;
     }
     if (!sellingPrice || isNaN(Number(sellingPrice)) || Number(sellingPrice) <= 0) {
-      alert('올바른 위안화(CNY) 판매가격을 입력해주세요.');
+      alert('올바른 홍콩달러(HKD) 판매가격을 입력해주세요.');
       playBeep('warning');
       return;
     }
@@ -517,7 +517,7 @@ export default function ScannerPage() {
 
     const confirmMsg = `기종 [ ${selectedModel} ] 총 ${availableForModel.length}대 중:\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
-      `- 판매 단가: ¥${Number(sellingPrice).toLocaleString()} (CNY)\n` +
+      `- 판매 단가: HK$${Number(sellingPrice).toLocaleString()} (HKD)\n` +
       `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n\n` +
       `정말로 제외된 기기들을 빼고 일괄 판매완료를 실행하시겠습니까?`;
 
@@ -680,9 +680,9 @@ export default function ScannerPage() {
           </select>
         </div>
 
-        {/* 판매 단가 (위안화) */}
+        {/* 판매 단가 (홍콩달러) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label htmlFor="priceInput" style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>판매 단가 (위안 ¥) / 售价 (필수)</label>
+          <label htmlFor="priceInput" style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>판매 단가 (홍콩달러 HK$) / 售价 (필수)</label>
           <div style={{ position: 'relative' }}>
             <input
               id="priceInput"
@@ -693,7 +693,7 @@ export default function ScannerPage() {
               style={{ backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '6px', padding: '12px 28px 12px 12px', color: '#fff', fontSize: '14px', width: '100%', outline: 'none' }}
               required
             />
-            <span style={{ position: 'absolute', right: '12px', top: '12px', fontSize: '14px', color: '#10b981', fontWeight: 'bold' }}>¥</span>
+            <span style={{ position: 'absolute', right: '12px', top: '12px', fontSize: '14px', color: '#10b981', fontWeight: 'bold' }}>HK$</span>
           </div>
         </div>
 
@@ -957,7 +957,7 @@ export default function ScannerPage() {
             </button>
             {availableCountForSelected - scannedItems.length > 0 && (
               <p style={{ textAlign: 'center', fontSize: '11px', color: '#10b981', marginTop: '8px', margin: 0 }}>
-                * 스캔 완료한 {scannedItems.length}대를 제외한 <strong>{availableCountForSelected - scannedItems.length}대</strong>가 기당 ¥{Number(sellingPrice || 0).toLocaleString()} 위안에 판매 완료 처리됩니다.
+                * 스캔 완료한 {scannedItems.length}대를 제외한 <strong>{availableCountForSelected - scannedItems.length}대</strong>가 기당 HK${Number(sellingPrice || 0).toLocaleString()} 홍콩달러에 판매 완료 처리됩니다.
               </p>
             )}
           </div>

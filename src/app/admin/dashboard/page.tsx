@@ -190,7 +190,7 @@ export default function AdminDashboard() {
   const [hkSearchQuery, setHkSearchQuery] = useState('');
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [cnyRate, setCnyRate] = useState<number>(185); // 추가: 위안화 환율
+  const [cnyRate, setCnyRate] = useState<number>(175); // 추가: 홍콩달러 환율
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
@@ -1014,7 +1014,7 @@ export default function AdminDashboard() {
     for (const modelName of selectedBulkModels) {
       const priceStr = bulkSellingPrices[modelName];
       if (!priceStr || isNaN(Number(priceStr)) || Number(priceStr) <= 0) {
-        alert(`${modelName}의 올바른 위안화(CNY) 판매단가를 입력해주세요. / 请输入 ${modelName} 的正确销售单价。`);
+        alert(`${modelName}의 올바른 홍콩달러(HKD) 판매단가를 입력해주세요. / 请输入 ${modelName} 的正确销售单价。`);
         return;
       }
       modelPrices[modelName] = Number(priceStr);
@@ -1030,7 +1030,7 @@ export default function AdminDashboard() {
       return;
     }
 
-    const priceDetails = selectedBulkModels.map(m => `- ${m}: ¥${Number(bulkSellingPrices[m]).toLocaleString()} (CNY)`).join('\n');
+    const priceDetails = selectedBulkModels.map(m => `- ${m}: HK$${Number(bulkSellingPrices[m]).toLocaleString()} (HKD)`).join('\n');
 
     const confirmMsg = `선택하신 기종 총 ${candidateDevices.length}대 중\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
@@ -1331,10 +1331,10 @@ export default function AdminDashboard() {
               alignItems: 'center',
               gap: '6px'
             }}>
-              <Coins size={14} /> 위안화 환율 / 汇率 (Naver CNY/KRW): ₩{cnyRate.toFixed(2)}
+              <Coins size={14} /> 홍콩달러 환율 / 汇率 (Naver HKD/KRW): ₩{cnyRate.toFixed(2)}
             </span>
             <span style={{ color: 'var(--text-secondary)' }}>
-              * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (CNY ¥ → KRW ₩)
+              * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (HKD HK$ → KRW ₩)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -2157,7 +2157,7 @@ export default function AdminDashboard() {
                   fontWeight: 'bold',
                   border: '1px solid rgba(16, 185, 129, 0.2)'
                 }}>
-                  위안화 환율 / 汇率 (Naver): ₩{cnyRate.toFixed(2)}
+                  홍콩달러 환율 / 汇率 (Naver): ₩{cnyRate.toFixed(2)}
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
                   전체 입고 기기 / 总设备: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>대
@@ -2286,7 +2286,7 @@ export default function AdminDashboard() {
                           ₩{Number(item.purchase_cost || 0).toLocaleString()}
                         </td>
                         <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                          ¥{Number(item.selling_price || 0).toLocaleString()}
+                          HK${Number(item.selling_price || 0).toLocaleString()}
                           {item.is_sold && (
                             <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
                               (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
@@ -2596,7 +2596,7 @@ export default function AdminDashboard() {
                             <td>{item.color || '-'}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                              ¥{Number(item.selling_price || 0).toLocaleString()}
+                              HK${Number(item.selling_price || 0).toLocaleString()}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
                                 (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
                               </div>
@@ -2821,7 +2821,7 @@ export default function AdminDashboard() {
                             <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
-                              ¥{Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
+                              HK${Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
                               ₩{Math.round(margin).toLocaleString()}
@@ -3794,7 +3794,7 @@ export default function AdminDashboard() {
                               <td>{r.color}</td>
                               <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
                               <td>{r.purchase_cost ? `₩${(Number(String(r.purchase_cost).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
-                              <td>{r.selling_price ? `¥${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
+                              <td>{r.selling_price ? `HK$${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
                               <td>{r.stock_location}</td>
                               <td style={{ color: 'var(--text-secondary)' }}>{r.notes}</td>
                             </tr>
@@ -3936,7 +3936,7 @@ export default function AdminDashboard() {
                                   <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매단가:</span>
                                   <input
                                     type="number"
-                                    placeholder="단가 (¥)"
+                                    placeholder="단가 (HK$)"
                                     value={bulkSellingPrices[modelName] || ''}
                                     onChange={(e) => setBulkSellingPrices({ ...bulkSellingPrices, [modelName]: e.target.value })}
                                     style={{
@@ -3951,7 +3951,7 @@ export default function AdminDashboard() {
                                     }}
                                     required
                                   />
-                                  <span style={{ fontSize: '11px', color: 'var(--accent-light)' }}>¥</span>
+                                  <span style={{ fontSize: '11px', color: 'var(--accent-light)' }}>HK$</span>
                                 </div>
                               )}
                             </div>
