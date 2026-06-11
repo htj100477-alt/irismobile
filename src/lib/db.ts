@@ -847,12 +847,31 @@ export async function deleteCategory(id: string) {
 // ==========================================
 export async function getHongKongInventory() {
   if (supabase) {
-    const { data, error } = await supabase
-      .from('hongkong_inventory')
-      .select('*')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-    return data;
+    let allData: any[] = [];
+    let from = 0;
+    const limit = 1000;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('hongkong_inventory')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + limit - 1);
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        hasMore = false;
+      } else {
+        allData = [...allData, ...data];
+        if (data.length < limit) {
+          hasMore = false;
+        } else {
+          from += limit;
+        }
+      }
+    }
+    return allData;
   } else {
     const db = readMockDB();
     const inv = db.hongkong_inventory || [];
