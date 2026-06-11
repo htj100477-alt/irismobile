@@ -904,45 +904,56 @@ export async function processHongKongBulkSale(
   sellerName: string,
   sellingPrice: number,
   soldIds: string[],
-  remainingIdentifiers: string[]
+  remainingIdentifiers: string[],
+  modelPrices?: Record<string, number>
 ) {
   const cleanRemains = remainingIdentifiers.map(x => String(x).trim().toLowerCase().replace(/\s+/g, '')).filter(Boolean);
 
   if (supabase) {
     const { data: devices, error: fetchErr } = await supabase
       .from('hongkong_inventory')
-      .select('id, imei, sticker')
+      .select('id, imei, sticker, model_name')
       .in('id', soldIds);
 
     if (fetchErr) throw fetchErr;
 
-    const toUpdateIds = (devices || [])
-      .filter(d => {
-        const cleanImei = d.imei ? d.imei.toLowerCase().replace(/\s+/g, '') : '';
-        const cleanSticker = d.sticker ? d.sticker.toLowerCase().replace(/\s+/g, '') : '';
-        const isRemaining = cleanRemains.includes(cleanImei) || cleanRemains.includes(cleanSticker);
-        return !isRemaining;
-      })
-      .map(d => d.id);
+    // Group devices by model_name to update model-specific prices
+    const devicesByModel: Record<string, any[]> = {};
+    (devices || []).forEach(d => {
+      const cleanImei = d.imei ? d.imei.toLowerCase().replace(/\s+/g, '') : '';
+      const cleanSticker = d.sticker ? d.sticker.toLowerCase().replace(/\s+/g, '') : '';
+      const isRemaining = cleanRemains.includes(cleanImei) || cleanRemains.includes(cleanSticker);
+      if (!isRemaining) {
+        if (!devicesByModel[d.model_name]) {
+          devicesByModel[d.model_name] = [];
+        }
+        devicesByModel[d.model_name].push(d);
+      }
+    });
 
-    if (toUpdateIds.length === 0) {
-      return { count: 0 };
+    let totalCount = 0;
+    for (const [modelName, devs] of Object.entries(devicesByModel)) {
+      const ids = devs.map(d => d.id);
+      if (ids.length === 0) continue;
+      
+      const priceForModel = modelPrices ? (modelPrices[modelName] ?? sellingPrice) : sellingPrice;
+
+      const { error: updateErr } = await supabase
+        .from('hongkong_inventory')
+        .update({
+          is_sold: true,
+          sale_date: saleDate,
+          seller_name: sellerName,
+          selling_price: priceForModel,
+          is_approved: false
+        })
+        .in('id', ids);
+
+      if (updateErr) throw updateErr;
+      totalCount += ids.length;
     }
 
-    const { error: updateErr } = await supabase
-      .from('hongkong_inventory')
-      .update({
-        is_sold: true,
-        sale_date: saleDate,
-        seller_name: sellerName,
-        selling_price: sellingPrice,
-        is_approved: false
-      })
-      .in('id', toUpdateIds);
-
-    if (updateErr) throw updateErr;
-
-    return { count: toUpdateIds.length };
+    return { count: totalCount };
   } else {
     const db = readMockDB();
     if (!db.hongkong_inventory) db.hongkong_inventory = [];
@@ -956,12 +967,13 @@ export async function processHongKongBulkSale(
 
         if (!isRemaining) {
           count++;
+          const priceForModel = modelPrices ? (modelPrices[d.model_name] ?? sellingPrice) : sellingPrice;
           return {
             ...d,
             is_sold: true,
             sale_date: saleDate,
             seller_name: sellerName,
-            selling_price: sellingPrice,
+            selling_price: priceForModel,
             is_approved: false
           };
         }

@@ -124,7 +124,8 @@ export default function AdminDashboard() {
   const [bulkSaleDate, setBulkSaleDate] = useState('');
   const [bulkSellerName, setBulkSellerName] = useState('');
   const [bulkRemainingInput, setBulkRemainingInput] = useState('');
-  const [bulkSellingPrice, setBulkSellingPrice] = useState<string>(''); // 추가: 위안화 판매가
+  const [bulkSellingPrice, setBulkSellingPrice] = useState<string>(''); // 추가: 위안화 판매가 (기본)
+  const [bulkSellingPrices, setBulkSellingPrices] = useState<Record<string, string>>({}); // 기종별 위안화 판매단가
   const [processingBulkSale, setProcessingBulkSale] = useState(false);
   const [selectedBulkModels, setSelectedBulkModels] = useState<string[]>([]);
   const [unsoldBulkDeviceIds, setUnsoldBulkDeviceIds] = useState<string[]>([]);
@@ -861,13 +862,20 @@ export default function AdminDashboard() {
       alert('판매 날짜를 선택해주세요. / 请选择销售日期。');
       return;
     }
-    if (!bulkSellingPrice || isNaN(Number(bulkSellingPrice)) || Number(bulkSellingPrice) <= 0) {
-      alert('올바른 위안화(CNY) 판매단가를 입력해주세요. / 请输入正确的销售单价。');
-      return;
-    }
     if (selectedBulkModels.length === 0) {
       alert('판매 완료 처리할 기종을 하나 이상 선택해주세요.');
       return;
+    }
+
+    // 각 선택 모델 기종별 단가 검증 및 맵 구성
+    const modelPrices: Record<string, number> = {};
+    for (const modelName of selectedBulkModels) {
+      const priceStr = bulkSellingPrices[modelName];
+      if (!priceStr || isNaN(Number(priceStr)) || Number(priceStr) <= 0) {
+        alert(`${modelName}의 올바른 위안화(CNY) 판매단가를 입력해주세요. / 请输入 ${modelName} 的正确销售单价。`);
+        return;
+      }
+      modelPrices[modelName] = Number(priceStr);
     }
 
     const availableHKDevices = hongkongInventory.filter(x => !x.is_sold);
@@ -880,9 +888,11 @@ export default function AdminDashboard() {
       return;
     }
 
-    const confirmMsg = `선택하신 기종(${selectedBulkModels.join(', ')}) 총 ${candidateDevices.length}대 중\n` +
+    const priceDetails = selectedBulkModels.map(m => `- ${m}: ¥${Number(bulkSellingPrices[m]).toLocaleString()} (CNY)`).join('\n');
+
+    const confirmMsg = `선택하신 기종 총 ${candidateDevices.length}대 중\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
-      `- 판매 단가: ¥${Number(bulkSellingPrice).toLocaleString()} (CNY)\n` +
+      `- 기종별 판매 단가:\n${priceDetails}\n` +
       `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n\n` +
       `정말로 판매 완료 처리를 실행하시겠습니까?`;
 
@@ -900,7 +910,8 @@ export default function AdminDashboard() {
           action: 'sell',
           saleDate: bulkSaleDate,
           sellerName: bulkSellerName.trim(),
-          sellingPrice: Number(bulkSellingPrice) || 0,
+          sellingPrice: 0,
+          modelPrices,
           soldIds,
           remainingIdentifiers
         })
@@ -916,6 +927,7 @@ export default function AdminDashboard() {
         setBulkSellerName('');
         setBulkSaleDate('');
         setBulkSellingPrice('');
+        setBulkSellingPrices({});
         loadAllData();
       } else {
         alert(data.error || '판매 완료 처리 실패');
@@ -1092,6 +1104,19 @@ export default function AdminDashboard() {
           >
             <Coins size={18} /> 마진 및 정산
           </button>
+
+          <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
+
+          <a 
+            href="/admin/scanner"
+            target="_blank"
+            rel="noopener noreferrer"
+            className={styles.menuItem}
+            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}
+          >
+            <Smartphone size={18} style={{ color: 'var(--warning-color)' }} />
+            <span style={{ color: 'var(--warning-color)' }}>바코드 스캐너 / 扫码销售 ↗</span>
+          </a>
         </nav>
 
         <button 
@@ -3372,7 +3397,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="bulkSellerNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 이름 / 销售员 (필수)</label>
                   <input
@@ -3392,18 +3417,6 @@ export default function AdminDashboard() {
                     type="date"
                     value={bulkSaleDate}
                     onChange={(e) => setBulkSaleDate(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="bulkSellingPriceInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매단가 (위안 ¥) / 售价 (필수)</label>
-                  <input
-                    id="bulkSellingPriceInput"
-                    type="number"
-                    placeholder="예: 1200"
-                    value={bulkSellingPrice}
-                    onChange={(e) => setBulkSellingPrice(e.target.value)}
                     style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
                     required
                   />
@@ -3447,26 +3460,57 @@ export default function AdminDashboard() {
 
                       return (
                         <div key={modelName} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '10px' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
-                              <input
-                                type="checkbox"
-                                checked={isModelSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedBulkModels([...selectedBulkModels, modelName]);
-                                  } else {
-                                    setSelectedBulkModels(selectedBulkModels.filter(m => m !== modelName));
-                                    const modelDeviceIds = items.map(x => x.id);
-                                    setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => !modelDeviceIds.includes(id)));
-                                  }
-                                }}
-                                style={{ cursor: 'pointer' }}
-                              />
-                              <span style={{ fontSize: '12px', fontWeight: 'bold', color: isModelSelected ? '#fff' : 'var(--text-secondary)' }}>
-                                {modelName} ({items.length}대)
-                              </span>
-                            </label>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', userSelect: 'none' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isModelSelected}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedBulkModels([...selectedBulkModels, modelName]);
+                                    } else {
+                                      setSelectedBulkModels(selectedBulkModels.filter(m => m !== modelName));
+                                      const modelDeviceIds = items.map(x => x.id);
+                                      setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => !modelDeviceIds.includes(id)));
+                                      // Clear price
+                                      const updatedPrices = { ...bulkSellingPrices };
+                                      delete updatedPrices[modelName];
+                                      setBulkSellingPrices(updatedPrices);
+                                    }
+                                  }}
+                                  style={{ cursor: 'pointer' }}
+                                />
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: isModelSelected ? '#fff' : 'var(--text-secondary)' }}>
+                                  {modelName} ({items.length}대)
+                                </span>
+                              </label>
+
+                              {/* 기종별 판매단가 입력란 */}
+                              {isModelSelected && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매단가:</span>
+                                  <input
+                                    type="number"
+                                    placeholder="단가 (¥)"
+                                    value={bulkSellingPrices[modelName] || ''}
+                                    onChange={(e) => setBulkSellingPrices({ ...bulkSellingPrices, [modelName]: e.target.value })}
+                                    style={{
+                                      backgroundColor: 'var(--bg-tertiary)',
+                                      border: '1px solid var(--border-color)',
+                                      borderRadius: '4px',
+                                      padding: '4px 8px',
+                                      color: '#fff',
+                                      fontSize: '12px',
+                                      width: '100px',
+                                      outline: 'none'
+                                    }}
+                                    required
+                                  />
+                                  <span style={{ fontSize: '11px', color: 'var(--accent-light)' }}>¥</span>
+                                </div>
+                              )}
+                            </div>
                             
                             <button
                               type="button"

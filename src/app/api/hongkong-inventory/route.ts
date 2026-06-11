@@ -41,12 +41,12 @@ export async function PUT(request: Request) {
     const { action } = body;
 
     if (action === 'sell') {
-      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers } = body;
+      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers, modelPrices } = body;
       if (!saleDate || !sellerName || !Array.isArray(soldIds) || !Array.isArray(remainingIdentifiers)) {
         return NextResponse.json({ success: false, error: 'Missing required sell fields' }, { status: 400 });
       }
       const sPrice = Number(sellingPrice) || 0;
-      const result = await processHongKongBulkSale(saleDate, sellerName, sPrice, soldIds, remainingIdentifiers);
+      const result = await processHongKongBulkSale(saleDate, sellerName, sPrice, soldIds, remainingIdentifiers, modelPrices);
       return NextResponse.json({ success: true, count: result.count });
     } 
     
