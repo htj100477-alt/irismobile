@@ -111,6 +111,45 @@ export default function ScannerPage() {
     }
   };
 
+  // 3.1. 사진 파일 바코드 분석 실행
+  const handleFileScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!selectedModel) {
+      alert('기종을 먼저 선택해주세요. / 请先选择机型。');
+      playBeep('warning');
+      return;
+    }
+
+    setScanStatus({ text: '사진 분석 중... / 正在分析图片...', isError: false });
+    
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      
+      // 실시간 카메라 스캐너가 실행 중이라면 정지
+      if (isScanning) {
+        await stopScanner();
+      }
+
+      // 깨끗한 새 인스턴스로 파일 스캔 실행
+      const scanner = new Html5Qrcode('scanner-reader-container');
+      const decodedText = await scanner.scanFile(file, false);
+      
+      const wasAdded = handleScanSuccess(decodedText);
+      if (wasAdded) {
+        setScanStatus({ text: `[${decodedText}] 스캔 성공 및 제외 등록 완료!`, isError: false });
+      }
+    } catch (err: any) {
+      console.error(err);
+      setScanStatus({ text: `사진에서 바코드를 인식하지 못했습니다. 더 선명하고 밝게 촬영해 보세요.`, isError: true });
+      playBeep('warning');
+    } finally {
+      // 파일 입력 인풋 값 리셋
+      e.target.value = '';
+    }
+  };
+
   // 4. 스캐너 켜기/끄기 기능 (Html5Qrcode 직접 제어)
   const toggleScanner = async () => {
     if (!selectedModel) {
@@ -522,50 +561,84 @@ export default function ScannerPage() {
       {/* 3. 카메라 스캐너 영역 */}
       {selectedModel && (
         <section style={{ backgroundColor: '#0f172a', border: '1px solid #1e293b', borderRadius: '10px', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <span style={{ fontSize: '12px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
               <Camera size={15} style={{ color: '#10b981' }} />
-              스캔 카메라 렌즈 / 扫码镜头
+              스캔 카메라 / 扫码镜头 (바코드 라인 조준)
             </span>
-            <button
-              onClick={toggleScanner}
-              style={{
-                backgroundColor: isScanning ? '#ef4444' : '#10b981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '6px',
-                padding: '8px 16px',
-                fontSize: '12px',
-                fontWeight: 'bold',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px'
-              }}
-            >
-              <RefreshCw size={12} className={isScanning ? 'animate-spin' : ''} />
-              {isScanning ? '스캔 중단 / 关闭' : '스캔 시작 / 启动'}
-            </button>
+            
+            {/* 스캔 모드 선택 버튼 그룹 */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={toggleScanner}
+                style={{
+                  flex: 1,
+                  backgroundColor: isScanning ? '#ef4444' : '#10b981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  padding: '10px 8px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <RefreshCw size={12} className={isScanning ? 'animate-spin' : ''} />
+                {isScanning ? '실시간 스캔 중단' : '카메라 실시간 스캔'}
+              </button>
+
+              <label
+                style={{
+                  flex: 1,
+                  backgroundColor: '#4f46e5',
+                  color: '#fff',
+                  borderRadius: '6px',
+                  padding: '10px 8px',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  textAlign: 'center'
+                }}
+              >
+                <Camera size={12} />
+                사진촬영/갤러리 선택
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileScan}
+                  style={{ display: 'none' }}
+                />
+              </label>
+            </div>
           </div>
 
-          {/* 카메라 비디오 캔버스 컨테이너 */}
-          {isScanning ? (
-            <div 
-              id="scanner-reader-container" 
-              style={{ 
-                width: '100%', 
-                borderRadius: '8px', 
-                overflow: 'hidden', 
-                border: '1px solid #334155',
-                backgroundColor: '#000',
-                aspectRatio: '1.33'
-              }} 
-            />
-          ) : (
+          {/* 카메라 비디오 캔버스 컨테이너 (scanFile 분석을 위해 항상 DOM에 유지하되 숨김/노출 처리) */}
+          <div 
+            id="scanner-reader-container" 
+            style={{ 
+              width: '100%', 
+              borderRadius: '8px', 
+              overflow: 'hidden', 
+              border: '1px solid #334155',
+              backgroundColor: '#000',
+              aspectRatio: '1.33',
+              display: isScanning ? 'block' : 'none'
+            }} 
+          />
+
+          {!isScanning && (
             <div style={{ width: '100%', height: '140px', borderRadius: '8px', border: '2px dashed #334155', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '12px', textAlign: 'center', padding: '10px' }}>
               <Smartphone size={24} style={{ marginBottom: '8px', color: '#4b5563' }} />
-              <span>[스캔 시작]을 누르면 카메라 렌즈가 활성화되며,</span>
-              <span style={{ marginTop: '2px' }}>스티커 인식 시 스캐너가 자동 종료됩니다.</span>
+              <span>[실시간 스캔]을 눌러 바코드를 실시간 조준하거나,</span>
+              <span style={{ marginTop: '2px' }}>[사진촬영/갤러리 선택]으로 직접 촬영하여 인식시키세요.</span>
             </div>
           )}
 
