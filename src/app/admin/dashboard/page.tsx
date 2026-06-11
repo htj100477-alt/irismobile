@@ -232,6 +232,27 @@ export default function AdminDashboard() {
   const selectedHKIdsSet = useMemo(() => new Set(selectedHKIds), [selectedHKIds]);
   const selectedPendingIdsSet = useMemo(() => new Set(selectedPendingIds), [selectedPendingIds]);
 
+  // ✅ 성능 최적화: 홍콩 재고 Map 빌드 (O(1) 조회)
+  const inventoryMap = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const x of hongkongInventory) {
+      map.set(x.id, x);
+    }
+    return map;
+  }, [hongkongInventory]);
+
+  // ✅ 성능 최적화: 선택되고 판매 완료된 기기 개수 계산 (O(M) 수준)
+  const selectedHKSoldDevicesCount = useMemo(() => {
+    let count = 0;
+    for (const id of selectedHKIds) {
+      const item = inventoryMap.get(id);
+      if (item && item.is_sold) {
+        count++;
+      }
+    }
+    return count;
+  }, [selectedHKIds, inventoryMap]);
+
   // ✅ 성능 최적화: filteredHKItems useMemo 적용
   const filteredHKItems = useMemo(() => hongkongInventory
     .filter(item => {
@@ -2055,10 +2076,10 @@ export default function AdminDashboard() {
                 >
                   <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售
                 </button>
-                {selectedHKIds.length > 0 && hongkongInventory.filter(x => selectedHKIds.includes(x.id) && x.is_sold).length > 0 && (
+                {selectedHKIds.length > 0 && selectedHKSoldDevicesCount > 0 && (
                   <button
                     onClick={() => executeCancelSales(selectedHKIds.filter(id => {
-                      const item = hongkongInventory.find(x => x.id === id);
+                      const item = inventoryMap.get(id);
                       return item && item.is_sold;
                     }))}
                     className={styles.btnCancel}
@@ -2072,7 +2093,7 @@ export default function AdminDashboard() {
                       cursor: 'pointer'
                     }}
                   >
-                    <X size={16} /> 선택 판매 취소 / 批量取消销售 ({hongkongInventory.filter(x => selectedHKIds.includes(x.id) && x.is_sold).length}대)
+                    <X size={16} /> 선택 판매 취소 / 批量取消销售 ({selectedHKSoldDevicesCount}대)
                   </button>
                 )}
                 {selectedHKIds.length > 0 && (
