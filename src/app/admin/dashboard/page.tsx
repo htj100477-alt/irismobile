@@ -318,11 +318,12 @@ export default function AdminDashboard() {
   // 홍콩 재고 페이지네이션 상태
   const [hkPage, setHkPage] = useState(1);
   const [hkPageSize, setHkPageSize] = useState<number | 'all'>(50);
+  const [hkViewMode, setHkViewMode] = useState<'list' | 'card'>('list');
 
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
     setHkPage(1);
-  }, [hkStatusFilter, hkSearchQuery, hkSortColumn, hkSortDirection, hkPageSize]);
+  }, [hkStatusFilter, hkSearchQuery, hkSortColumn, hkSortDirection, hkPageSize, hkViewMode]);
 
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
@@ -435,6 +436,48 @@ export default function AdminDashboard() {
     const start = (hkPage - 1) * hkPageSize;
     return sortedHKItems.slice(start, start + hkPageSize);
   }, [sortedHKItems, hkPage, hkPageSize]);
+
+  // ✅ 성능 최적화 및 편의 기능: 기종별 그룹화 데이터 계산
+  const groupedHKModels = useMemo(() => {
+    const groups: Record<string, {
+      modelName: string;
+      total: number;
+      available: number;
+      pending: number;
+      sold: number;
+      colors: Record<string, number>;
+    }> = {};
+
+    for (const item of filteredHKItems) {
+      const model = item.model_name || 'UNKNOWN';
+      if (!groups[model]) {
+        groups[model] = {
+          modelName: model,
+          total: 0,
+          available: 0,
+          pending: 0,
+          sold: 0,
+          colors: {}
+        };
+      }
+      
+      const g = groups[model];
+      g.total++;
+      if (!item.is_sold) {
+        g.available++;
+      } else if (!item.is_approved) {
+        g.pending++;
+      } else {
+        g.sold++;
+      }
+      
+      const c = item.color ? item.color.trim() : (displayLang === 'zh' ? '未知' : '미정');
+      g.colors[c] = (g.colors[c] || 0) + 1;
+    }
+
+    // 수량 순으로 정렬
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+  }, [filteredHKItems, displayLang]);
 
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
@@ -2300,24 +2343,63 @@ export default function AdminDashboard() {
                 })}
               </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '搜索:' : '기기 검색:'}</span>
-                <input
-                  type="text"
-                  placeholder={displayLang === 'zh' ? "串号 / 机型 / 贴纸号" : "IMEI / 모델 / 스티커 번호"}
-                  value={hkSearchQuery}
-                  onChange={(e) => setHkSearchQuery(e.target.value)}
-                  style={{
-                    backgroundColor: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '20px',
-                    padding: '6px 14px',
-                    color: '#fff',
-                    fontSize: '13px',
-                    outline: 'none',
-                    minWidth: '200px'
-                  }}
-                />
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                {/* 보기 방식 토글 추가 */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '视图:' : '보기:'}</span>
+                  <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: '20px', overflow: 'hidden' }}>
+                    <button
+                      onClick={() => setHkViewMode('list')}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        border: 'none',
+                        borderRadius: 0,
+                        cursor: 'pointer',
+                        backgroundColor: hkViewMode === 'list' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                        color: '#fff',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {displayLang === 'zh' ? '列表' : '리스트 표'}
+                    </button>
+                    <button
+                      onClick={() => setHkViewMode('card')}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        border: 'none',
+                        borderRadius: 0,
+                        cursor: 'pointer',
+                        backgroundColor: hkViewMode === 'card' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                        color: '#fff',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {displayLang === 'zh' ? '卡片' : '기종 카드'}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '搜索:' : '기기 검색:'}</span>
+                  <input
+                    type="text"
+                    placeholder={displayLang === 'zh' ? "串号 / 机型 / 贴纸号" : "IMEI / 모델 / 스티커 번호"}
+                    value={hkSearchQuery}
+                    onChange={(e) => setHkSearchQuery(e.target.value)}
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '20px',
+                      padding: '6px 14px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none',
+                      minWidth: '200px'
+                    }}
+                  />
+                </div>
               </div>
             </div>
 
@@ -2394,7 +2476,150 @@ export default function AdminDashboard() {
               </div>
             </div>
 
-            <div className={styles.tableSection}>
+            {hkViewMode === 'card' ? (
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                gap: '16px',
+                marginTop: '16px'
+              }}>
+                {groupedHKModels.map(g => {
+                  const displayName = getModelDisplayName(g.modelName);
+                  return (
+                    <div
+                      key={g.modelName}
+                      onClick={() => {
+                        setHkSearchQuery(g.modelName);
+                        setHkViewMode('list');
+                      }}
+                      style={{
+                        backgroundColor: '#1e293b',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '12px',
+                        padding: '16px',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s',
+                        position: 'relative',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'space-between',
+                        minHeight: '170px'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--accent-light)';
+                        e.currentTarget.style.transform = 'translateY(-3px)';
+                        e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.borderColor = 'var(--border-color)';
+                        e.currentTarget.style.transform = 'translateY(0)';
+                        e.currentTarget.style.boxShadow = 'none';
+                      }}
+                    >
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '6px' }}>
+                          <h3 style={{
+                            fontSize: '14px',
+                            fontWeight: 'bold',
+                            color: '#fff',
+                            margin: 0,
+                            lineHeight: '1.3',
+                            maxWidth: '78%'
+                          }}>
+                            {displayName}
+                          </h3>
+                          <span style={{
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            color: '#60a5fa',
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {g.total}{displayLang === 'zh' ? '台' : '대'}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px', fontFamily: 'monospace' }}>
+                          {g.modelName}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', fontSize: '11px', marginBottom: '10px', flexWrap: 'wrap' }}>
+                        {g.available > 0 && (
+                          <span style={{ color: 'var(--success-color)', backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                            {displayLang === 'zh' ? '可售' : '가용'} <strong>{g.available}</strong>
+                          </span>
+                        )}
+                        {g.pending > 0 && (
+                          <span style={{ color: 'var(--warning-color)', backgroundColor: 'rgba(245, 158, 11, 0.08)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                            {displayLang === 'zh' ? '待批' : '대기'} <strong>{g.pending}</strong>
+                          </span>
+                        )}
+                        {g.sold > 0 && (
+                          <span style={{ color: 'var(--text-secondary)', backgroundColor: 'rgba(255, 255, 255, 0.04)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(255, 255, 255, 0.06)' }}>
+                            {displayLang === 'zh' ? '已售' : '판매'} <strong>{g.sold}</strong>
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{
+                        borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+                        paddingTop: '8px',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: '4px',
+                        maxHeight: '44px',
+                        overflow: 'hidden'
+                      }}>
+                        {Object.entries(g.colors).map(([color, count]) => (
+                          <span
+                            key={color}
+                            style={{
+                              fontSize: '10px',
+                              backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                              color: 'var(--text-secondary)',
+                              padding: '2px 5px',
+                              borderRadius: '4px',
+                              border: '1px solid rgba(255, 255, 255, 0.04)'
+                            }}
+                          >
+                            {color} ({count})
+                          </span>
+                        ))}
+                      </div>
+
+                      <div style={{
+                        textAlign: 'right',
+                        fontSize: '10px',
+                        color: 'var(--accent-light)',
+                        marginTop: '8px',
+                        fontWeight: 'bold',
+                        opacity: 0.8
+                      }}>
+                        {displayLang === 'zh' ? '查看明细 →' : '상세 보기 →'}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {groupedHKModels.length === 0 && (
+                  <div style={{
+                    gridColumn: '1 / -1',
+                    textAlign: 'center',
+                    color: 'var(--text-muted)',
+                    padding: '60px 40px',
+                    backgroundColor: 'var(--bg-secondary)',
+                    borderRadius: '12px',
+                    border: '1px solid var(--border-color)'
+                  }}>
+                    {displayLang === 'zh' ? '没有匹配的机型' : '조건에 맞는 기종이 없습니다.'}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className={styles.tableSection}>
               <div className={styles.tableWrapper}>
                 <table className={styles.adminTable}>
                   <thead>
@@ -2561,6 +2786,7 @@ export default function AdminDashboard() {
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
 
