@@ -393,6 +393,8 @@ export default function AdminDashboard() {
 
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
+  const [isInventoryStatsModalOpen, setIsInventoryStatsModalOpen] = useState(false);
+  const [inventoryStatsBasis, setInventoryStatsBasis] = useState<'all' | 'available'>('all');
 
   // 수동 환율 설정 핸들러
   const handleEditExchangeRate = () => {
@@ -601,6 +603,47 @@ export default function AdminDashboard() {
       return b.total - a.total;
     });
   }, [filteredHKItems, displayLang, hkCardSortMode, getModelDisplayName]);
+
+  const inventoryStats = useMemo(() => {
+    const targetDevices = hongkongInventory.filter(item => {
+      if (inventoryStatsBasis === 'available') return !item.is_sold;
+      return true;
+    });
+
+    const totalCount = targetDevices.length;
+    const totalCost = targetDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
+
+    const modelMap: Record<string, { modelName: string; count: number; cost: number }> = {};
+    const gradeMap: Record<string, { grade: string; count: number; cost: number }> = {};
+
+    targetDevices.forEach(item => {
+      const model = item.model_name || '기형 미확인 / 未知型号';
+      const rawGrade = item.notes?.trim() || '';
+      const grade = rawGrade || (displayLang === 'zh' ? '无' : '공란');
+
+      if (!modelMap[model]) {
+        modelMap[model] = { modelName: model, count: 0, cost: 0 };
+      }
+      modelMap[model].count++;
+      modelMap[model].cost += Number(item.purchase_cost) || 0;
+
+      if (!gradeMap[grade]) {
+        gradeMap[grade] = { grade, count: 0, cost: 0 };
+      }
+      gradeMap[grade].count++;
+      gradeMap[grade].cost += Number(item.purchase_cost) || 0;
+    });
+
+    const modelsList = Object.values(modelMap).sort((a, b) => b.cost - a.cost);
+    const gradesList = Object.values(gradeMap).sort((a, b) => b.cost - a.cost);
+
+    return {
+      totalCount,
+      totalCost,
+      modelsList,
+      gradesList
+    };
+  }, [hongkongInventory, inventoryStatsBasis, displayLang, getModelDisplayName]);
 
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementMonth, setSettlementMonth] = useState('All');
@@ -2608,6 +2651,21 @@ export default function AdminDashboard() {
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 >
                   <Plus size={16} /> {displayLang === 'zh' ? '批量导入 (Excel 粘贴)' : '대량 입고 (엑셀 붙여넣기)'}
+                </button>
+                <button
+                  onClick={() => setIsInventoryStatsModalOpen(true)}
+                  className={styles.btnCancel}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    border: '1px solid var(--accent-light)',
+                    color: 'var(--accent-light)',
+                    backgroundColor: 'transparent',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <BarChart3 size={16} /> {displayLang === 'zh' ? '库存统计' : '재고 통계'}
                 </button>
                 <button
                   onClick={() => setIsBulkSaleModalOpen(true)}
@@ -4921,6 +4979,227 @@ export default function AdminDashboard() {
           </div>
         </div>
       )}
+
+      {/* 재고 통계 모달 */}
+      {isInventoryStatsModalOpen && (() => {
+        const stats = inventoryStats;
+        return (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            padding: '20px',
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className={styles.modalContent} style={{
+              width: '100%',
+              maxWidth: '900px',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '12px',
+              padding: '24px',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+            }}>
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                borderBottom: '1px solid var(--border-color)',
+                paddingBottom: '14px',
+                marginBottom: '20px'
+              }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 'bold', color: '#fff', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <BarChart3 size={20} style={{ color: 'var(--accent-light)' }} />
+                  {displayLang === 'zh' ? '库存资产价值与统计 / 库存统计' : '재고 자산 가치 및 통계'}
+                </h3>
+                <button
+                  onClick={() => setIsInventoryStatsModalOpen(false)}
+                  style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                  aria-label="닫기"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* 통계 기준 토글 */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                backgroundColor: '#0f172a',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                gap: '12px'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                    {displayLang === 'zh' ? '统计基准:' : '통계 기준:'}
+                  </span>
+                  <button
+                    onClick={() => setInventoryStatsBasis('all')}
+                    className={inventoryStatsBasis === 'all' ? styles.btnSave : styles.btnCancel}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      border: inventoryStatsBasis === 'all' ? 'none' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {displayLang === 'zh' ? '全部库存' : '전체 재고 기준 (입고 기준)'}
+                  </button>
+                  <button
+                    onClick={() => setInventoryStatsBasis('available')}
+                    className={inventoryStatsBasis === 'available' ? styles.btnSave : styles.btnCancel}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      border: inventoryStatsBasis === 'available' ? 'none' : '1px solid var(--border-color)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {displayLang === 'zh' ? '可用库存' : '가용 실재고 기준 (판매 대기)'}
+                  </button>
+                </div>
+
+                <div style={{ display: 'flex', gap: '16px', fontSize: '13px' }}>
+                  <div>
+                    <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '总数量:' : '총 수량:'}</span>{' '}
+                    <strong style={{ color: '#fff' }}>{stats.totalCount}대 / 台</strong>
+                  </div>
+                  <div style={{ borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '16px' }}>
+                    <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '总资产价值 (成本):' : '총 자산 가치 (원가):'}</span>{' '}
+                    <strong style={{ color: 'var(--success-color)' }}>₩{Math.round(stats.totalCost).toLocaleString()}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* 그리드 분할 레이아웃 */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+                gap: '24px'
+              }}>
+                {/* 좌측: 모델별 통계 */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)', marginBottom: '10px' }}>
+                    📊 {displayLang === 'zh' ? '按机型资产统计 / 机型统计' : '모델별 재고 자산 요약'}
+                  </h4>
+                  <div style={{
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--bg-tertiary)'
+                  }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: '#fff' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#0f172a', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                          <th style={{ padding: '10px 12px' }}>{displayLang === 'zh' ? '机型' : '모델명'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '数量' : '수량'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'right' }}>{displayLang === 'zh' ? '总成本' : '원가 합계'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '价值比' : '비중'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.modelsList.map(m => {
+                          const costPct = stats.totalCost > 0 ? (m.cost / stats.totalCost) * 100 : 0;
+                          return (
+                            <tr key={m.modelName} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>{getModelDisplayName(m.modelName)}</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{m.count}대</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 'bold' }}>₩{Math.round(m.cost).toLocaleString()}</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>{costPct.toFixed(1)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* 우측: 등급별 통계 */}
+                <div style={{ display: 'flex', flexDirection: 'column' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)', marginBottom: '10px' }}>
+                    📊 {displayLang === 'zh' ? '按等级资产统计 / 等级统计' : '등급별 재고 자산 요약'}
+                  </h4>
+                  <div style={{
+                    maxHeight: '400px',
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    backgroundColor: 'var(--bg-tertiary)'
+                  }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', color: '#fff' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#0f172a', borderBottom: '1px solid var(--border-color)', textAlign: 'left' }}>
+                          <th style={{ padding: '10px 12px' }}>{displayLang === 'zh' ? '等级' : '등급'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '数量' : '수량'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'right' }}>{displayLang === 'zh' ? '总成本' : '원가 합계'}</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center' }}>{displayLang === 'zh' ? '价值比' : '비중'}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats.gradesList.map(g => {
+                          const costPct = stats.totalCost > 0 ? (g.cost / stats.totalCost) * 100 : 0;
+                          return (
+                            <tr key={g.grade} style={{ borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                              <td style={{ padding: '10px 12px', fontWeight: 'bold' }}>
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '12px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: g.grade === '공란' || g.grade === '无' ? 'rgba(255,255,255,0.05)' : 'rgba(59, 130, 246, 0.1)',
+                                  color: g.grade === '공란' || g.grade === '无' ? 'var(--text-muted)' : 'var(--primary-color)'
+                                }}>
+                                  {g.grade}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>{g.count}대</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: 'bold' }}>₩{Math.round(g.cost).toLocaleString()}</td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center', color: 'var(--text-secondary)' }}>{costPct.toFixed(1)}%</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{
+                display: 'flex',
+                justifyContent: 'flex-end',
+                borderTop: '1px solid var(--border-color)',
+                paddingTop: '14px',
+                marginTop: '20px'
+              }}>
+                <button
+                  onClick={() => setIsInventoryStatsModalOpen(false)}
+                  className={styles.btnCancel}
+                  style={{ padding: '8px 20px', fontSize: '13px', cursor: 'pointer' }}
+                >
+                  {displayLang === 'zh' ? '关闭' : '닫기'}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* 일괄 판매 처리 모달 */}
       {isBulkSaleModalOpen && (
