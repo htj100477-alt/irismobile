@@ -839,24 +839,33 @@ export async function getHongKongInventory() {
 }
 
 export async function importHongKongInventory(records: any[]) {
-  const formattedRecords = records.map(r => ({
-    id: r.id || (supabase ? undefined : `hk-prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`),
-    sticker: r.sticker || '',
-    site_date: r.site_date || new Date().toLocaleDateString('ko-KR').slice(2),
-    model_name: r.model_name || '',
-    imei: r.imei ? String(r.imei).trim().replace(/\s+/g, '') : '',
-    color: r.color || '',
-    battery_pct: r.battery_pct ? String(r.battery_pct).replace(/[^0-9]/g, '') : '100',
-    purchase_cost: Number(String(r.purchase_cost || '').replace(/[^0-9.-]/g, '')) || 0,
-    selling_price: Number(String(r.selling_price || '').replace(/[^0-9.-]/g, '')) || 0,
-    stock_location: r.stock_location || 'Hong Kong',
-    notes: r.notes || '',
-    is_sold: r.is_sold || false,
-    sale_date: r.sale_date || null,
-    seller_name: r.seller_name || null,
-    is_approved: r.is_approved || false,
-    created_at: r.created_at || new Date().toISOString()
-  }));
+  const formattedRecords = records.map(r => {
+    const item: any = {
+      sticker: r.sticker || '',
+      site_date: r.site_date || new Date().toLocaleDateString('ko-KR').slice(2),
+      model_name: r.model_name || '',
+      imei: r.imei ? String(r.imei).trim().replace(/\s+/g, '') : '',
+      color: r.color || '',
+      battery_pct: r.battery_pct ? String(r.battery_pct).replace(/[^0-9]/g, '') : '100',
+      purchase_cost: Number(String(r.purchase_cost || '').replace(/[^0-9.-]/g, '')) || 0,
+      selling_price: Number(String(r.selling_price || '').replace(/[^0-9.-]/g, '')) || 0,
+      stock_location: r.stock_location || 'Hong Kong',
+      notes: r.notes || '',
+      is_sold: r.is_sold || false,
+      sale_date: r.sale_date || null,
+      seller_name: r.seller_name || null,
+      is_approved: r.is_approved || false,
+      created_at: r.created_at || new Date().toISOString()
+    };
+
+    if (r.id) {
+      item.id = r.id;
+    } else if (!supabase) {
+      item.id = `hk-prod-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    }
+
+    return item;
+  });
 
   if (supabase) {
     const { data, error } = await supabase
