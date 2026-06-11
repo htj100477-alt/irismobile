@@ -63,8 +63,39 @@ export default function ScannerPage() {
   const [scannedItems, setScannedItems] = useState<any[]>([]);
   const [scanStatus, setScanStatus] = useState({ text: '대기 중 / 待机', isError: false });
 
+  // 카메라 장치 목록 및 활성 선택 인덱스 상태 추가
+  const [cameraDevices, setCameraDevices] = useState<any[]>([]);
+  const [activeCameraIndex, setActiveCameraIndex] = useState(0);
+
   // html5-qrcode 인스턴스 래퍼
   const html5QrCodeRef = useRef<any>(null);
+
+  // 카메라 장치 목록 불러오기 함수
+  const loadCameraDevices = async () => {
+    try {
+      const { Html5Qrcode } = await import('html5-qrcode');
+      const devices = await Html5Qrcode.getCameras();
+      if (devices && devices.length > 0) {
+        setCameraDevices(devices);
+        
+        // 기본으로 후면 카메라를 검색하여 초기 설정
+        const backIdx = devices.findIndex(d => 
+          d.label.toLowerCase().includes('back') || 
+          d.label.toLowerCase().includes('rear') ||
+          d.label.toLowerCase().includes('후면') ||
+          d.label.toLowerCase().includes('environment') ||
+          d.label.toLowerCase().includes('camera 0')
+        );
+        if (backIdx !== -1) {
+          setActiveCameraIndex(backIdx);
+        } else {
+          setActiveCameraIndex(0);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to query camera devices:', e);
+    }
+  };
 
   // 1. 세션 인증 확인 및 오늘 날짜 설정
   useEffect(() => {
@@ -75,6 +106,7 @@ export default function ScannerPage() {
     if (isAuth) {
       setIsAuthenticated(true);
       fetchInventory();
+      loadCameraDevices();
     } else {
       setLoading(false);
     }
@@ -88,6 +120,7 @@ export default function ScannerPage() {
       setIsAuthenticated(true);
       setPassError(false);
       fetchInventory();
+      loadCameraDevices();
     } else {
       setPassError(true);
       playBeep('warning');
@@ -239,6 +272,50 @@ export default function ScannerPage() {
     }
   };
 
+  // 깨끗한 새 스캐너 인스턴스를 생성하고 구동하는 최상위 헬퍼 함수
+  const runStart = async (cameraConstraints: any) => {
+    const { Html5Qrcode } = await import('html5-qrcode');
+    
+    if (html5QrCodeRef.current) {
+      try {
+        await html5QrCodeRef.current.stop();
+      } catch (e) {}
+      html5QrCodeRef.current = null;
+    }
+
+    const scanner = new Html5Qrcode('scanner-reader-container');
+    html5QrCodeRef.current = scanner;
+
+    const qrConfig = {
+      fps: 15,
+      qrbox: (width: number, height: number) => {
+        const size = Math.min(width, height);
+        return { width: Math.round(size * 0.85), height: Math.round(size * 0.45) };
+      }
+    };
+
+    const successCallback = async (decodedText: string) => {
+      const wasAdded = handleScanSuccess(decodedText);
+      if (wasAdded) {
+        try {
+          if (html5QrCodeRef.current) {
+            await html5QrCodeRef.current.stop();
+          }
+          setIsScanning(false);
+        } catch (err) {
+          console.error('Failed to stop camera:', err);
+        }
+      }
+    };
+
+    await scanner.start(
+      cameraConstraints,
+      qrConfig,
+      successCallback,
+      () => {}
+    );
+  };
+
   const startScanner = async () => {
     setIsScanning(true);
     setScanStatus({ text: '스캐너 구동 중...', isError: false });
@@ -246,106 +323,31 @@ export default function ScannerPage() {
     // React 렌더링 후 DOM 마운트 대기
     setTimeout(async () => {
       try {
-        const { Html5Qrcode } = await import('html5-qrcode');
-        
-        const qrConfig = {
-          fps: 15,
-          qrbox: (width: number, height: number) => {
-            const size = Math.min(width, height);
-            return { width: Math.round(size * 0.85), height: Math.round(size * 0.45) };
-          }
-        };
-
-        const successCallback = async (decodedText: string) => {
-          const wasAdded = handleScanSuccess(decodedText);
-          if (wasAdded) {
-            try {
-              if (html5QrCodeRef.current) {
-                await html5QrCodeRef.current.stop();
-              }
-              setIsScanning(false);
-            } catch (err) {
-              console.error('Failed to stop camera:', err);
-            }
-          }
-        };
-
-        // 매 시도마다 깨끗한 인스턴스를 생성하는 헬퍼 함수
-        const runStart = async (cameraConstraints: any) => {
-          if (html5QrCodeRef.current) {
-            try {
-              await html5QrCodeRef.current.stop();
-            } catch (e) {}
-            html5QrCodeRef.current = null;
-          }
-          const scanner = new Html5Qrcode('scanner-reader-container');
-          html5QrCodeRef.current = scanner;
-          await scanner.start(
-            cameraConstraints,
-            qrConfig,
-            successCallback,
-            () => {}
-          );
-        };
+        // 선택된 카메라 디바이스 ID 확인
+        let selectedCameraId = "";
+        if (cameraDevices.length > 0) {
+          selectedCameraId = cameraDevices[activeCameraIndex]?.id || cameraDevices[0].id;
+        }
 
         try {
-          // 1차 시도: 카메라 장비 목록을 조회하여 후면(rear/back) 카메라 ID 직접 바인딩 + 고화질
-          let devices: any[] = [];
-          try {
-            devices = await Html5Qrcode.getCameras();
-          } catch (e) {
-            console.warn('Failed to query camera devices list (possibly no permission yet):', e);
-          }
-
-          let selectedCameraId = "";
-          if (devices && devices.length > 0) {
-            const backCamera = devices.find(d => 
-              d.label.toLowerCase().includes('back') || 
-              d.label.toLowerCase().includes('rear') ||
-              d.label.toLowerCase().includes('후면') ||
-              d.label.toLowerCase().includes('environment') ||
-              d.label.toLowerCase().includes('camera 0')
-            );
-            selectedCameraId = backCamera ? backCamera.id : devices[0].id;
-          }
-
-          try {
-            if (selectedCameraId) {
-              await runStart({
-                deviceId: { exact: selectedCameraId },
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-              });
-            } else {
-              throw new Error('Device list empty');
-            }
-          } catch (err1) {
-            console.warn('Device ID start failed, trying facingMode environment with resolution...', err1);
-            // 2차 시도: facingMode environment + 고화질
+          // 1차 시도: 선택된 카메라 기기 ID를 지정하여 고화질 1080p 설정으로 시작
+          if (selectedCameraId) {
             await runStart({
-              facingMode: 'environment',
+              deviceId: { exact: selectedCameraId },
               width: { ideal: 1920 },
               height: { ideal: 1080 }
             });
+          } else {
+            // 카메라 목록이 없다면 facingMode 환경 설정 시도
+            throw new Error('No camera list parsed yet');
           }
-        } catch (err2) {
-          console.warn('High resolution constraints failed, retrying with standard facingMode environment...', err2);
-          try {
-            // 3차 시도: 기본 후면 카메라 모드 (해상도 제한 없음)
+        } catch (err1) {
+          console.warn('High resolution starting failed on this camera, retrying standard resolution...', err1);
+          // 2차 시도: 일반 해상도로 기기 직접 타겟팅 구동
+          if (selectedCameraId) {
+            await runStart(selectedCameraId);
+          } else {
             await runStart({ facingMode: 'environment' });
-          } catch (err3) {
-            console.warn('FacingMode environment failed, trying fallback to first camera device ID...', err3);
-            try {
-              // 4차 시도: 획득한 기기 목록 중 첫 번째 기기로 직접 구동
-              const devices = await Html5Qrcode.getCameras();
-              if (devices && devices.length > 0) {
-                await runStart(devices[0].id);
-              } else {
-                throw err3;
-              }
-            } catch (err4: any) {
-              throw err4; // 최종 에러 처리 블록으로 이동
-            }
           }
         }
 
@@ -358,6 +360,41 @@ export default function ScannerPage() {
         playBeep('warning');
       }
     }, 150);
+  };
+
+  // 다중 카메라를 순회 전환하는 기능
+  const handleSwitchCamera = async () => {
+    if (cameraDevices.length <= 1) {
+      alert('전환 가능한 다른 카메라 하드웨어가 없습니다. / 只有一个摄像头。');
+      return;
+    }
+    
+    const nextIndex = (activeCameraIndex + 1) % cameraDevices.length;
+    setActiveCameraIndex(nextIndex);
+    
+    if (isScanning) {
+      setScanStatus({ text: `카메라 전환 중... (${nextIndex + 1}/${cameraDevices.length})`, isError: false });
+      try {
+        const nextDeviceId = cameraDevices[nextIndex].id;
+        // 새로운 카메라 구동 시도
+        try {
+          await runStart({
+            deviceId: { exact: nextDeviceId },
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          });
+        } catch (switchErr) {
+          // 고화질 실패 시 일반 해상도
+          await runStart(nextDeviceId);
+        }
+        setScanStatus({ text: `카메라 전환 완료! (${cameraDevices[nextIndex].label || '카메라 ' + (nextIndex + 1)})`, isError: false });
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err.message || err.name || String(err);
+        setScanStatus({ text: `카메라 전환 실패: ${errMsg}`, isError: true });
+        playBeep('warning');
+      }
+    }
   };
 
   const stopScanner = async () => {
@@ -642,55 +679,81 @@ export default function ScannerPage() {
             </span>
             
             {/* 스캔 모드 선택 버튼 그룹 */}
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={toggleScanner}
-                style={{
-                  flex: 1,
-                  backgroundColor: isScanning ? '#ef4444' : '#10b981',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: '6px',
-                  padding: '10px 8px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <RefreshCw size={12} className={isScanning ? 'animate-spin' : ''} />
-                {isScanning ? '실시간 스캔 중단' : '카메라 실시간 스캔'}
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={toggleScanner}
+                  style={{
+                    flex: 1,
+                    backgroundColor: isScanning ? '#ef4444' : '#10b981',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '10px 8px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <RefreshCw size={12} className={isScanning ? 'animate-spin' : ''} />
+                  {isScanning ? '실시간 스캔 중단' : '카메라 실시간 스캔'}
+                </button>
 
-              <label
-                style={{
-                  flex: 1,
-                  backgroundColor: '#4f46e5',
-                  color: '#fff',
-                  borderRadius: '6px',
-                  padding: '10px 8px',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px',
-                  textAlign: 'center'
-                }}
-              >
-                <Camera size={12} />
-                사진촬영/갤러리 선택
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileScan}
-                  style={{ display: 'none' }}
-                />
-              </label>
+                <label
+                  style={{
+                    flex: 1,
+                    backgroundColor: '#4f46e5',
+                    color: '#fff',
+                    borderRadius: '6px',
+                    padding: '10px 8px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    textAlign: 'center'
+                  }}
+                >
+                  <Camera size={12} />
+                  사진촬영/갤러리 선택
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileScan}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+              </div>
+
+              {cameraDevices.length > 1 && (
+                <button
+                  onClick={handleSwitchCamera}
+                  style={{
+                    width: '100%',
+                    backgroundColor: '#1e293b',
+                    border: '1px solid #334155',
+                    color: '#e2e8f0',
+                    borderRadius: '6px',
+                    padding: '10px 8px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <RefreshCw size={12} />
+                  다른 카메라로 전환 / 切换摄像头 ({activeCameraIndex + 1}/{cameraDevices.length})
+                </button>
+              )}
             </div>
           </div>
 
