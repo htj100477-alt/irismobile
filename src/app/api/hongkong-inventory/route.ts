@@ -4,6 +4,7 @@ import {
   importHongKongInventory, 
   processHongKongBulkSale, 
   approveHongKongSales,
+  cancelHongKongSales,
   deleteHongKongInventory 
 } from '@/lib/db';
 
@@ -54,6 +55,15 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Missing deviceIds for approval' }, { status: 400 });
       }
       await approveHongKongSales(deviceIds);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'cancel_sale') {
+      const { deviceIds } = body;
+      if (!Array.isArray(deviceIds)) {
+        return NextResponse.json({ success: false, error: 'Missing deviceIds for cancellation' }, { status: 400 });
+      }
+      await cancelHongKongSales(deviceIds);
       return NextResponse.json({ success: true });
     }
 

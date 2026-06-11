@@ -995,6 +995,41 @@ export async function approveHongKongSales(deviceIds: string[]) {
   }
 }
 
+export async function cancelHongKongSales(deviceIds: string[]) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({
+        is_sold: false,
+        sale_date: null,
+        seller_name: null,
+        is_approved: false
+      })
+      .in('id', deviceIds);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (deviceIds.includes(d.id)) {
+        return {
+          ...d,
+          is_sold: false,
+          sale_date: null,
+          seller_name: null,
+          is_approved: false
+        };
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return true;
+  }
+}
+
 export async function deleteHongKongInventory(id: string) {
   if (supabase) {
     const { error } = await supabase

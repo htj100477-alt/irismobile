@@ -957,6 +957,32 @@ export default function AdminDashboard() {
     }
   };
 
+  // 홍콩 재고 판매 취소
+  const executeCancelSales = async (deviceIds: string[]) => {
+    if (deviceIds.length === 0) return;
+    const msg = deviceIds.length === 1 
+      ? '이 기기의 판매를 취소하고 판매 가능 재고로 되돌리시겠습니까?' 
+      : `선택한 ${deviceIds.length}대 기기의 판매를 취소하고 판매 가능 재고로 되돌리시겠습니까?`;
+      
+    if (!confirm(msg)) return;
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'cancel_sale', deviceIds })
+      });
+      const data = await res.json();
+      if (data.success) {
+        setSelectedHKIds(selectedHKIds.filter(id => !deviceIds.includes(id)));
+        loadAllData();
+      } else {
+        alert(data.error || '판매 취소 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
   // 지표 계산기
   const getStats = () => {
     const totalPaid = tradeIns
@@ -1725,6 +1751,26 @@ export default function AdminDashboard() {
                 >
                   <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售
                 </button>
+                {selectedHKIds.length > 0 && hongkongInventory.filter(x => selectedHKIds.includes(x.id) && x.is_sold).length > 0 && (
+                  <button
+                    onClick={() => executeCancelSales(selectedHKIds.filter(id => {
+                      const item = hongkongInventory.find(x => x.id === id);
+                      return item && item.is_sold;
+                    }))}
+                    className={styles.btnCancel}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      border: '1px solid var(--danger-color)',
+                      color: 'var(--danger-color)',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <X size={16} /> 선택 판매 취소 / 批量取消销售 ({hongkongInventory.filter(x => selectedHKIds.includes(x.id) && x.is_sold).length}대)
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1939,6 +1985,23 @@ export default function AdminDashboard() {
                           </span>
                         </td>
                         <td>
+                          {item.is_sold && (
+                            <button
+                              onClick={() => executeCancelSales([item.id])}
+                              className={styles.btnSave}
+                              style={{
+                                padding: '6px 10px',
+                                fontSize: '11px',
+                                border: '1px solid var(--warning-color)',
+                                color: 'var(--warning-color)',
+                                backgroundColor: 'transparent',
+                                cursor: 'pointer',
+                                marginRight: '8px'
+                              }}
+                            >
+                              판매 취소 / 取消销售
+                            </button>
+                          )}
                           <button
                             onClick={() => executeDeleteHK(item.id)}
                             className={styles.btnCancel}
