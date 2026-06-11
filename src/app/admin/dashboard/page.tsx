@@ -3381,13 +3381,11 @@ export default function AdminDashboard() {
           );
         })()}
 
-        {/* 마진 및 정산 탭 */}
         {activeTab === 'margin-settlement' && (() => {
-          const settledDevices = hongkongInventory
+          const baseSettledDevices = hongkongInventory
             .filter(item => item.is_sold && item.is_approved)
             .filter(item => {
               if (settlementSeller !== 'All' && item.seller_name !== settlementSeller) return false;
-              if (settlementMonth !== 'All' && getYearMonth(item.sale_date || '') !== settlementMonth) return false;
               const q = settlementSearch.toLowerCase();
               const displayName = getModelDisplayName(item.model_name).toLowerCase();
               return (
@@ -3396,6 +3394,11 @@ export default function AdminDashboard() {
                 (item.imei || '').toLowerCase().includes(q)
               );
             });
+
+          const settledDevices = baseSettledDevices.filter(item => {
+            if (settlementMonth !== 'All' && getYearMonth(item.sale_date || '') !== settlementMonth) return false;
+            return true;
+          });
 
           const totalRevenue = settledDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate)), 0);
           const totalCost = settledDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
@@ -3450,6 +3453,25 @@ export default function AdminDashboard() {
               .filter(m => m !== '기타/날짜없음')
           )).sort((a, b) => b.localeCompare(a));
 
+          // 월별 요약 데이터 계산
+          const monthlySummaries = (() => {
+            const groups: Record<string, { month: string; revenue: number; cost: number; margin: number; count: number }> = {};
+            baseSettledDevices.forEach(item => {
+              const month = getYearMonth(item.sale_date || '');
+              if (month === '기타/날짜없음') return;
+              if (!groups[month]) {
+                groups[month] = { month, revenue: 0, cost: 0, margin: 0, count: 0 };
+              }
+              const rev = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
+              const cost = Number(item.purchase_cost) || 0;
+              groups[month].revenue += rev;
+              groups[month].cost += cost;
+              groups[month].margin += (rev - cost);
+              groups[month].count++;
+            });
+            return Object.values(groups).sort((a, b) => b.month.localeCompare(a.month));
+          })();
+
           return (
             <div className="animate-fade-in">
               <div className={styles.headerRow}>
@@ -3495,6 +3517,59 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               </div>
+
+              {/* 월별 요약 테이블 / 月度结算汇总 (전체 월 조회 시 노출) */}
+              {settlementMonth === 'All' && monthlySummaries.length > 0 && (
+                <div style={{
+                  background: '#1e293b',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-color)',
+                  padding: '16px',
+                  marginBottom: '16px',
+                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart3 size={16} style={{ color: 'var(--accent-light)' }} />
+                    {displayLang === 'zh' ? '月度结算汇总' : '월별 정산 요약'}
+                  </h3>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {monthlySummaries.map(s => {
+                      const marginRate = s.revenue > 0 ? (s.margin / s.revenue) * 100 : 0;
+                      return (
+                        <div key={s.month} style={{
+                          backgroundColor: '#0f172a',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '8px',
+                          padding: '12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '6px'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)' }}>{s.month}</span>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{s.count}대 / 台</span>
+                          </div>
+                          <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '销售额:' : '매출액:'}</span>
+                            <span style={{ color: '#fff', fontWeight: '600' }}>₩{Math.round(s.revenue).toLocaleString()}</span>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '利润 (率):' : '마진 (율):'}</span>
+                            <span style={{ color: s.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
+                              ₩{Math.round(s.margin).toLocaleString()} ({marginRate.toFixed(1)}%)
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {/* 필터 및 검색 컨트롤 */}
               <div style={{
