@@ -332,6 +332,11 @@ export default function AdminDashboard() {
   const [cardBulkSaleDate, setCardBulkSaleDate] = useState('');
   const [lastActionMsg, setLastActionMsg] = useState('');
   const stickerInputRef = useRef<HTMLInputElement>(null);
+  const [cardBulkSaleGrade, setCardBulkSaleGrade] = useState<string | null>(null);
+  const [cardBulkSaleGradeSelection, setCardBulkSaleGradeSelection] = useState<{
+    modelName: string;
+    grades: string[];
+  } | null>(null);
 
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
@@ -454,6 +459,7 @@ export default function AdminDashboard() {
       pending: number;
       sold: number;
       colors: Record<string, number>;
+      grades: Record<string, number>;
     }> = {};
 
     for (const item of filteredHKItems) {
@@ -465,7 +471,8 @@ export default function AdminDashboard() {
           available: 0,
           pending: 0,
           sold: 0,
-          colors: {}
+          colors: {},
+          grades: {}
         };
       }
       
@@ -473,6 +480,8 @@ export default function AdminDashboard() {
       g.total++;
       if (!item.is_sold) {
         g.available++;
+        const grade = item.notes?.trim() || (displayLang === 'zh' ? '无' : '공란');
+        g.grades[grade] = (g.grades[grade] || 0) + 1;
       } else if (!item.is_approved) {
         g.pending++;
       } else {
@@ -1119,7 +1128,7 @@ export default function AdminDashboard() {
     const imeiIdx = findExactIdx(['imei'], findIdx(['imei'], 4 + offset));
     const colorIdx = findIdx(['색상', 'color'], 6 + offset);
     const priceIdx = findExactIdx(['실판매가'], findIdx(['실판매가', 'price'], 9 + offset));
-    const deductionItemIdx = findExactIdx(['차감항목'], findIdx(['차감항목'], 10 + offset));
+    const deductionItemIdx = findExactIdx(['차감항목', '비고', '등급'], findIdx(['차감항목', '비고', '등급', 'notes', 'remark'], 10 + offset));
 
     const parsedRows: any[] = [];
     for (let i = 1; i < lines.length; i++) {
@@ -1300,8 +1309,9 @@ export default function AdminDashboard() {
   };
 
   // 기종 카드 일괄 판매 모달 오픈
-  const openCardBulkSaleModal = useCallback((modelName: string) => {
+  const openCardBulkSaleModal = useCallback((modelName: string, grade: string | null = null) => {
     setCardBulkSaleModel(modelName);
+    setCardBulkSaleGrade(grade);
     setExcludedDeviceIds(new Set());
     setStickerInput('');
     setCardBulkUnitPrice('');
@@ -1325,7 +1335,11 @@ export default function AdminDashboard() {
       return;
     }
 
-    const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+    const availableHKDevices = hongkongInventory.filter(x => 
+      x.model_name === cardBulkSaleModel && 
+      !x.is_sold &&
+      (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+    );
     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
     const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
 
@@ -1335,6 +1349,7 @@ export default function AdminDashboard() {
     }
 
     const confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
+      (cardBulkSaleGrade ? `- 등급: ${cardBulkSaleGrade}\n` : '') +
       `- 판매 처리: ${soldDevices.length}대\n` +
       `- 판매 단가: HK$${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
       `- 제외 기기: ${excludedDevices.length}대\n\n` +
@@ -1365,6 +1380,7 @@ export default function AdminDashboard() {
       if (data.success) {
         alert(`성공적으로 ${soldDevices.length}대의 판매 처리가 완료되었습니다!`);
         setCardBulkSaleModel(null);
+        setCardBulkSaleGrade(null);
         loadAllData();
       } else {
         alert(data.error || '판매 처리 실패');
@@ -2686,7 +2702,15 @@ export default function AdminDashboard() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            openCardBulkSaleModal(g.modelName);
+                            const availableGrades = Object.keys(g.grades || {});
+                            if (availableGrades.length > 1) {
+                              setCardBulkSaleGradeSelection({
+                                modelName: g.modelName,
+                                grades: availableGrades
+                              });
+                            } else {
+                              openCardBulkSaleModal(g.modelName, availableGrades[0] || null);
+                            }
                           }}
                           style={{
                             backgroundColor: 'rgba(59, 130, 246, 0.15)',
@@ -4228,7 +4252,7 @@ export default function AdminDashboard() {
                 <textarea
                   id="bulkPasteTextarea"
                   rows={6}
-                  placeholder="예시:&#10;Sticker&#9;Date&#9;Model&#9;IMEI&#9;Color&#9;Cost&#9;Price&#9;Location&#9;Notes&#10;SN001&#9;24-06-10&#9;아이폰 15&#9;35829381&#9;Black&#9;450&#9;550&#9;HK-A&#9;Test"
+                  placeholder="예시:&#10;Sticker&#9;Date&#9;Model&#9;IMEI&#9;Color&#9;Cost&#9;Price&#9;Location&#9;Grade&#10;SN001&#9;24-06-10&#9;아이폰 15&#9;35829381&#9;Black&#9;450&#9;550&#9;HK-A&#9;LCD"
                   value={pasteText}
                   onChange={(e) => handlePasteChange(e.target.value)}
                   style={{
@@ -4313,7 +4337,7 @@ export default function AdminDashboard() {
                             <th>원가</th>
                             <th>판매가</th>
                             <th>위치</th>
-                            <th>비고</th>
+                            <th>등급</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -4664,6 +4688,69 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {/* 등급 선택 모달 */}
+      {cardBulkSaleGradeSelection && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '400px', width: '90%', backgroundColor: '#1e293b', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0, fontSize: '16px' }}>
+                {displayLang === 'zh' ? '选择销售等级' : '판매할 등급 선택'}
+              </h3>
+              <button onClick={() => setCardBulkSaleGradeSelection(null)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+                {displayLang === 'zh' 
+                  ? `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 含有多个等级。请选择要整包销售의 等级:` 
+                  : `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 에 여러 등급이 섞여 있습니다. 판매할 등급을 선택하세요:`}
+              </p>
+              {cardBulkSaleGradeSelection.grades.map(grade => {
+                const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
+                const count = modelGroup?.grades?.[grade] || 0;
+                return (
+                  <button
+                    key={grade}
+                    onClick={() => {
+                      const selModel = cardBulkSaleGradeSelection.modelName;
+                      setCardBulkSaleGradeSelection(null);
+                      openCardBulkSaleModal(selModel, grade);
+                    }}
+                    style={{
+                      padding: '12px',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      color: '#fff',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--accent-light)';
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--border-color)';
+                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                    }}
+                  >
+                    <span>{grade}</span>
+                    <span style={{ fontSize: '12px', color: 'var(--accent-light)' }}>{count}대</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 카드 기종 일괄 판매 모달 */}
       {cardBulkSaleModel && (
         <div className={styles.modalOverlay}>
@@ -4671,8 +4758,9 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
               <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
                 {displayLang === 'zh' ? '기종 통으로 판매 (整包销售)' : '기종 통으로 판매'}
+                {cardBulkSaleGrade && ` [${cardBulkSaleGrade}]`}
               </h3>
-              <button onClick={() => setCardBulkSaleModel(null)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrade(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
                 <X size={20} />
               </button>
             </div>
@@ -4739,7 +4827,11 @@ export default function AdminDashboard() {
                       setStickerInput(val);
                       
                       if (val.length === 5) {
-                        const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                        const availableHKDevices = hongkongInventory.filter(x => 
+                          x.model_name === cardBulkSaleModel && 
+                          !x.is_sold &&
+                          (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                        );
                         const match = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && !excludedDeviceIds.has(d.id));
                         if (match) {
                           setExcludedDeviceIds(prev => {
@@ -4794,23 +4886,86 @@ export default function AdminDashboard() {
 
               {/* 통계 요약 */}
               {(() => {
-                const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                const availableHKDevices = hongkongInventory.filter(x => 
+                  x.model_name === cardBulkSaleModel && 
+                  !x.is_sold &&
+                  (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                );
                 const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                 const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
+
+                const totalCostKRW = soldDevices.reduce((sum, d) => sum + (Number(d.purchase_cost) || 0), 0);
+                const unitPriceHKD = Number(cardBulkUnitPrice) || 0;
+                const totalSellingPriceHKD = unitPriceHKD * soldDevices.length;
+                const totalSellingPriceKRW = totalSellingPriceHKD * cnyRate;
+                const totalMarginKRW = totalSellingPriceKRW - totalCostKRW;
+                const avgMarginKRW = soldDevices.length > 0 ? totalMarginKRW / soldDevices.length : 0;
+
                 return (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center', fontSize: '12px' }}>
-                    <div style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                      <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>대상 기기</span>
-                      <strong style={{ fontSize: '14px', color: '#fff' }}>{availableHKDevices.length}대</strong>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center', fontSize: '12px' }}>
+                      <div style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>대상 기기</span>
+                        <strong style={{ fontSize: '14px', color: '#fff' }}>{availableHKDevices.length}대</strong>
+                      </div>
+                      <div style={{ padding: '8px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                        <span style={{ color: 'var(--success-color)', display: 'block', marginBottom: '2px' }}>판매 완료 처리</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--success-color)' }}>{soldDevices.length}대</strong>
+                      </div>
+                      <div style={{ padding: '8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
+                        <span style={{ color: 'var(--warning-color)', display: 'block', marginBottom: '2px' }}>제외됨 (재고 유지)</span>
+                        <strong style={{ fontSize: '14px', color: 'var(--warning-color)' }}>{excludedDevices.length}대</strong>
+                      </div>
                     </div>
-                    <div style={{ padding: '8px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                      <span style={{ color: 'var(--success-color)', display: 'block', marginBottom: '2px' }}>판매 완료 처리</span>
-                      <strong style={{ fontSize: '14px', color: 'var(--success-color)' }}>{soldDevices.length}대</strong>
-                    </div>
-                    <div style={{ padding: '8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
-                      <span style={{ color: 'var(--warning-color)', display: 'block', marginBottom: '2px' }}>제외됨 (재고 유지)</span>
-                      <strong style={{ fontSize: '14px', color: 'var(--warning-color)' }}>{excludedDevices.length}대</strong>
-                    </div>
+
+                    {/* 실시간 마진 계산 출력 */}
+                    {unitPriceHKD > 0 && soldDevices.length > 0 && (
+                      <div style={{
+                        padding: '12px',
+                        backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                        border: '1px solid rgba(99, 102, 241, 0.25)',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '6px',
+                        fontSize: '12px'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                          <span>총 원가 / 总成本 (KRW):</span>
+                          <span style={{ color: '#fff', fontWeight: '500' }}>₩{totalCostKRW.toLocaleString()}</span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                          <span>총 판매가 / 总售价 (HKD):</span>
+                          <span style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
+                            HK${totalSellingPriceHKD.toLocaleString()} 
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (₩{Math.round(totalSellingPriceKRW).toLocaleString()})
+                            </span>
+                          </span>
+                        </div>
+                        <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>예상 총 마진 / 预估总利润:</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>대당 평균 마진 / 单台平均利润:</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })()}
@@ -4818,7 +4973,12 @@ export default function AdminDashboard() {
               {/* 제외된 기기 상세 리스트 및 제외 해제 */}
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', display: 'block', marginBottom: '8px' }}>
-                  제외된 기기 목록 / 已排除的设备 列表 ({hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold && excludedDeviceIds.has(x.id)).length}대)
+                  제외된 기기 목록 / 已排除的设备 列表 ({hongkongInventory.filter(x => 
+                    x.model_name === cardBulkSaleModel && 
+                    !x.is_sold &&
+                    (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade) &&
+                    excludedDeviceIds.has(x.id)
+                  ).length}대)
                 </span>
                 <div style={{
                   maxHeight: '150px',
@@ -4832,7 +4992,11 @@ export default function AdminDashboard() {
                   gap: '6px'
                 }}>
                   {(() => {
-                    const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                    const availableHKDevices = hongkongInventory.filter(x => 
+                      x.model_name === cardBulkSaleModel && 
+                      !x.is_sold &&
+                      (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                    );
                     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                     if (excludedDevices.length === 0) {
                       return <span style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', padding: '10px 0' }}>제외된 기기가 없습니다.</span>;
@@ -4873,7 +5037,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
-              <button onClick={() => setCardBulkSaleModel(null)} className={styles.btnCancel}>취소</button>
+              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrade(null); }} className={styles.btnCancel}>취소</button>
               <button
                 onClick={executeCardBulkSale}
                 className={styles.btnSave}
