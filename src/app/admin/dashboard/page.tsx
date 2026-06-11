@@ -124,6 +124,7 @@ export default function AdminDashboard() {
   const [bulkSaleDate, setBulkSaleDate] = useState('');
   const [bulkSellerName, setBulkSellerName] = useState('');
   const [bulkRemainingInput, setBulkRemainingInput] = useState('');
+  const [bulkSellingPrice, setBulkSellingPrice] = useState<string>(''); // 추가: 위안화 판매가
   const [processingBulkSale, setProcessingBulkSale] = useState(false);
   const [selectedBulkModels, setSelectedBulkModels] = useState<string[]>([]);
   const [unsoldBulkDeviceIds, setUnsoldBulkDeviceIds] = useState<string[]>([]);
@@ -134,6 +135,7 @@ export default function AdminDashboard() {
   const [hkSearchQuery, setHkSearchQuery] = useState('');
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [cnyRate, setCnyRate] = useState<number>(185); // 추가: 위안화 환율
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
@@ -296,23 +298,25 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
-      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes] = await Promise.all([
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes] = await Promise.all([
         fetch('/api/trade-ins'),
         fetch('/api/products'),
         fetch('/api/orders'),
         fetch('/api/trade-in-prices'),
         fetch('/api/categories'),
-        fetch('/api/hongkong-inventory')
+        fetch('/api/hongkong-inventory'),
+        fetch('/api/exchange-rate')
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
-      const [tradeData, prodData, orderData, priceData, catData, hkData] = await Promise.all([
+      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData] = await Promise.all([
         tradeRes.json(),
         prodRes.json(),
         orderRes.json(),
         priceRes.json(),
         catRes.json(),
-        hkRes.json()
+        hkRes.json(),
+        rateRes.json()
       ]);
 
       if (tradeData.success) setTradeIns(tradeData.data);
@@ -321,6 +325,7 @@ export default function AdminDashboard() {
       if (priceData.success) setTradeInPrices(priceData.data);
       if (catData.success) setCategories(catData.data);
       if (hkData.success) setHongkongInventory(hkData.data);
+      if (rateData?.success) setCnyRate(rateData.rate);
     } catch (err) {
       console.error(err);
     } finally {
@@ -856,6 +861,10 @@ export default function AdminDashboard() {
       alert('판매 날짜를 선택해주세요. / 请选择销售日期。');
       return;
     }
+    if (!bulkSellingPrice || isNaN(Number(bulkSellingPrice)) || Number(bulkSellingPrice) <= 0) {
+      alert('올바른 위안화(CNY) 판매단가를 입력해주세요. / 请输入正确的销售单价。');
+      return;
+    }
     if (selectedBulkModels.length === 0) {
       alert('판매 완료 처리할 기종을 하나 이상 선택해주세요.');
       return;
@@ -873,6 +882,7 @@ export default function AdminDashboard() {
 
     const confirmMsg = `선택하신 기종(${selectedBulkModels.join(', ')}) 총 ${candidateDevices.length}대 중\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
+      `- 판매 단가: ¥${Number(bulkSellingPrice).toLocaleString()} (CNY)\n` +
       `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n\n` +
       `정말로 판매 완료 처리를 실행하시겠습니까?`;
 
@@ -890,6 +900,7 @@ export default function AdminDashboard() {
           action: 'sell',
           saleDate: bulkSaleDate,
           sellerName: bulkSellerName.trim(),
+          sellingPrice: Number(bulkSellingPrice) || 0,
           soldIds,
           remainingIdentifiers
         })
@@ -904,6 +915,7 @@ export default function AdminDashboard() {
         setExpandedBulkModels({});
         setBulkSellerName('');
         setBulkSaleDate('');
+        setBulkSellingPrice('');
         loadAllData();
       } else {
         alert(data.error || '판매 완료 처리 실패');
@@ -1095,6 +1107,47 @@ export default function AdminDashboard() {
       {/* 2. 메인 대시보드 */}
       <main className={styles.mainContent}>
         
+        {/* 글로벌 위안화 환율 상단 바 */}
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          backgroundColor: '#0f172a',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          border: '1px solid var(--border-color)',
+          marginBottom: '24px',
+          fontSize: '13px',
+          flexWrap: 'wrap',
+          gap: '12px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <span style={{
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              color: 'var(--success-color)',
+              padding: '4px 12px',
+              borderRadius: '12px',
+              fontWeight: 'bold',
+              border: '1px solid rgba(16, 185, 129, 0.2)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <Coins size={14} /> 위안화 환율 / 汇率 (Naver CNY/KRW): ₩{cnyRate.toFixed(2)}
+            </span>
+            <span style={{ color: 'var(--text-secondary)' }}>
+              * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (CNY ¥ → KRW ₩)
+            </span>
+          </div>
+          <button 
+            onClick={loadAllData} 
+            className={styles.btnCancel} 
+            style={{ padding: '6px 12px', fontSize: '11px', border: '1px solid var(--border-color)', cursor: 'pointer', margin: 0, height: 'auto' }}
+          >
+            환율 & 데이터 갱신 / 刷新
+          </button>
+        </div>
+
         {/* 대시보드 홈 탭 */}
         {activeTab === 'home' && (
           <div className="animate-fade-in">
@@ -1720,14 +1773,14 @@ export default function AdminDashboard() {
         {/* 홍콩 재고 관리 탭 */}
         {activeTab === 'hongkong-inventory' && (
           <div className="animate-fade-in">
-            <div className={styles.headerRow}>
+            <div className={styles.headerRow} style={{ flexWrap: 'wrap', gap: '16px' }}>
               <div>
                 <h2 className={styles.pageTitle}>홍콩 재고 관리 / 香港库存管理</h2>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
                   홍콩 입고된 기기의 상태를 조회하고 일괄 판매완료 처리합니다.
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                 <button
                   onClick={() => setIsImportModalOpen(true)}
                   className={styles.btnSave}
@@ -1842,8 +1895,18 @@ export default function AdminDashboard() {
               flexWrap: 'wrap',
               gap: '12px'
             }}>
-              <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)' }}>
-                <span>
+              <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{
+                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                  color: 'var(--success-color)',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  border: '1px solid rgba(16, 185, 129, 0.2)'
+                }}>
+                  위안화 환율 / 汇率 (Naver): ₩{cnyRate.toFixed(2)}
+                </span>
+                <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
                   전체 입고 기기 / 总设备: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>대
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
@@ -1855,16 +1918,32 @@ export default function AdminDashboard() {
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 {selectedHKIds.length > 0 ? (
-                  <span style={{
-                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
-                    color: '#60a5fa',
-                    padding: '4px 12px',
-                    borderRadius: '20px',
-                    fontWeight: 'bold',
-                    border: '1px solid rgba(59, 130, 246, 0.3)'
-                  }}>
-                    선택됨 / 已선택: <strong>{selectedHKIds.length}</strong>대
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{
+                      backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                      color: '#60a5fa',
+                      padding: '4px 12px',
+                      borderRadius: '20px',
+                      fontWeight: 'bold',
+                      border: '1px solid rgba(59, 130, 246, 0.3)'
+                    }}>
+                      선택됨 / 已선택: <strong>{selectedHKIds.length}</strong>대
+                    </span>
+                    <button
+                      onClick={() => setSelectedHKIds([])}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-secondary)',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        textDecoration: 'underline',
+                        padding: '2px 6px'
+                      }}
+                    >
+                      선택 해제 / 取消选择
+                    </button>
+                  </div>
                 ) : (
                   <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
                     각 기기의 체크박스를 선택하여 개별 또는 대량 관리가 가능합니다.
@@ -1951,10 +2030,15 @@ export default function AdminDashboard() {
                         <td>{item.color || '-'}</td>
                         <td>{item.battery_pct}%</td>
                         <td style={{ color: 'var(--text-secondary)' }}>
-                          ₩{(item.purchase_cost || 0).toLocaleString()}
+                          ₩{Number(item.purchase_cost || 0).toLocaleString()}
                         </td>
                         <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                          ₩{(item.selling_price || 0).toLocaleString()}
+                          ¥{Number(item.selling_price || 0).toLocaleString()}
+                          {item.is_sold && (
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                              (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+                            </div>
+                          )}
                         </td>
                         <td>{item.stock_location || '-'}</td>
                         <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
@@ -2194,9 +2278,12 @@ export default function AdminDashboard() {
                           <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
                           <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
                           <td>{item.color || '-'}</td>
-                          <td>₩{(item.purchase_cost || 0).toLocaleString()}</td>
+                          <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                           <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                            ₩{(item.selling_price || 0).toLocaleString()}
+                            ¥{Number(item.selling_price || 0).toLocaleString()}
+                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                              (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+                            </div>
                           </td>
                           <td>
                             <span style={{
@@ -2265,8 +2352,8 @@ export default function AdminDashboard() {
               );
             });
 
-          const totalRevenue = settledDevices.reduce((sum, item) => sum + (item.selling_price || 0), 0);
-          const totalCost = settledDevices.reduce((sum, item) => sum + (item.purchase_cost || 0), 0);
+          const totalRevenue = settledDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * cnyRate), 0);
+          const totalCost = settledDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
           const totalMargin = totalRevenue - totalCost;
           const averageMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
@@ -2397,20 +2484,21 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {settledDevices.map(item => {
-                        const margin = (item.selling_price || 0) - (item.purchase_cost || 0);
-                        const rate = item.selling_price > 0 ? (margin / item.selling_price) * 100 : 0;
+                        const revenueKRW = (Number(item.selling_price) || 0) * cnyRate;
+                        const margin = revenueKRW - (Number(item.purchase_cost) || 0);
+                        const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
                         return (
                           <tr key={item.id}>
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
                             <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
-                            <td>₩{(item.purchase_cost || 0).toLocaleString()}</td>
+                            <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
-                              ₩{(item.selling_price || 0).toLocaleString()}
+                              ¥{Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              ₩{margin.toLocaleString()}
+                              ₩{Math.round(margin).toLocaleString()}
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
                               {rate.toFixed(1)}%
@@ -3238,7 +3326,7 @@ export default function AdminDashboard() {
                               <td>{r.color}</td>
                               <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
                               <td>{r.purchase_cost ? `₩${(Number(String(r.purchase_cost).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
-                              <td>{r.selling_price ? `₩${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
+                              <td>{r.selling_price ? `¥${(Number(String(r.selling_price).replace(/[^0-9.-]/g, '')) || 0).toLocaleString()}` : '-'}</td>
                               <td>{r.stock_location}</td>
                               <td style={{ color: 'var(--text-secondary)' }}>{r.notes}</td>
                             </tr>
@@ -3284,7 +3372,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label htmlFor="bulkSellerNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 이름 / 销售员 (필수)</label>
                   <input
@@ -3304,6 +3392,18 @@ export default function AdminDashboard() {
                     type="date"
                     value={bulkSaleDate}
                     onChange={(e) => setBulkSaleDate(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="bulkSellingPriceInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매단가 (위안 ¥) / 售价 (필수)</label>
+                  <input
+                    id="bulkSellingPriceInput"
+                    type="number"
+                    placeholder="예: 1200"
+                    value={bulkSellingPrice}
+                    onChange={(e) => setBulkSellingPrice(e.target.value)}
                     style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
                     required
                   />

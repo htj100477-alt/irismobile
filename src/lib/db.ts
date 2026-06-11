@@ -902,6 +902,7 @@ export async function importHongKongInventory(records: any[]) {
 export async function processHongKongBulkSale(
   saleDate: string,
   sellerName: string,
+  sellingPrice: number,
   soldIds: string[],
   remainingIdentifiers: string[]
 ) {
@@ -934,6 +935,7 @@ export async function processHongKongBulkSale(
         is_sold: true,
         sale_date: saleDate,
         seller_name: sellerName,
+        selling_price: sellingPrice,
         is_approved: false
       })
       .in('id', toUpdateIds);
@@ -959,6 +961,7 @@ export async function processHongKongBulkSale(
             is_sold: true,
             sale_date: saleDate,
             seller_name: sellerName,
+            selling_price: sellingPrice,
             is_approved: false
           };
         }
