@@ -268,6 +268,22 @@ const DEFAULT_PRICES = [
   { id: 'price-17', brand: 'Samsung', category: '무선이어폰', series: '갤럭시버즈 시리즈', model_name: '갤럭시 버즈 2 프로', base_price: 110000, storage_128g_deduct: 10000, storage_512g_add: 20000, screen_scratch_deduct: 15000, screen_broken_deduct: 40000, body_scratch_deduct: 10000, body_broken_deduct: 20000, camera_error_deduct: 10000, screen_burn_deduct: 10000, updated_at: new Date().toISOString() }
 ];
 
+// 기본 기종별 한글/중국어 펫네임 매핑 데이터
+const DEFAULT_MODEL_PET_NAMES = [
+  { model_code: 'SM-F916N', pet_name_ko: '갤럭시 Z폴드2', pet_name_zh: '三星 Z Fold2' },
+  { model_code: 'SM-F926', pet_name_ko: '갤럭시 Z폴드3', pet_name_zh: '三星 Z Fold3' },
+  { model_code: 'SM-F936', pet_name_ko: '갤럭시 Z폴드4', pet_name_zh: '三星 Z Fold4' },
+  { model_code: 'SM-F946', pet_name_ko: '갤럭시 Z폴드5', pet_name_zh: '三星 Z Fold5' },
+  { model_code: 'SM-F956', pet_name_ko: '갤럭시 Z폴드6', pet_name_zh: '三星 Z Fold6' },
+  { model_code: 'SM-F700N', pet_name_ko: '갤럭시 Z플립', pet_name_zh: '三星 Z Flip' },
+  { model_code: 'SM-F711N', pet_name_ko: '갤럭시 Z플립3', pet_name_zh: '三星 Z Flip3' },
+  { model_code: 'SM-F721N', pet_name_ko: '갤럭시 Z플립4', pet_name_zh: '三星 Z Flip4' },
+  { model_code: 'SM-F731N', pet_name_ko: '갤럭시 Z플립5', pet_name_zh: '三星 Z Flip5' },
+  { model_code: 'SM-F741N', pet_name_ko: '갤럭시 Z플립6', pet_name_zh: '三星 Z Flip6' },
+  { model_code: 'SM-S928N', pet_name_ko: '갤럭시 S24 울트라', pet_name_zh: '三星 S24 Ultra' },
+  { model_code: 'SM-S918N', pet_name_ko: '갤럭시 S23 울트라', pet_name_zh: '三星 S23 Ultra' }
+];
+
 // Mock DB 구조 인터페이스
 interface MockDB {
   members: any[];
@@ -277,6 +293,7 @@ interface MockDB {
   trade_in_prices: any[];
   categories?: any[];
   hongkong_inventory?: any[];
+  model_pet_names?: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
@@ -290,7 +307,8 @@ function readMockDB(): MockDB {
         orders: [],
         trade_in_prices: DEFAULT_PRICES,
         categories: DEFAULT_CATEGORIES,
-        hongkong_inventory: []
+        hongkong_inventory: [],
+        model_pet_names: DEFAULT_MODEL_PET_NAMES
       };
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialDB, null, 2), 'utf-8');
       return initialDB;
@@ -311,10 +329,14 @@ function readMockDB(): MockDB {
       parsed.hongkong_inventory = [];
       writeMockDB(parsed);
     }
+    if (!parsed.model_pet_names) {
+      parsed.model_pet_names = DEFAULT_MODEL_PET_NAMES;
+      writeMockDB(parsed);
+    }
     return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);
-    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [], hongkong_inventory: [] };
+    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [], hongkong_inventory: [], model_pet_names: [] };
   }
 }
 
@@ -1058,6 +1080,93 @@ export async function deleteHongKongInventory(id: string) {
     const db = readMockDB();
     if (!db.hongkong_inventory) db.hongkong_inventory = [];
     db.hongkong_inventory = db.hongkong_inventory.filter(d => d.id !== id);
+    writeMockDB(db);
+    return true;
+  }
+}
+
+export async function deleteHongKongInventoryBatch(ids: string[]) {
+  if (!ids || ids.length === 0) return true;
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .delete()
+      .in('id', ids);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+    db.hongkong_inventory = db.hongkong_inventory.filter(d => !ids.includes(d.id));
+    writeMockDB(db);
+    return true;
+  }
+}
+
+// ==========================================
+// 8. 기종 펫네임 관리 (Model Pet Names) 데이터 액션
+// ==========================================
+export async function getModelPetNames() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('model_pet_names')
+      .select('*')
+      .order('model_code', { ascending: true });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    return db.model_pet_names || [];
+  }
+}
+
+export async function saveModelPetName(modelCode: string, petNameKo: string, petNameZh: string) {
+  const payload = {
+    model_code: modelCode.trim(),
+    pet_name_ko: petNameKo.trim(),
+    pet_name_zh: petNameZh.trim(),
+    created_at: new Date().toISOString()
+  };
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('model_pet_names')
+      .upsert(payload, { onConflict: 'model_code' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.model_pet_names) db.model_pet_names = [];
+    
+    const idx = db.model_pet_names.findIndex(x => x.model_code === payload.model_code);
+    if (idx > -1) {
+      db.model_pet_names[idx] = {
+        ...db.model_pet_names[idx],
+        ...payload
+      };
+    } else {
+      db.model_pet_names.push(payload);
+    }
+    
+    writeMockDB(db);
+    return payload;
+  }
+}
+
+export async function deleteModelPetName(modelCode: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('model_pet_names')
+      .delete()
+      .eq('model_code', modelCode);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.model_pet_names) db.model_pet_names = [];
+    db.model_pet_names = db.model_pet_names.filter(x => x.model_code !== modelCode);
     writeMockDB(db);
     return true;
   }

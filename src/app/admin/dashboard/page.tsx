@@ -97,9 +97,40 @@ interface Order {
   products: { brand: string; model_name: string; storage: string; color: string; grade: string } | null;
 }
 
+// 한글 기종 및 펫네임을 중국인 판매자를 위해 중국어/영어 혼용 표기로 자동 번역하는 헬퍼 함수
+const translateModelName = (name: string): string => {
+  if (!name) return name;
+  let translated = name;
+
+  // 갤럭시 Z 폴드 / 플립 시리즈 번역
+  translated = translated.replace(/갤럭시\s*Z\s*폴드/gi, '三星 Z Fold');
+  translated = translated.replace(/갤럭시\s*Z\s*플립/gi, '三星 Z Flip');
+  
+  // 갤럭시 S 및 노트 시리즈 번역
+  translated = translated.replace(/갤럭시\s*노트/gi, '三星 Note');
+  translated = translated.replace(/갤럭시\s*S/gi, '三星 S');
+  translated = translated.replace(/갤럭시\s*A/gi, '三星 A');
+  translated = translated.replace(/갤럭시/gi, '三星');
+
+  // 아이폰 / 아이패드 / 맥북 번역
+  translated = translated.replace(/아이폰/gi, 'iPhone');
+  translated = translated.replace(/아이패드/gi, 'iPad');
+  translated = translated.replace(/맥북/gi, 'MacBook');
+
+  // 주요 키워드 번역
+  translated = translated.replace(/울트라/gi, 'Ultra');
+  translated = translated.replace(/플러스/gi, 'Plus');
+  translated = translated.replace(/프로/gi, 'Pro');
+  translated = translated.replace(/맥스/gi, 'Max');
+  translated = translated.replace(/폴드/gi, 'Fold');
+  translated = translated.replace(/플립/gi, 'Flip');
+
+  return translated;
+};
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names'>('home');
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -119,6 +150,29 @@ export default function AdminDashboard() {
   const [detectedHeaders, setDetectedHeaders] = useState<string[]>([]);
   const [headerMappings, setHeaderMappings] = useState<Record<string, string>>({});
   const [parsedImportRows, setParsedImportRows] = useState<any[]>([]);
+  
+  // 기종 펫네임 매핑 및 다국어 표시 상태
+  const [modelPetNames, setModelPetNames] = useState<any[]>([]);
+  const [displayLang, setDisplayLang] = useState<'ko' | 'zh'>('ko');
+  const [isPetModalOpen, setIsPetModalOpen] = useState(false);
+  const [selectedPet, setSelectedPet] = useState<any | null>(null);
+  const [petModelCode, setPetModelCode] = useState('');
+  const [petNameKo, setPetNameKo] = useState('');
+  const [petNameZh, setPetNameZh] = useState('');
+  const [savingPetName, setSavingPetName] = useState(false);
+  const [petSearchQuery, setPetSearchQuery] = useState('');
+
+  // 다국어 펫네임 매핑 조회 헬퍼 함수
+  const getModelDisplayName = (modelName: string): string => {
+    if (!modelName) return '';
+    const cleanModel = modelName.trim().toUpperCase();
+    const found = modelPetNames.find(x => x.model_code.trim().toUpperCase() === cleanModel);
+    if (found) {
+      const petName = displayLang === 'zh' ? found.pet_name_zh : found.pet_name_ko;
+      return `${petName} (${modelName})`;
+    }
+    return modelName;
+  };
   
   // 일괄 판매 처리 상태
   const [bulkSaleDate, setBulkSaleDate] = useState('');
@@ -175,8 +229,10 @@ export default function AdminDashboard() {
     })
     .filter(item => {
       const q = hkSearchQuery.toLowerCase();
+      const displayName = getModelDisplayName(item.model_name).toLowerCase();
       return (
         (item.model_name || '').toLowerCase().includes(q) ||
+        displayName.includes(q) ||
         (item.imei || '').toLowerCase().includes(q) ||
         (item.sticker || '').toLowerCase().includes(q)
       );
@@ -299,25 +355,27 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
-      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes] = await Promise.all([
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes] = await Promise.all([
         fetch('/api/trade-ins'),
         fetch('/api/products'),
         fetch('/api/orders'),
         fetch('/api/trade-in-prices'),
         fetch('/api/categories'),
         fetch('/api/hongkong-inventory'),
-        fetch('/api/exchange-rate')
+        fetch('/api/exchange-rate'),
+        fetch('/api/model-pet-names')
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
-      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData] = await Promise.all([
+      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData] = await Promise.all([
         tradeRes.json(),
         prodRes.json(),
         orderRes.json(),
         priceRes.json(),
         catRes.json(),
         hkRes.json(),
-        rateRes.json()
+        rateRes.json(),
+        petRes.json()
       ]);
 
       if (tradeData.success) setTradeIns(tradeData.data);
@@ -327,6 +385,7 @@ export default function AdminDashboard() {
       if (catData.success) setCategories(catData.data);
       if (hkData.success) setHongkongInventory(hkData.data);
       if (rateData?.success) setCnyRate(rateData.rate);
+      if (petData.success) setModelPetNames(petData.data);
     } catch (err) {
       console.error(err);
     } finally {
@@ -431,6 +490,92 @@ export default function AdminDashboard() {
     } finally {
       setUploadingCatImage(false);
     }
+  };
+
+  // 펫네임 추가 또는 수정 저장
+  const handleSavePetName = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!petModelCode.trim() || !petNameKo.trim() || !petNameZh.trim()) {
+      alert('모든 필드를 입력해 주세요.');
+      return;
+    }
+
+    setSavingPetName(true);
+    try {
+      const res = await fetch('/api/model-pet-names', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          modelCode: petModelCode.trim(),
+          petNameKo: petNameKo.trim(),
+          petNameZh: petNameZh.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        // 새로고침
+        const petRes = await fetch('/api/model-pet-names');
+        const petData = await petRes.json();
+        if (petData.success) {
+          setModelPetNames(petData.data);
+        }
+        setIsPetModalOpen(false);
+        // Reset states
+        setPetModelCode('');
+        setPetNameKo('');
+        setPetNameZh('');
+        setSelectedPet(null);
+      } else {
+        alert('저장 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (error) {
+      console.error('Save pet name error:', error);
+      alert('저장 중 오류가 발생했습니다.');
+    } finally {
+      setSavingPetName(false);
+    }
+  };
+
+  // 펫네임 삭제
+  const handleDeletePetName = async (modelCode: string) => {
+    if (!confirm(`'${modelCode}' 모델의 펫네임 설정을 삭제하시겠습니까?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/api/model-pet-names?modelCode=${encodeURIComponent(modelCode)}`, {
+        method: 'DELETE',
+      });
+      const data = await res.json();
+      if (data.success) {
+        setModelPetNames(modelPetNames.filter(x => x.model_code !== modelCode));
+      } else {
+        alert('삭제 실패: ' + (data.error || '알 수 없는 오류'));
+      }
+    } catch (error) {
+      console.error('Delete pet name error:', error);
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
+
+  // 펫네임 수정 모달 열기
+  const openEditPetModal = (pet: any) => {
+    setSelectedPet(pet);
+    setPetModelCode(pet.model_code);
+    setPetNameKo(pet.pet_name_ko);
+    setPetNameZh(pet.pet_name_zh);
+    setIsPetModalOpen(true);
+  };
+
+  // 펫네임 등록 모달 열기
+  const openAddPetModal = () => {
+    setSelectedPet(null);
+    setPetModelCode('');
+    setPetNameKo('');
+    setPetNameZh('');
+    setIsPetModalOpen(true);
   };
 
   // 3. 중고폰 상품 관리 액션 (등록/수정 모달 오픈)
@@ -765,15 +910,12 @@ export default function AdminDashboard() {
       
       const item: any = {};
       
-      // 1. 모델명 & 펫네임 조합
+      // 1. 모델명만 가져오고 펫네임은 무시 (번역 및 결합 루프를 제외해 병목현상 차단)
       let mName = '';
-      if (fields.petName && petIdx < row.length && row[petIdx]) {
-        mName = row[petIdx];
-      }
       if (fields.modelName && modelIdx < row.length && row[modelIdx]) {
-        mName = mName ? `${mName} (${row[modelIdx]})` : row[modelIdx];
+        mName = row[modelIdx];
       }
-      item.model_name = mName || '기형 미확인 / 未知型号';
+      item.model_name = mName.trim() || '기형 미확인 / 未知型号';
 
       // 2. 일련번호 (Sticker) -> P/G No가 Sticker이다!
       item.sticker = fields.pgNo && pgIdx < row.length && row[pgIdx] ? row[pgIdx] : '';
@@ -981,6 +1123,30 @@ export default function AdminDashboard() {
     }
   };
 
+  // 홍콩 재고 선택 항목 일괄 삭제
+  const executeDeleteHKBatch = async (ids: string[]) => {
+    if (ids.length === 0) return;
+    if (!confirm(`선택한 ${ids.length}대의 재고 데이터를 목록에서 완전히 삭제하시겠습니까?\n确认完全删除这 ${ids.length} 台设备库存数据吗？`)) return;
+    
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`성공적으로 ${ids.length}대의 재고를 삭제했습니다!`);
+        setSelectedHKIds([]);
+        loadAllData();
+      } else {
+        alert(data.error || '일괄 삭제 실패');
+      }
+    } catch (e) {
+      alert('삭제 중 서버 통신 오류가 발생했습니다.');
+    }
+  };
+
   // 홍콩 재고 판매 취소
   const executeCancelSales = async (deviceIds: string[]) => {
     if (deviceIds.length === 0) return;
@@ -1105,6 +1271,13 @@ export default function AdminDashboard() {
             <Coins size={18} /> 마진 및 정산
           </button>
 
+          <button 
+            onClick={() => setActiveTab('model-pet-names')}
+            className={`${styles.menuItem} ${activeTab === 'model-pet-names' ? styles.menuItemActive : ''}`}
+          >
+            <Settings size={18} style={{ color: 'var(--accent-light)' }} /> 기종 펫네임 관리 ({modelPetNames.length})
+          </button>
+
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
 
           <a 
@@ -1164,13 +1337,51 @@ export default function AdminDashboard() {
               * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (CNY ¥ → KRW ₩)
             </span>
           </div>
-          <button 
-            onClick={loadAllData} 
-            className={styles.btnCancel} 
-            style={{ padding: '6px 12px', fontSize: '11px', border: '1px solid var(--border-color)', cursor: 'pointer', margin: 0, height: 'auto' }}
-          >
-            환율 & 데이터 갱신 / 刷新
-          </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            {/* 한국, 중국 언어 전환 토글 */}
+            <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: '6px', overflow: 'hidden' }}>
+              <button
+                onClick={() => setDisplayLang('ko')}
+                style={{
+                  backgroundColor: displayLang === 'ko' ? '#2563eb' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: displayLang === 'ko' ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
+                한국어
+              </button>
+              <button
+                onClick={() => setDisplayLang('zh')}
+                style={{
+                  backgroundColor: displayLang === 'zh' ? '#2563eb' : 'transparent',
+                  color: '#fff',
+                  border: 'none',
+                  padding: '6px 12px',
+                  fontSize: '11px',
+                  fontWeight: displayLang === 'zh' ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
+                中文
+              </button>
+            </div>
+
+            <button 
+              onClick={loadAllData} 
+              className={styles.btnCancel} 
+              style={{ padding: '6px 12px', fontSize: '11px', border: '1px solid var(--border-color)', cursor: 'pointer', margin: 0, height: 'auto' }}
+            >
+              환율 & 데이터 갱신 / 刷新
+            </button>
+          </div>
         </div>
 
         {/* 대시보드 홈 탭 */}
@@ -1849,6 +2060,23 @@ export default function AdminDashboard() {
                     <X size={16} /> 선택 판매 취소 / 批量取消销售 ({hongkongInventory.filter(x => selectedHKIds.includes(x.id) && x.is_sold).length}대)
                   </button>
                 )}
+                {selectedHKIds.length > 0 && (
+                  <button
+                    onClick={() => executeDeleteHKBatch(selectedHKIds)}
+                    className={styles.btnCancel}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      border: '1px solid var(--danger-color)',
+                      color: 'var(--danger-color)',
+                      backgroundColor: 'transparent',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <Trash2 size={16} /> 선택 삭제 / 批量删除 ({selectedHKIds.length}대)
+                  </button>
+                )}
               </div>
             </div>
 
@@ -2050,7 +2278,7 @@ export default function AdminDashboard() {
                         </td>
                         <td>{item.site_date}</td>
                         <td>{item.sticker || '-'}</td>
-                        <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                        <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                         <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                         <td>{item.color || '-'}</td>
                         <td>{item.battery_pct}%</td>
@@ -2276,8 +2504,10 @@ export default function AdminDashboard() {
                               .filter(item => item.is_sold && !item.is_approved)
                               .filter(item => {
                                 const q = completedSalesSearch.toLowerCase();
+                                const displayName = getModelDisplayName(item.model_name).toLowerCase();
                                 return (
                                   (item.model_name || '').toLowerCase().includes(q) ||
+                                  displayName.includes(q) ||
                                   (item.imei || '').toLowerCase().includes(q) ||
                                   (item.seller_name || '').toLowerCase().includes(q)
                                 );
@@ -2294,8 +2524,10 @@ export default function AdminDashboard() {
                               .filter(item => item.is_sold && !item.is_approved)
                               .filter(item => {
                                 const q = completedSalesSearch.toLowerCase();
+                                const displayName = getModelDisplayName(item.model_name).toLowerCase();
                                 return (
                                   (item.model_name || '').toLowerCase().includes(q) ||
+                                  displayName.includes(q) ||
                                   (item.imei || '').toLowerCase().includes(q) ||
                                   (item.seller_name || '').toLowerCase().includes(q)
                                 );
@@ -2325,8 +2557,10 @@ export default function AdminDashboard() {
                       })
                       .filter(item => {
                         const q = completedSalesSearch.toLowerCase();
+                        const displayName = getModelDisplayName(item.model_name).toLowerCase();
                         return (
                           (item.model_name || '').toLowerCase().includes(q) ||
+                          displayName.includes(q) ||
                           (item.imei || '').toLowerCase().includes(q) ||
                           (item.seller_name || '').toLowerCase().includes(q)
                         );
@@ -2357,7 +2591,7 @@ export default function AdminDashboard() {
                             </td>
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
-                            <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                            <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                             <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>{item.color || '-'}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
@@ -2436,8 +2670,10 @@ export default function AdminDashboard() {
             .filter(item => {
               if (settlementSeller !== 'All' && item.seller_name !== settlementSeller) return false;
               const q = settlementSearch.toLowerCase();
+              const displayName = getModelDisplayName(item.model_name).toLowerCase();
               return (
                 (item.model_name || '').toLowerCase().includes(q) ||
+                displayName.includes(q) ||
                 (item.imei || '').toLowerCase().includes(q)
               );
             });
@@ -2581,7 +2817,7 @@ export default function AdminDashboard() {
                           <tr key={item.id}>
                             <td>{item.sale_date || '-'}</td>
                             <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
-                            <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                            <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                             <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
                             <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
@@ -2622,6 +2858,148 @@ export default function AdminDashboard() {
             </div>
           );
         })()}
+
+        {/* 기종 펫네임 관리 탭 */}
+        {activeTab === 'model-pet-names' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>기종 펫네임 관리 / 型号别称管理</h2>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  모델 코드를 기준으로 한국어와 중국어 펫네임을 관리합니다.
+                </span>
+              </div>
+              <button
+                onClick={openAddPetModal}
+                className={styles.btnSave}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={16} /> 기종 등록 / 新增型号
+              </button>
+            </div>
+
+            {/* 필터 및 검색 바 */}
+            <div className={styles.filterSection} style={{ marginBottom: '16px', padding: '12px 16px' }}>
+              <div style={{ display: 'flex', gap: '12px', flex: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+                  <input
+                    type="text"
+                    placeholder="모델명, 한국어 또는 중국어 펫네임 검색... / 搜索型号或别称..."
+                    value={petSearchQuery}
+                    onChange={(e) => setPetSearchQuery(e.target.value)}
+                    style={{
+                      width: '100%',
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '6px',
+                      padding: '8px 12px',
+                      color: '#fff',
+                      fontSize: '13px',
+                      outline: 'none'
+                    }}
+                  />
+                  {petSearchQuery && (
+                    <button
+                      onClick={() => setPetSearchQuery('')}
+                      style={{
+                        position: 'absolute',
+                        right: '10px',
+                        top: '50%',
+                        transform: 'translateY(-50%)',
+                        color: 'var(--text-muted)',
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <X size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 테이블 목록 */}
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '80px', textAlign: 'center' }}>No</th>
+                      <th>모델 코드 / 型号코드 (기준값)</th>
+                      <th>한국어 펫네임 / 韩文别称</th>
+                      <th>중국어 펫네임 / 中文别称</th>
+                      <th style={{ width: '150px', textAlign: 'center' }}>작업 / 操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const q = petSearchQuery.toLowerCase().trim();
+                      const filtered = modelPetNames.filter(x => 
+                        (x.model_code || '').toLowerCase().includes(q) ||
+                        (x.pet_name_ko || '').toLowerCase().includes(q) ||
+                        (x.pet_name_zh || '').toLowerCase().includes(q)
+                      );
+
+                      if (filtered.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                              등록된 기종 펫네임 데이터가 없습니다.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return filtered.map((item, idx) => (
+                        <tr key={item.model_code}>
+                          <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{item.model_code}</td>
+                          <td>{item.pet_name_ko}</td>
+                          <td>{item.pet_name_zh}</td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => openEditPetModal(item)}
+                                className={styles.btnSave}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                  color: '#3b82f6',
+                                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit size={12} style={{ marginRight: '4px' }} /> 수정 / 编辑
+                              </button>
+                              <button
+                                onClick={() => handleDeletePetName(item.model_code)}
+                                className={styles.btnCancel}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={12} style={{ marginRight: '4px' }} /> 삭제 / 删除
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ));
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
       </main>
 
@@ -3411,7 +3789,7 @@ export default function AdminDashboard() {
                             <tr key={idx}>
                               <td>{r.sticker}</td>
                               <td>{r.site_date}</td>
-                              <td style={{ fontWeight: 'bold' }}>{r.model_name}</td>
+                              <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(r.model_name)}</td>
                               <td style={{ fontFamily: 'monospace' }}>{r.imei || '-'}</td>
                               <td>{r.color}</td>
                               <td>{r.battery_pct ? `${String(r.battery_pct).replace(/[^0-9]/g, '')}%` : '-'}</td>
@@ -3548,7 +3926,7 @@ export default function AdminDashboard() {
                                   style={{ cursor: 'pointer' }}
                                 />
                                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: isModelSelected ? '#fff' : 'var(--text-secondary)' }}>
-                                  {modelName} ({items.length}대)
+                                  {getModelDisplayName(modelName)} ({items.length}대)
                                 </span>
                               </label>
 
@@ -3659,6 +4037,98 @@ export default function AdminDashboard() {
                 {processingBulkSale ? '판매 처리 중...' : '판매 처리 실행 / 确认销售'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 펫네임 추가/수정 모달 */}
+      {isPetModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '500px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {selectedPet ? '기종 펫네임 수정 / 编辑型号别称' : '기종 펫네임 등록 / 新增型号别称'}
+              </h3>
+              <button 
+                onClick={() => setIsPetModalOpen(false)} 
+                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} 
+                aria-label="닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSavePetName} className={styles.formGrid} style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label htmlFor="petModelCodeInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  모델 코드 / 型号代码 (예: SM-F956, F956)
+                </label>
+                <input
+                  id="petModelCodeInput"
+                  type="text"
+                  placeholder="예: SM-F956"
+                  value={petModelCode}
+                  onChange={(e) => setPetModelCode(e.target.value)}
+                  disabled={!!selectedPet}
+                  style={{ 
+                    backgroundColor: selectedPet ? 'var(--bg-secondary)' : 'var(--bg-tertiary)', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '6px', 
+                    padding: '10px', 
+                    color: selectedPet ? 'var(--text-secondary)' : '#fff',
+                    cursor: selectedPet ? 'not-allowed' : 'text'
+                  }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label htmlFor="petNameKoInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  한국어 펫네임 / 韩文别称
+                </label>
+                <input
+                  id="petNameKoInput"
+                  type="text"
+                  placeholder="예: 갤럭시 Z폴드6"
+                  value={petNameKo}
+                  onChange={(e) => setPetNameKo(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label htmlFor="petNameZhInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  중국어 펫네임 / 中文别称
+                </label>
+                <input
+                  id="petNameZhInput"
+                  type="text"
+                  placeholder="예: 三星 Z Fold6"
+                  value={petNameZh}
+                  onChange={(e) => setPetNameZh(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div className={styles.btnGroup} style={{ marginTop: '16px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setIsPetModalOpen(false)} 
+                  className={styles.btnCancel}
+                >
+                  취소 / 取消
+                </button>
+                <button
+                  type="submit"
+                  className={styles.btnSave}
+                  disabled={savingPetName}
+                >
+                  {savingPetName ? '저장 중...' : '저장 / 保存'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

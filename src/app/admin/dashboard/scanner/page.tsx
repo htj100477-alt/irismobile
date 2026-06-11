@@ -51,9 +51,21 @@ export default function ScannerPage() {
 
   // 재고 및 폼 상태
   const [inventory, setInventory] = useState<any[]>([]);
+  const [modelPetNames, setModelPetNames] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
   const [saleDate, setSaleDate] = useState('');
+
+  // 다국어 펫네임 매핑 조회 헬퍼 함수
+  const getModelDisplayName = (modelName: string): string => {
+    if (!modelName) return '';
+    const cleanModel = modelName.trim().toUpperCase();
+    const found = modelPetNames.find(x => x.model_code.trim().toUpperCase() === cleanModel);
+    if (found) {
+      return `${found.pet_name_ko} / ${found.pet_name_zh} (${modelName})`;
+    }
+    return modelName;
+  };
   
   // 판매원 이름은 '레이'로 고정
   const sellerName = '레이';
@@ -148,10 +160,19 @@ export default function ScannerPage() {
   const fetchInventory = async () => {
     setLoading(true);
     try {
-      const res = await fetch('/api/hongkong-inventory');
-      const data = await res.json();
-      if (data.success) {
-        setInventory(data.data || []);
+      const [invRes, petRes] = await Promise.all([
+        fetch('/api/hongkong-inventory'),
+        fetch('/api/model-pet-names')
+      ]);
+      const [invData, petData] = await Promise.all([
+        invRes.json(),
+        petRes.json()
+      ]);
+      if (invData.success) {
+        setInventory(invData.data || []);
+      }
+      if (petData.success) {
+        setModelPetNames(petData.data || []);
       }
     } catch (e) {
       console.error(e);
@@ -654,7 +675,7 @@ export default function ScannerPage() {
           >
             <option value="">-- 기종 선택 / 选择机型 --</option>
             {availableModels.map(m => (
-              <option key={m} value={m}>{m} ({inventory.filter(item => !item.is_sold && item.model_name === m).length}대 가용)</option>
+              <option key={m} value={m}>{getModelDisplayName(m)} ({inventory.filter(item => !item.is_sold && item.model_name === m).length}대 가용)</option>
             ))}
           </select>
         </div>

@@ -5,7 +5,8 @@ import {
   processHongKongBulkSale, 
   approveHongKongSales,
   cancelHongKongSales,
-  deleteHongKongInventory 
+  deleteHongKongInventory,
+  deleteHongKongInventoryBatch
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -77,10 +78,27 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    // 1. JSON 바디 파싱 시도 (배치 삭제용)
+    let ids: string[] = [];
+    try {
+      const body = await request.json();
+      if (body && Array.isArray(body.ids)) {
+        ids = body.ids;
+      }
+    } catch (e) {
+      // 단건 쿼리 파라미터 삭제의 경우 JSON 파싱 에러 방지
+    }
+
+    if (ids.length > 0) {
+      await deleteHongKongInventoryBatch(ids);
+      return NextResponse.json({ success: true });
+    }
+
+    // 2. 단건 삭제 처리
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
     if (!id) {
-      return NextResponse.json({ success: false, error: 'Missing id parameter' }, { status: 400 });
+      return NextResponse.json({ success: false, error: 'Missing id or ids parameter' }, { status: 400 });
     }
     await deleteHongKongInventory(id);
     return NextResponse.json({ success: true });
