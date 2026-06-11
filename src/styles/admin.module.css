@@ -169,7 +169,7 @@
   background-color: #0f172a;
   color: var(--text-secondary);
   font-weight: 600;
-  padding: 14px 24px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-color);
   white-space: nowrap;
   z-index: 10;
@@ -177,7 +177,7 @@
 }
 
 .adminTable td {
-  padding: 16px 24px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--border-light);
   color: var(--text-primary);
   vertical-align: middle;

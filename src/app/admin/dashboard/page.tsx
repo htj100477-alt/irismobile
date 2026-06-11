@@ -122,7 +122,7 @@ export default function AdminDashboard() {
   
   // 일괄 판매 처리 상태
   const [bulkSaleDate, setBulkSaleDate] = useState('');
-  const [bulkSellerName, setBulkSellerName] = useState('');
+  const [bulkSellerName, setBulkSellerName] = useState('레이');
   const [bulkRemainingInput, setBulkRemainingInput] = useState('');
   const [bulkSellingPrice, setBulkSellingPrice] = useState<string>(''); // 추가: 위안화 판매가 (기본)
   const [bulkSellingPrices, setBulkSellingPrices] = useState<Record<string, string>>({}); // 기종별 위안화 판매단가
@@ -924,7 +924,7 @@ export default function AdminDashboard() {
         setSelectedBulkModels([]);
         setUnsoldBulkDeviceIds([]);
         setExpandedBulkModels({});
-        setBulkSellerName('');
+        setBulkSellerName('레이');
         setBulkSaleDate('');
         setBulkSellingPrice('');
         setBulkSellingPrices({});
@@ -2136,26 +2136,78 @@ export default function AdminDashboard() {
         )}
 
         {/* 판매 완료 승인 대기 탭 */}
-        {activeTab === 'completed-sales' && (
-          <div className="animate-fade-in">
-            <div className={styles.headerRow}>
-              <div>
-                <h2 className={styles.pageTitle}>판매 완료 승인 대기 내역 / 销售完成审批</h2>
-                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  판매원이 판매완료 처리한 기기들을 조회하고, 최종 정산 마진 장부에 넘기기 위해 최종 승인합니다.
-                </p>
+        {activeTab === 'completed-sales' && (() => {
+          const pendingDevices = hongkongInventory.filter(item => item.is_sold && !item.is_approved);
+          const pendingRevenue = pendingDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * cnyRate), 0);
+          const pendingCost = pendingDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
+          const pendingMargin = pendingRevenue - pendingCost;
+          const pendingMarginRate = pendingRevenue > 0 ? (pendingMargin / pendingRevenue) * 100 : 0;
+
+          return (
+            <div className="animate-fade-in">
+              <div className={styles.headerRow}>
+                <div>
+                  <h2 className={styles.pageTitle}>판매 완료 승인 대기 내역 / 销售完成审批</h2>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                    판매원이 판매완료 처리한 기기들을 조회하고, 최종 정산 마진 장부에 넘기기 위해 최종 승인합니다.
+                  </p>
+                </div>
+                <div>
+                  <button
+                    onClick={() => executeFinalApproval(selectedPendingIds)}
+                    className={styles.btnSave}
+                    style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+                    disabled={selectedPendingIds.length === 0}
+                  >
+                    <CheckCircle2 size={16} /> 선택 항목 최종 승인 / 最终审批 ({selectedPendingIds.length}건)
+                  </button>
+                </div>
               </div>
-              <div>
-                <button
-                  onClick={() => executeFinalApproval(selectedPendingIds)}
-                  className={styles.btnSave}
-                  style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                  disabled={selectedPendingIds.length === 0}
-                >
-                  <CheckCircle2 size={16} /> 선택 항목 최종 승인 / 最终审批 ({selectedPendingIds.length}건)
-                </button>
+
+              {/* 승인 대기 지표 요약 카드 */}
+              <div className={styles.metricsGrid} style={{ marginBottom: '20px' }}>
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>승인 대기 수량 / 待审批数量</span>
+                    <span className={styles.metricVal}>{pendingDevices.length} 대 / 台</span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(59, 130, 246, 0.1)', color: 'var(--primary-color)' }}>
+                    <Smartphone size={22} />
+                  </div>
+                </div>
+
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>예상 매출 합계 / 预计销售额</span>
+                    <span className={styles.metricVal}>₩{Math.round(pendingRevenue).toLocaleString()}</span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
+                    <Coins size={22} />
+                  </div>
+                </div>
+
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>예상 원가 합계 / 预计成本</span>
+                    <span className={styles.metricVal}>₩{Math.round(pendingCost).toLocaleString()}</span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
+                    <Coins size={22} />
+                  </div>
+                </div>
+
+                <div className={styles.metricCard}>
+                  <div className={styles.metricInfo}>
+                    <span className={styles.metricLabel}>예상 마진 & 마진율 / 预计利润 & 利润率</span>
+                    <span className={styles.metricVal} style={{ color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                      ₩{Math.round(pendingMargin).toLocaleString()} ({pendingMarginRate.toFixed(1)}%)
+                    </span>
+                  </div>
+                  <div className={styles.metricIcon} style={{ backgroundColor: pendingMargin >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                    <CheckCircle2 size={22} />
+                  </div>
+                </div>
               </div>
-            </div>
 
             {/* 필터 및 검색 컨트롤 */}
             <div style={{
@@ -2259,6 +2311,7 @@ export default function AdminDashboard() {
                       <th>색상 / 颜色</th>
                       <th>입고가 / 成本</th>
                       <th>판매가 / 售价</th>
+                      <th>예상 마진 / 预计利润</th>
                       <th>정산 상태 / 结算状态</th>
                       <th>승인 처리 / 审批</th>
                     </tr>
@@ -2278,65 +2331,76 @@ export default function AdminDashboard() {
                           (item.seller_name || '').toLowerCase().includes(q)
                         );
                       })
-                      .map(item => (
-                        <tr key={item.id}>
-                          <td style={{ textAlign: 'center' }}>
-                            {item.is_sold && !item.is_approved ? (
-                              <input
-                                type="checkbox"
-                                aria-label={`${item.model_name} 승인 선택`}
-                                checked={selectedPendingIds.includes(item.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedPendingIds([...selectedPendingIds, item.id]);
-                                  } else {
-                                    setSelectedPendingIds(selectedPendingIds.filter(id => id !== item.id));
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>✓</span>
-                            )}
-                          </td>
-                          <td>{item.sale_date || '-'}</td>
-                          <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
-                          <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
-                          <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
-                          <td>{item.color || '-'}</td>
-                          <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
-                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                            ¥{Number(item.selling_price || 0).toLocaleString()}
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                              (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
-                            </div>
-                          </td>
-                          <td>
-                            <span style={{
-                              padding: '3px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              backgroundColor: !item.is_approved ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
-                              color: !item.is_approved ? 'var(--warning-color)' : 'var(--success-color)'
-                            }}>
-                              {!item.is_approved ? '최종 승인 대기 / 待审批' : '승인 완료 / 已审批'}
-                            </span>
-                          </td>
-                          <td>
-                            {!item.is_approved ? (
-                              <button
-                                onClick={() => executeFinalApproval([item.id])}
-                                className={styles.btnSave}
-                                style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
-                              >
-                                승인 / 审批
-                              </button>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>장부 기재됨</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      .map(item => {
+                        const revenueKRW = (Number(item.selling_price) || 0) * cnyRate;
+                        const margin = revenueKRW - (Number(item.purchase_cost) || 0);
+                        const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
+                        return (
+                          <tr key={item.id}>
+                            <td style={{ textAlign: 'center' }}>
+                              {item.is_sold && !item.is_approved ? (
+                                <input
+                                  type="checkbox"
+                                  aria-label={`${item.model_name} 승인 선택`}
+                                  checked={selectedPendingIds.includes(item.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedPendingIds([...selectedPendingIds, item.id]);
+                                    } else {
+                                      setSelectedPendingIds(selectedPendingIds.filter(id => id !== item.id));
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '11px' }}>✓</span>
+                              )}
+                            </td>
+                            <td>{item.sale_date || '-'}</td>
+                            <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
+                            <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                            <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                            <td>{item.color || '-'}</td>
+                            <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
+                            <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+                              ¥{Number(item.selling_price || 0).toLocaleString()}
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+                              </div>
+                            </td>
+                            <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
+                              ₩{Math.round(margin).toLocaleString()}
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                ({rate.toFixed(1)}%)
+                              </div>
+                            </td>
+                            <td>
+                              <span style={{
+                                padding: '3px 8px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 'bold',
+                                backgroundColor: !item.is_approved ? 'rgba(245, 158, 11, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                                color: !item.is_approved ? 'var(--warning-color)' : 'var(--success-color)'
+                              }}>
+                                {!item.is_approved ? '최종 승인 대기 / 待审批' : '승인 완료 / 已审批'}
+                              </span>
+                            </td>
+                            <td>
+                              {!item.is_approved ? (
+                                <button
+                                  onClick={() => executeFinalApproval([item.id])}
+                                  className={styles.btnSave}
+                                  style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
+                                >
+                                  승인 / 审批
+                                </button>
+                              ) : (
+                                <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>장부 기재됨</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     {hongkongInventory
                       .filter(item => {
                         if (completedSalesFilter === 'sold_pending') return item.is_sold && !item.is_approved;
@@ -2352,7 +2416,7 @@ export default function AdminDashboard() {
                         );
                       }).length === 0 && (
                       <tr>
-                        <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                        <td colSpan={11} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                           판매 완료 처리된 기기 내역이 없습니다.
                         </td>
                       </tr>
@@ -2362,7 +2426,8 @@ export default function AdminDashboard() {
               </div>
             </div>
           </div>
-        )}
+          );
+        })()}
 
         {/* 마진 및 정산 탭 */}
         {activeTab === 'margin-settlement' && (() => {
@@ -3406,7 +3471,8 @@ export default function AdminDashboard() {
                     placeholder="예: 홍길동"
                     value={bulkSellerName}
                     onChange={(e) => setBulkSellerName(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    disabled
+                    style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: 'var(--text-secondary)', cursor: 'not-allowed' }}
                     required
                   />
                 </div>

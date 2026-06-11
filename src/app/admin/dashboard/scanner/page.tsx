@@ -53,8 +53,10 @@ export default function ScannerPage() {
   const [inventory, setInventory] = useState<any[]>([]);
   const [selectedModel, setSelectedModel] = useState('');
   const [sellingPrice, setSellingPrice] = useState('');
-  const [sellerName, setSellerName] = useState('');
   const [saleDate, setSaleDate] = useState('');
+  
+  // 판매원 이름은 '레이'로 고정
+  const sellerName = '레이';
 
   // 스캔 상태
   const [isScanning, setIsScanning] = useState(false);
@@ -142,38 +144,49 @@ export default function ScannerPage() {
         const scanner = new Html5Qrcode('scanner-reader-container');
         html5QrCodeRef.current = scanner;
 
-        await scanner.start(
-          { 
-            facingMode: 'environment',
-            width: { ideal: 1920, min: 1024 },
-            height: { ideal: 1080, min: 768 }
-          },
-          {
-            fps: 15,
-            qrbox: (width, height) => {
-              // 바코드 비율에 맞는 최적의 크기로 가이드 박스 조절
-              const size = Math.min(width, height);
-              return { width: Math.round(size * 0.85), height: Math.round(size * 0.45) };
-            }
-          },
-          async (decodedText) => {
-            // 바코드 인식 성공 콜백
-            const wasAdded = handleScanSuccess(decodedText);
-            
-            if (wasAdded) {
-              // 1회 인식 성공 시 카메라를 자동으로 끄고 스캐너 상태 해제
-              try {
-                await scanner.stop();
-                setIsScanning(false);
-              } catch (err) {
-                console.error('Failed to stop camera:', err);
-              }
-            }
-          },
-          (err) => {
-            // 프레임 스캔 실패로그 무시
+        const qrConfig = {
+          fps: 15,
+          qrbox: (width: number, height: number) => {
+            const size = Math.min(width, height);
+            return { width: Math.round(size * 0.85), height: Math.round(size * 0.45) };
           }
-        );
+        };
+
+        const successCallback = async (decodedText: string) => {
+          const wasAdded = handleScanSuccess(decodedText);
+          if (wasAdded) {
+            try {
+              await scanner.stop();
+              setIsScanning(false);
+            } catch (err) {
+              console.error('Failed to stop camera:', err);
+            }
+          }
+        };
+
+        try {
+          // 1차 시도: 1080p 고화질 설정 (이상적인 높이/너비로 제한은 완화)
+          await scanner.start(
+            { 
+              facingMode: 'environment',
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            },
+            qrConfig,
+            successCallback,
+            () => {}
+          );
+        } catch (firstErr) {
+          console.warn('High resolution initialization failed, retrying with default environment camera...', firstErr);
+          // 2차 시도: 기본 후면 카메라 모드
+          await scanner.start(
+            { facingMode: 'environment' },
+            qrConfig,
+            successCallback,
+            () => {}
+          );
+        }
+
         setScanStatus({ text: '바코드/QR을 빨간 가이드 박스 안에 맞춰주세요.', isError: false });
       } catch (err: any) {
         console.error(err);
@@ -235,11 +248,6 @@ export default function ScannerPage() {
 
   // 6. 일괄 판매 전송 처리
   const handleExecuteSale = async () => {
-    if (!sellerName.trim()) {
-      alert('판매원 이름을 입력해주세요.');
-      playBeep('warning');
-      return;
-    }
     if (!saleDate) {
       alert('판매 날짜를 선택해주세요.');
       playBeep('warning');
@@ -288,7 +296,7 @@ export default function ScannerPage() {
         body: JSON.stringify({
           action: 'sell',
           saleDate,
-          sellerName: sellerName.trim(),
+          sellerName, // '레이'로 전송
           sellingPrice: Number(sellingPrice),
           modelPrices: { [selectedModel]: Number(sellingPrice) },
           soldIds,
@@ -374,9 +382,9 @@ export default function ScannerPage() {
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #1e293b', paddingBottom: '12px' }}>
         <div>
           <h1 style={{ fontSize: '16px', fontWeight: '800', margin: 0 }}>
-            홍콩 재고 스캔 판매 / 扫码销售
+            홍콩 재고 스캔 판매 / 扫码판매
           </h1>
-          <p style={{ fontSize: '11px', color: '#94a3b8', margin: '4px 0 0 0' }}>남은 기기 바코드 스캔 후 일괄 판매완료 처리</p>
+          <p style={{ fontSize: '11px', color: '#94a3b8', margin: '4px 0 0 0' }}>남은 기기 바코드 스캔 후 일괄 판매완료 처리 (판매원: 레이)</p>
         </div>
         <button
           onClick={() => {
@@ -400,20 +408,6 @@ export default function ScannerPage() {
         flexDirection: 'column', 
         gap: '14px' 
       }}>
-        
-        {/* 판매원 이름 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          <label htmlFor="sellerInput" style={{ fontSize: '11px', color: '#94a3b8', fontWeight: 'bold' }}>판매원 이름 / 销售员 (필수)</label>
-          <input
-            id="sellerInput"
-            type="text"
-            placeholder="예: 홍길동"
-            value={sellerName}
-            onChange={(e) => setSellerName(e.target.value)}
-            style={{ backgroundColor: '#090d16', border: '1px solid #334155', borderRadius: '6px', padding: '12px', color: '#fff', fontSize: '14px', outline: 'none' }}
-            required
-          />
-        </div>
 
         {/* 판매 일자 */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -542,6 +536,21 @@ export default function ScannerPage() {
             {scanStatus.isError ? <AlertCircle size={14} /> : <CheckCircle2 size={14} />}
             <span style={{ wordBreak: 'break-all' }}>{scanStatus.text}</span>
           </div>
+
+          {scanStatus.isError && (
+            <div style={{ 
+              backgroundColor: 'rgba(239, 68, 68, 0.08)',
+              border: '1px dashed rgba(239, 68, 68, 0.2)',
+              borderRadius: '6px',
+              padding: '10px',
+              fontSize: '11px',
+              color: '#f87171',
+              lineHeight: '1.4',
+              textAlign: 'left'
+            }}>
+              <strong>💡 카메라 권한 승인 안내:</strong> 브라우저 주소창 왼쪽의 자물쇠(설정) 아이콘을 터치하여 <strong>카메라 권한을 '허용'</strong>으로 수동 승인해주시기 바랍니다.
+            </div>
+          )}
         </section>
       )}
 
