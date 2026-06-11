@@ -132,9 +132,84 @@ export default function AdminDashboard() {
   // 신규 탭 검색, 필터링 및 선택 상태
   const [hkStatusFilter, setHkStatusFilter] = useState<'all' | 'available' | 'sold_pending' | 'sold'>('all');
   const [hkSearchQuery, setHkSearchQuery] = useState('');
+  const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
+  const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
+
+  // 홍콩 재고 정렬 핸들러
+  const handleHKSort = (column: string) => {
+    if (hkSortColumn === column) {
+      if (hkSortDirection === 'asc') {
+        setHkSortDirection('desc');
+      } else {
+        setHkSortColumn(null);
+      }
+    } else {
+      setHkSortColumn(column);
+      setHkSortDirection('asc');
+    }
+  };
+
+  // 정렬 아이콘 렌더링
+  const renderSortIcon = (column: string) => {
+    if (hkSortColumn !== column) {
+      return <span style={{ opacity: 0.3, marginLeft: '4px', fontSize: '10px' }}>↕</span>;
+    }
+    return hkSortDirection === 'asc' 
+      ? <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px' }}>▲</span> 
+      : <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px' }}>▼</span>;
+  };
+
+  // 홍콩 재고 필터링 리스트 계산
+  const filteredHKItems = hongkongInventory
+    .filter(item => {
+      if (hkStatusFilter === 'available') return !item.is_sold;
+      if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
+      if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
+      return true;
+    })
+    .filter(item => {
+      const q = hkSearchQuery.toLowerCase();
+      return (
+        (item.model_name || '').toLowerCase().includes(q) ||
+        (item.imei || '').toLowerCase().includes(q) ||
+        (item.sticker || '').toLowerCase().includes(q)
+      );
+    });
+
+  // 홍콩 재고 정렬 리스트 계산
+  const sortedHKItems = [...filteredHKItems].sort((a, b) => {
+    if (!hkSortColumn) return 0;
+
+    let valA = a[hkSortColumn] ?? '';
+    let valB = b[hkSortColumn] ?? '';
+
+    if (hkSortColumn === 'purchase_cost' || hkSortColumn === 'selling_price') {
+      valA = Number(valA) || 0;
+      valB = Number(valB) || 0;
+    } else if (hkSortColumn === 'battery_pct') {
+      valA = Number(String(valA).replace(/[^0-9]/g, '')) || 0;
+      valB = Number(String(valB).replace(/[^0-9]/g, '')) || 0;
+    } else if (hkSortColumn === 'is_sold') {
+      // 정렬 상태: 판매 가능(1) -> 승인 대기(2) -> 판매 완료(3)
+      const getStatusOrder = (x: any) => {
+        if (!x.is_sold) return 1;
+        if (!x.is_approved) return 2;
+        return 3;
+      };
+      valA = getStatusOrder(a);
+      valB = getStatusOrder(b);
+    } else {
+      valA = String(valA).toLowerCase();
+      valB = String(valB).toLowerCase();
+    }
+
+    if (valA < valB) return hkSortDirection === 'asc' ? -1 : 1;
+    if (valA > valB) return hkSortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
 
@@ -1662,7 +1737,7 @@ export default function AdminDashboard() {
               padding: '16px',
               borderRadius: '8px',
               border: '1px solid var(--border-color)',
-              marginBottom: '20px',
+              marginBottom: '16px',
               gap: '16px',
               flexWrap: 'wrap'
             }}>
@@ -1707,6 +1782,51 @@ export default function AdminDashboard() {
               </div>
             </div>
 
+            {/* 재고 통계 및 선택 정보 바 */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'rgba(30, 41, 59, 0.4)',
+              padding: '12px 20px',
+              borderRadius: '8px',
+              border: '1px solid var(--border-color)',
+              marginBottom: '20px',
+              fontSize: '13px',
+              flexWrap: 'wrap',
+              gap: '12px'
+            }}>
+              <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)' }}>
+                <span>
+                  전체 입고 기기 / 总设备: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>대
+                </span>
+                <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
+                  현재 필터 기기 / 当前筛选: <strong style={{ color: 'var(--accent-light)' }}>{filteredHKItems.length}</strong>대
+                </span>
+                <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
+                  판매 가능 재고 / 可售库存: <strong style={{ color: 'var(--success-color)' }}>{hongkongInventory.filter(x => !x.is_sold).length}</strong>대
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {selectedHKIds.length > 0 ? (
+                  <span style={{
+                    backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                    color: '#60a5fa',
+                    padding: '4px 12px',
+                    borderRadius: '20px',
+                    fontWeight: 'bold',
+                    border: '1px solid rgba(59, 130, 246, 0.3)'
+                  }}>
+                    선택됨 / 已선택: <strong>{selectedHKIds.length}</strong>대
+                  </span>
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
+                    각 기기의 체크박스를 선택하여 개별 또는 대량 관리가 가능합니다.
+                  </span>
+                )}
+              </div>
+            </div>
+
             <div className={styles.tableSection}>
               <div className={styles.tableWrapper}>
                 <table className={styles.adminTable}>
@@ -1717,160 +1837,119 @@ export default function AdminDashboard() {
                           type="checkbox"
                           aria-label="전체 선택"
                           onChange={(e) => {
-                            const filtered = hongkongInventory
-                              .filter(item => {
-                                if (hkStatusFilter === 'available') return !item.is_sold;
-                                if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                                if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
-                                return true;
-                              })
-                              .filter(item => {
-                                const q = hkSearchQuery.toLowerCase();
-                                return (
-                                  (item.model_name || '').toLowerCase().includes(q) ||
-                                  (item.imei || '').toLowerCase().includes(q) ||
-                                  (item.sticker || '').toLowerCase().includes(q)
-                                );
-                              });
                             if (e.target.checked) {
-                              setSelectedHKIds(filtered.map(x => x.id));
+                              setSelectedHKIds(filteredHKItems.map(x => x.id));
                             } else {
                               setSelectedHKIds([]);
                             }
                           }}
                           checked={
-                            hongkongInventory.length > 0 &&
-                            hongkongInventory
-                              .filter(item => {
-                                if (hkStatusFilter === 'available') return !item.is_sold;
-                                if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                                if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
-                                return true;
-                              })
-                              .filter(item => {
-                                const q = hkSearchQuery.toLowerCase();
-                                return (
-                                  (item.model_name || '').toLowerCase().includes(q) ||
-                                  (item.imei || '').toLowerCase().includes(q) ||
-                                  (item.sticker || '').toLowerCase().includes(q)
-                                );
-                              })
-                              .every(x => selectedHKIds.includes(x.id))
+                            filteredHKItems.length > 0 &&
+                            filteredHKItems.every(x => selectedHKIds.includes(x.id))
                           }
                         />
                       </th>
-                      <th>입고일 / 导入日期</th>
-                      <th>스티커 / 贴纸</th>
-                      <th>모델명 / 机型</th>
-                      <th>IMEI / 串号</th>
-                      <th>색상 / 颜色</th>
-                      <th>배터리 / 电池</th>
-                      <th>입고가 / 成本</th>
-                      <th>판매가 / 售价</th>
+                      <th onClick={() => handleHKSort('site_date')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        입고일 / 导入日期 {renderSortIcon('site_date')}
+                      </th>
+                      <th onClick={() => handleHKSort('sticker')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        스티커 / 贴纸 {renderSortIcon('sticker')}
+                      </th>
+                      <th onClick={() => handleHKSort('model_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        모델명 / 机型 {renderSortIcon('model_name')}
+                      </th>
+                      <th onClick={() => handleHKSort('imei')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        IMEI / 串号 {renderSortIcon('imei')}
+                      </th>
+                      <th onClick={() => handleHKSort('color')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        색상 / 颜色 {renderSortIcon('color')}
+                      </th>
+                      <th onClick={() => handleHKSort('battery_pct')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        배터리 / 电池 {renderSortIcon('battery_pct')}
+                      </th>
+                      <th onClick={() => handleHKSort('purchase_cost')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        입고가 / 成本 {renderSortIcon('purchase_cost')}
+                      </th>
+                      <th onClick={() => handleHKSort('selling_price')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        판매가 / 售价 {renderSortIcon('selling_price')}
+                      </th>
                       <th>위치 / 仓库</th>
                       <th>비고 / 备注</th>
-                      <th>상태 / 状态</th>
+                      <th onClick={() => handleHKSort('is_sold')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        상태 / 状态 {renderSortIcon('is_sold')}
+                      </th>
                       <th>작업 / 操作</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {hongkongInventory
-                      .filter(item => {
-                        if (hkStatusFilter === 'available') return !item.is_sold;
-                        if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                        if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
-                        return true;
-                      })
-                      .filter(item => {
-                        const q = hkSearchQuery.toLowerCase();
-                        return (
-                          (item.model_name || '').toLowerCase().includes(q) ||
-                          (item.imei || '').toLowerCase().includes(q) ||
-                          (item.sticker || '').toLowerCase().includes(q)
-                        );
-                      })
-                      .map(item => (
-                        <tr key={item.id}>
-                          <td style={{ textAlign: 'center' }}>
-                            <input
-                              type="checkbox"
-                              aria-label={`${item.model_name} 선택`}
-                              checked={selectedHKIds.includes(item.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setSelectedHKIds([...selectedHKIds, item.id]);
-                                } else {
-                                  setSelectedHKIds(selectedHKIds.filter(id => id !== item.id));
-                                }
-                              }}
-                            />
-                          </td>
-                          <td>{item.site_date}</td>
-                          <td>{item.sticker || '-'}</td>
-                          <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
-                          <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
-                          <td>{item.color || '-'}</td>
-                          <td>{item.battery_pct}%</td>
-                          <td style={{ color: 'var(--text-secondary)' }}>
-                            ₩{(item.purchase_cost || 0).toLocaleString()}
-                          </td>
-                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                            ₩{(item.selling_price || 0).toLocaleString()}
-                          </td>
-                          <td>{item.stock_location || '-'}</td>
-                          <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                            {item.notes || '-'}
-                          </td>
-                          <td>
-                            <span style={{
-                              padding: '3px 8px',
-                              borderRadius: '12px',
-                              fontSize: '11px',
-                              fontWeight: 'bold',
-                              backgroundColor: !item.is_sold
-                                ? 'rgba(16, 185, 129, 0.1)'
-                                : !item.is_approved
-                                  ? 'rgba(245, 158, 11, 0.1)'
-                                  : 'rgba(255, 255, 255, 0.05)',
-                              color: !item.is_sold
-                                ? 'var(--success-color)'
-                                : !item.is_approved
-                                  ? 'var(--warning-color)'
-                                  : 'var(--text-secondary)'
-                            }}>
-                              {!item.is_sold
-                                ? '판매 가능 / 可售'
-                                : !item.is_approved
-                                  ? '승인 대기 / 待审批'
-                                  : '판매 완료 / 已售'}
-                            </span>
-                          </td>
-                          <td>
-                            <button
-                              onClick={() => executeDeleteHK(item.id)}
-                              className={styles.btnCancel}
-                              style={{ padding: '6px 10px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
-                            >
-                              삭제 / 删除
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    {hongkongInventory
-                      .filter(item => {
-                        if (hkStatusFilter === 'available') return !item.is_sold;
-                        if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
-                        if (hkStatusFilter === 'sold') return item.is_sold && item.is_approved;
-                        return true;
-                      })
-                      .filter(item => {
-                        const q = hkSearchQuery.toLowerCase();
-                        return (
-                          (item.model_name || '').toLowerCase().includes(q) ||
-                          (item.imei || '').toLowerCase().includes(q) ||
-                          (item.sticker || '').toLowerCase().includes(q)
-                        );
-                      }).length === 0 && (
+                    {sortedHKItems.map(item => (
+                      <tr key={item.id}>
+                        <td style={{ textAlign: 'center' }}>
+                          <input
+                            type="checkbox"
+                            aria-label={`${item.model_name} 선택`}
+                            checked={selectedHKIds.includes(item.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedHKIds([...selectedHKIds, item.id]);
+                              } else {
+                                setSelectedHKIds(selectedHKIds.filter(id => id !== item.id));
+                              }
+                            }}
+                          />
+                        </td>
+                        <td>{item.site_date}</td>
+                        <td>{item.sticker || '-'}</td>
+                        <td style={{ fontWeight: 'bold' }}>{item.model_name}</td>
+                        <td style={{ fontFamily: 'monospace' }}>{item.imei}</td>
+                        <td>{item.color || '-'}</td>
+                        <td>{item.battery_pct}%</td>
+                        <td style={{ color: 'var(--text-secondary)' }}>
+                          ₩{(item.purchase_cost || 0).toLocaleString()}
+                        </td>
+                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+                          ₩{(item.selling_price || 0).toLocaleString()}
+                        </td>
+                        <td>{item.stock_location || '-'}</td>
+                        <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                          {item.notes || '-'}
+                        </td>
+                        <td>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            backgroundColor: !item.is_sold
+                              ? 'rgba(16, 185, 129, 0.1)'
+                              : !item.is_approved
+                                ? 'rgba(245, 158, 11, 0.1)'
+                                : 'rgba(255, 255, 255, 0.05)',
+                            color: !item.is_sold
+                              ? 'var(--success-color)'
+                              : !item.is_approved
+                                ? 'var(--warning-color)'
+                                : 'var(--text-secondary)'
+                          }}>
+                            {!item.is_sold
+                              ? '판매 가능 / 可售'
+                              : !item.is_approved
+                                ? '승인 대기 / 待审批'
+                                : '판매 완료 / 已售'}
+                          </span>
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => executeDeleteHK(item.id)}
+                            className={styles.btnCancel}
+                            style={{ padding: '6px 10px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                          >
+                            삭제 / 删除
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {sortedHKItems.length === 0 && (
                       <tr>
                         <td colSpan={13} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                           홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.
