@@ -137,6 +137,7 @@ interface HKInventoryRowProps {
   onCancelSale: (id: string) => void;
   onDelete: (id: string) => void;
   displayLang: 'ko' | 'zh';
+  onUpdateGrade: (id: string, newGrade: string) => void;
 }
 
 const HKInventoryRow = memo(function HKInventoryRow({
@@ -147,7 +148,8 @@ const HKInventoryRow = memo(function HKInventoryRow({
   cnyRate,
   onCancelSale,
   onDelete,
-  displayLang
+  displayLang,
+  onUpdateGrade
 }: HKInventoryRowProps) {
   return (
     <tr>
@@ -176,8 +178,33 @@ const HKInventoryRow = memo(function HKInventoryRow({
         )}
       </td>
       <td>{item.stock_location || '-'}</td>
-      <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-        {item.notes || '-'}
+      <td>
+        <select
+          value={item.notes || ''}
+          onChange={(e) => onUpdateGrade(item.id, e.target.value)}
+          style={{
+            backgroundColor: 'var(--bg-tertiary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '4px',
+            padding: '4px 8px',
+            color: '#fff',
+            fontSize: '11px',
+            cursor: 'pointer',
+            outline: 'none',
+            width: '100%',
+            maxWidth: '90px'
+          }}
+        >
+          <option value="">{displayLang === 'zh' ? '无' : '공란'}</option>
+          <option value="A">A</option>
+          <option value="B">B</option>
+          <option value="C">C</option>
+          <option value="D">D</option>
+          <option value="LCD">LCD</option>
+          {item.notes && !['A', 'B', 'C', 'D', 'LCD'].includes(item.notes) && (
+            <option value={item.notes}>{item.notes}</option>
+          )}
+        </select>
       </td>
       <td>
         <span style={{
@@ -237,7 +264,8 @@ const HKInventoryRow = memo(function HKInventoryRow({
     prevProps.item === nextProps.item &&
     prevProps.displayLang === nextProps.displayLang &&
     prevProps.cnyRate === nextProps.cnyRate &&
-    prevProps.getModelDisplayName === nextProps.getModelDisplayName
+    prevProps.getModelDisplayName === nextProps.getModelDisplayName &&
+    prevProps.onUpdateGrade === nextProps.onUpdateGrade
   );
 });
 
@@ -1501,6 +1529,33 @@ export default function AdminDashboard() {
   const handleDeleteHK = useCallback((id: string) => {
     executeDeleteHK(id);
   }, [executeDeleteHK]);
+
+  const handleUpdateGrade = useCallback(async (id: string, newGrade: string) => {
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_notes',
+          id,
+          notes: newGrade
+        })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        alert(data.error || '등급 수정 실패');
+      } else {
+        setHongkongInventory(prev => prev.map(item => {
+          if (item.id === id) {
+            return { ...item, notes: newGrade };
+          }
+          return item;
+        }));
+      }
+    } catch (e) {
+      alert('등급 수정 중 오류가 발생했습니다.');
+    }
+  }, []);
 
   // 지표 계산기
   const getStats = () => {
@@ -2814,6 +2869,7 @@ export default function AdminDashboard() {
                         onCancelSale={handleCancelSale}
                         onDelete={handleDeleteHK}
                         displayLang={displayLang}
+                        onUpdateGrade={handleUpdateGrade}
                       />
                     ))}
                     {sortedHKItems.length === 0 && (

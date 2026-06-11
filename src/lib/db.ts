@@ -1028,6 +1028,30 @@ export async function processHongKongBulkSale(
   }
 }
 
+export async function updateHongKongNotes(id: string, notes: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({ notes: notes || null })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (d.id === id) {
+        return { ...d, notes };
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return true;
+  }
+}
+
 export async function approveHongKongSales(deviceIds: string[]) {
   if (supabase) {
     const { error } = await supabase

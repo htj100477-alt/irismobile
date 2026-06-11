@@ -6,7 +6,8 @@ import {
   approveHongKongSales,
   cancelHongKongSales,
   deleteHongKongInventory,
-  deleteHongKongInventoryBatch
+  deleteHongKongInventoryBatch,
+  updateHongKongNotes
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -66,6 +67,15 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Missing deviceIds for cancellation' }, { status: 400 });
       }
       await cancelHongKongSales(deviceIds);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_notes') {
+      const { id, notes } = body;
+      if (!id) {
+        return NextResponse.json({ success: false, error: 'Missing id parameter' }, { status: 400 });
+      }
+      await updateHongKongNotes(id, notes);
       return NextResponse.json({ success: true });
     }
 
