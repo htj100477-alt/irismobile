@@ -302,8 +302,39 @@
   box-shadow: var(--shadow-lg);
 }
 
-.loginHeader {
-  text-align: center;
+.actionButtonGroup {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.filterControlBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: #0f172a;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.statsInfoBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background-color: rgba(30, 41, 59, 0.4);
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  margin-bottom: 12px;
+  font-size: 13px;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 /* Mobile responsive styles */
@@ -397,5 +428,42 @@
     align-items: flex-start;
     gap: 12px;
   }
+
+  .actionButtonGroup {
+    justify-content: flex-start;
+    width: 100%;
+  }
+  .actionButtonGroup button {
+    flex: 1;
+    min-width: 120px;
+    justify-content: center;
+  }
+
+  .filterControlBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .statsInfoBar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .statsInfoBar span {
+    border-left: none !important;
+    padding-left: 0 !important;
+  }
+
+  .modalContent {
+    padding: 16px;
+    gap: 16px;
+    width: 95% !important;
+  }
+
+  .adminTable td {
+    white-space: nowrap;
+  }
 }
+
 

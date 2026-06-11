@@ -726,6 +726,11 @@ export default function AdminDashboard() {
       router.push('/admin/login');
     } else {
       loadAllData();
+      // 모바일 환경일 때 기본적으로 홍콩 재고 탭으로 시작하고 기종 카드 뷰로 봅니다.
+      if (typeof window !== 'undefined' && window.innerWidth <= 768) {
+        setActiveTab('hongkong-inventory');
+        setHkViewMode('card');
+      }
     }
   }, [router]);
 
@@ -2695,7 +2700,7 @@ export default function AdminDashboard() {
                     : '홍콩 입고된 기기의 상태를 조회하고 일괄 판매완료 처리합니다.'}
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
+              <div className={styles.actionButtonGroup}>
                 <button
                   onClick={() => setIsImportModalOpen(true)}
                   className={styles.btnSave}
@@ -2775,18 +2780,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* 필터 및 검색 컨트롤 */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              background: '#0f172a',
-              padding: '12px 16px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              marginBottom: '12px',
-              gap: '16px',
-              flexWrap: 'wrap'
-            }}>
+            <div className={styles.filterControlBar}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>{displayLang === 'zh' ? '库存状态:' : '재고 상태:'}</span>
                 <span style={{
@@ -2866,19 +2860,7 @@ export default function AdminDashboard() {
             </div>
 
             {/* 재고 통계 및 선택 정보 바 */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: 'rgba(30, 41, 59, 0.4)',
-              padding: '8px 16px',
-              borderRadius: '8px',
-              border: '1px solid var(--border-color)',
-              marginBottom: '12px',
-              fontSize: '13px',
-              flexWrap: 'wrap',
-              gap: '12px'
-            }}>
+            <div className={styles.statsInfoBar}>
               <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)', flexWrap: 'wrap', alignItems: 'center' }}>
                 <span 
                   onClick={handleEditExchangeRate}
