@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 이미지 압축 헬퍼 함수
@@ -286,6 +286,7 @@ const HKInventoryRow = memo(function HKInventoryRow({
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names'>('home');
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -1815,48 +1816,83 @@ export default function AdminDashboard() {
   return (
     <div className={styles.adminLayout}>
       
+      {/* 모바일 상단 헤더 */}
+      <div className={styles.mobileHeader}>
+        <button 
+          className={styles.mobileMenuBtn} 
+          onClick={() => setIsMobileSidebarOpen(true)}
+          aria-label="메뉴 열기"
+        >
+          <Menu size={24} />
+        </button>
+        <div className={styles.mobileLogo}>TRUE MOBILE ADMIN</div>
+        <div style={{ width: 24 }} /> {/* 우측 정렬 밸런스용 */}
+      </div>
+
+      {isMobileSidebarOpen && (
+        <div className={styles.sidebarOverlay} onClick={() => setIsMobileSidebarOpen(false)} />
+      )}
+
       {/* 1. 사이드 바 */}
-      <aside className={styles.sidebar}>
+      <aside className={`${styles.sidebar} ${isMobileSidebarOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.logo}>TRUE MOBILE ADMIN</div>
         
         <nav className={styles.menuList}>
           <button 
-            onClick={() => setActiveTab('home')}
+            onClick={() => {
+              setActiveTab('home');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'home' ? styles.menuItemActive : ''}`}
           >
             <BarChart3 size={18} /> 대시보드 홈
           </button>
           
           <button 
-            onClick={() => setActiveTab('trade-ins')}
+            onClick={() => {
+              setActiveTab('trade-ins');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'trade-ins' ? styles.menuItemActive : ''}`}
           >
             <Smartphone size={18} /> 매입 신청 관리 ({tradeIns.length})
           </button>
           
           <button 
-            onClick={() => setActiveTab('products')}
+            onClick={() => {
+              setActiveTab('products');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'products' ? styles.menuItemActive : ''}`}
           >
             <ShoppingBag size={18} /> 판매 상품 관리 ({products.length})
           </button>
           
           <button 
-            onClick={() => setActiveTab('orders')}
+            onClick={() => {
+              setActiveTab('orders');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'orders' ? styles.menuItemActive : ''}`}
           >
             <ClipboardList size={18} /> 주문 배송 관리 ({orders.length})
           </button>
           
           <button 
-            onClick={() => setActiveTab('prices')}
+            onClick={() => {
+              setActiveTab('prices');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
           >
             <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
           </button>
 
           <button 
-            onClick={() => setActiveTab('categories')}
+            onClick={() => {
+              setActiveTab('categories');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
           >
             <Layers size={18} /> 카테고리 관리 ({categories.length})
@@ -1869,6 +1905,7 @@ export default function AdminDashboard() {
               setActiveTab('hongkong-inventory');
               setHkViewMode('card');
               setHkSearchQuery('');
+              setIsMobileSidebarOpen(false);
             }}
             className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
           >
@@ -1876,21 +1913,30 @@ export default function AdminDashboard() {
           </button>
 
           <button 
-            onClick={() => setActiveTab('completed-sales')}
+            onClick={() => {
+              setActiveTab('completed-sales');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'completed-sales' ? styles.menuItemActive : ''}`}
           >
             <CheckCircle2 size={18} /> {displayLang === 'zh' ? '销售审批' : '판매 승인'}
           </button>
 
           <button 
-            onClick={() => setActiveTab('margin-settlement')}
+            onClick={() => {
+              setActiveTab('margin-settlement');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'margin-settlement' ? styles.menuItemActive : ''}`}
           >
             <Coins size={18} /> 마진 및 정산
           </button>
 
           <button 
-            onClick={() => setActiveTab('model-pet-names')}
+            onClick={() => {
+              setActiveTab('model-pet-names');
+              setIsMobileSidebarOpen(false);
+            }}
             className={`${styles.menuItem} ${activeTab === 'model-pet-names' ? styles.menuItemActive : ''}`}
           >
             <Settings size={18} style={{ color: 'var(--accent-light)' }} /> 기종 펫네임 관리 ({modelPetNames.length})
@@ -1902,6 +1948,7 @@ export default function AdminDashboard() {
             href="/admin/scanner"
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => setIsMobileSidebarOpen(false)}
             className={styles.menuItem}
             style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}
           >
@@ -1911,7 +1958,10 @@ export default function AdminDashboard() {
         </nav>
 
         <button 
-          onClick={handleLogout}
+          onClick={() => {
+            handleLogout();
+            setIsMobileSidebarOpen(false);
+          }}
           style={{ marginTop: 'auto' }}
           className={styles.menuItem}
         >
