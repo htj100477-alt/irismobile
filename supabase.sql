@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS public.hongkong_inventory (
     sale_date VARCHAR(50),
     seller_name VARCHAR(100),
     is_approved BOOLEAN DEFAULT false NOT NULL,
+    sale_rate NUMERIC,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

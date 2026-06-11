@@ -173,7 +173,7 @@ const HKInventoryRow = memo(function HKInventoryRow({
         HK${Number(item.selling_price || 0).toLocaleString()}
         {item.is_sold && (
           <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-            (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+            (₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()})
           </div>
         )}
       </td>
@@ -340,7 +340,16 @@ export default function AdminDashboard() {
   const [hkSearchQuery, setHkSearchQuery] = useState('');
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [cnyRate, setCnyRate] = useState<number>(175); // 추가: 홍콩달러 환율
+  const [cnyRate, setCnyRate] = useState<number>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('hkd_krw_exchange_rate');
+      if (saved) {
+        const parsed = parseFloat(saved);
+        if (!isNaN(parsed) && parsed > 0) return parsed;
+      }
+    }
+    return 175;
+  }); // 추가: 홍콩달러 환율
 
   // 홍콩 재고 페이지네이션 상태
   const [hkPage, setHkPage] = useState(1);
@@ -370,6 +379,51 @@ export default function AdminDashboard() {
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
 
+  // 수동 환율 설정 핸들러
+  const handleEditExchangeRate = () => {
+    const val = prompt(
+      displayLang === 'zh' 
+        ? '请输入港币汇率 (HKD/KRW):\n(输入空值将重置为Naver实时汇率)' 
+        : '홍콩달러 환율을 설정해주세요 (HKD/KRW).\n(공란으로 입력 시 네이버 환율로 초기화됩니다.)',
+      cnyRate.toString()
+    );
+    
+    if (val !== null) {
+      const trimmed = val.trim();
+      if (trimmed === '') {
+        localStorage.removeItem('hkd_krw_exchange_rate');
+        fetch('/api/exchange-rate')
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setCnyRate(data.rate);
+              alert(
+                displayLang === 'zh'
+                  ? '已重置为Naver实时汇率: ₩' + data.rate
+                  : '네이버 실시간 환율로 초기화되었습니다: ₩' + data.rate
+              );
+            }
+          })
+          .catch(err => {
+            console.error(err);
+            setCnyRate(175);
+          });
+      } else {
+        const parsed = parseFloat(trimmed);
+        if (!isNaN(parsed) && parsed > 0) {
+          localStorage.setItem('hkd_krw_exchange_rate', parsed.toString());
+          setCnyRate(parsed);
+        } else {
+          alert(
+            displayLang === 'zh'
+              ? '请输入有效的汇率数值。'
+              : '올바른 환율 값을 입력해주세요.'
+          );
+        }
+      }
+    }
+  };
+
   // 홍콩 재고 정렬 핸들러
   const handleHKSort = (column: string) => {
     if (hkSortColumn === column) {
@@ -397,6 +451,8 @@ export default function AdminDashboard() {
   // ✅ 성능 최적화: 선택된 ID Set (O(1) 조회)
   const selectedHKIdsSet = useMemo(() => new Set(selectedHKIds), [selectedHKIds]);
   const selectedPendingIdsSet = useMemo(() => new Set(selectedPendingIds), [selectedPendingIds]);
+
+  const isManualRate = typeof window !== 'undefined' && localStorage.getItem('hkd_krw_exchange_rate') !== null;
 
   // ✅ 성능 최적화: 홍콩 재고 Map 빌드 (O(1) 조회)
   const inventoryMap = useMemo(() => {
@@ -639,7 +695,12 @@ export default function AdminDashboard() {
       if (priceData.success) setTradeInPrices(priceData.data);
       if (catData.success) setCategories(catData.data);
       if (hkData.success) setHongkongInventory(hkData.data);
-      if (rateData?.success) setCnyRate(rateData.rate);
+      if (rateData?.success) {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('hkd_krw_exchange_rate') : null;
+        if (!saved) {
+          setCnyRate(rateData.rate);
+        }
+      }
       if (petData.success) setModelPetNames(petData.data);
     } catch (err) {
       console.error(err);
@@ -1310,7 +1371,8 @@ export default function AdminDashboard() {
           sellingPrice: 0,
           modelPrices,
           soldIds,
-          remainingIdentifiers
+          remainingIdentifiers,
+          exchangeRate: cnyRate
         })
       });
       const data = await res.json();
@@ -1401,7 +1463,8 @@ export default function AdminDashboard() {
           sellingPrice: 0,
           modelPrices,
           soldIds,
-          remainingIdentifiers
+          remainingIdentifiers,
+          exchangeRate: cnyRate
         })
       });
       const data = await res.json();
@@ -1708,18 +1771,27 @@ export default function AdminDashboard() {
           gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span style={{
-              backgroundColor: 'rgba(16, 185, 129, 0.1)',
-              color: 'var(--success-color)',
-              padding: '4px 12px',
-              borderRadius: '12px',
-              fontWeight: 'bold',
-              border: '1px solid rgba(16, 185, 129, 0.2)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px'
-            }}>
-              <Coins size={14} /> 홍콩달러 환율 / 汇率 (Naver HKD/KRW): ₩{cnyRate.toFixed(2)}
+            <span 
+              onClick={handleEditExchangeRate}
+              style={{
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                color: 'var(--success-color)',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                fontWeight: 'bold',
+                border: '1px solid rgba(16, 185, 129, 0.2)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer'
+              }}
+              title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
+            >
+              <Coins size={14} /> 
+              {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율 / 汇率'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
+              <span style={{ fontSize: '10px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
+                {displayLang === 'zh' ? '修改' : '수정'}
+              </span>
             </span>
             <span style={{ color: 'var(--text-secondary)' }}>
               * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (HKD HK$ → KRW ₩)
@@ -2581,15 +2653,23 @@ export default function AdminDashboard() {
               gap: '12px'
             }}>
               <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span style={{
-                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                  color: 'var(--success-color)',
-                  padding: '3px 10px',
-                  borderRadius: '12px',
-                  fontWeight: 'bold',
-                  border: '1px solid rgba(16, 185, 129, 0.2)'
-                }}>
-                  {displayLang === 'zh' ? '汇率' : '홍콩달러 환율'} (Naver): ₩{cnyRate.toFixed(2)}
+                <span 
+                  onClick={handleEditExchangeRate}
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    color: 'var(--success-color)',
+                    padding: '3px 10px',
+                    borderRadius: '12px',
+                    fontWeight: 'bold',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    cursor: 'pointer'
+                  }}
+                  title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
+                >
+                  {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
+                  <span style={{ fontSize: '9px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
+                    {displayLang === 'zh' ? '修改' : '수정'}
+                  </span>
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
                   {displayLang === 'zh' ? '总设备' : '전체 입고 기기'}: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>{displayLang === 'zh' ? '台' : '대'}
@@ -2850,7 +2930,7 @@ export default function AdminDashboard() {
                         {displayLang === 'zh' ? '售价' : '판매가'} {renderSortIcon('selling_price')}
                       </th>
                       <th>{displayLang === 'zh' ? '仓库' : '위치'}</th>
-                      <th>{displayLang === 'zh' ? '备注' : '비고'}</th>
+                      <th>{displayLang === 'zh' ? '等级' : '등급'}</th>
                       <th onClick={() => handleHKSort('is_sold')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '状态' : '상태'} {renderSortIcon('is_sold')}
                       </th>
@@ -2978,7 +3058,7 @@ export default function AdminDashboard() {
         {/* 판매 완료 승인 대기 탭 */}
         {activeTab === 'completed-sales' && (() => {
           const pendingDevices = hongkongInventory.filter(item => item.is_sold && !item.is_approved);
-          const pendingRevenue = pendingDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * cnyRate), 0);
+          const pendingRevenue = pendingDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate)), 0);
           const pendingCost = pendingDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
           const pendingMargin = pendingRevenue - pendingCost;
           const pendingMarginRate = pendingRevenue > 0 ? (pendingMargin / pendingRevenue) * 100 : 0;
@@ -3178,7 +3258,7 @@ export default function AdminDashboard() {
                         );
                       })
                       .map(item => {
-                        const revenueKRW = (Number(item.selling_price) || 0) * cnyRate;
+                        const revenueKRW = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
                         const margin = revenueKRW - (Number(item.purchase_cost) || 0);
                         const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
                         return (
@@ -3211,7 +3291,7 @@ export default function AdminDashboard() {
                             <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
                               HK${Number(item.selling_price || 0).toLocaleString()}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                                (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+                                (₩{Math.round(revenueKRW).toLocaleString()})
                               </div>
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
@@ -3291,7 +3371,7 @@ export default function AdminDashboard() {
               );
             });
 
-          const totalRevenue = settledDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * cnyRate), 0);
+          const totalRevenue = settledDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate)), 0);
           const totalCost = settledDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
           const totalMargin = totalRevenue - totalCost;
           const averageMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
@@ -3423,7 +3503,7 @@ export default function AdminDashboard() {
                     </thead>
                     <tbody>
                       {settledDevices.map(item => {
-                        const revenueKRW = (Number(item.selling_price) || 0) * cnyRate;
+                        const revenueKRW = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
                         const margin = revenueKRW - (Number(item.purchase_cost) || 0);
                         const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
                         return (

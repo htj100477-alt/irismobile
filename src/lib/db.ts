@@ -897,6 +897,7 @@ export async function importHongKongInventory(records: any[]) {
       sale_date: r.sale_date || null,
       seller_name: r.seller_name || null,
       is_approved: r.is_approved || false,
+      sale_rate: r.sale_rate ? Number(r.sale_rate) : null,
       created_at: r.created_at || new Date().toISOString()
     };
 
@@ -947,7 +948,8 @@ export async function processHongKongBulkSale(
   sellingPrice: number,
   soldIds: string[],
   remainingIdentifiers: string[],
-  modelPrices?: Record<string, number>
+  modelPrices?: Record<string, number>,
+  exchangeRate?: number
 ) {
   const cleanRemains = remainingIdentifiers.map(x => String(x).trim().toLowerCase().replace(/\s+/g, '')).filter(Boolean);
 
@@ -987,7 +989,8 @@ export async function processHongKongBulkSale(
           sale_date: saleDate,
           seller_name: sellerName,
           selling_price: priceForModel,
-          is_approved: false
+          is_approved: false,
+          sale_rate: exchangeRate || null
         })
         .in('id', ids);
 
@@ -1016,7 +1019,8 @@ export async function processHongKongBulkSale(
             sale_date: saleDate,
             seller_name: sellerName,
             selling_price: priceForModel,
-            is_approved: false
+            is_approved: false,
+            sale_rate: exchangeRate || null
           };
         }
       }

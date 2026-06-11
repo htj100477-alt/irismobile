@@ -43,12 +43,12 @@ export async function PUT(request: Request) {
     const { action } = body;
 
     if (action === 'sell') {
-      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers, modelPrices } = body;
+      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers, modelPrices, exchangeRate } = body;
       if (!saleDate || !sellerName || !Array.isArray(soldIds) || !Array.isArray(remainingIdentifiers)) {
         return NextResponse.json({ success: false, error: 'Missing required sell fields' }, { status: 400 });
       }
       const sPrice = Number(sellingPrice) || 0;
-      const result = await processHongKongBulkSale(saleDate, sellerName, sPrice, soldIds, remainingIdentifiers, modelPrices);
+      const result = await processHongKongBulkSale(saleDate, sellerName, sPrice, soldIds, remainingIdentifiers, modelPrices, exchangeRate);
       return NextResponse.json({ success: true, count: result.count });
     } 
     
