@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
@@ -128,6 +128,120 @@ const translateModelName = (name: string): string => {
   return translated;
 };
 
+interface HKInventoryRowProps {
+  item: any;
+  isChecked: boolean;
+  onCheckChange: (id: string, checked: boolean) => void;
+  getModelDisplayName: (modelName: string) => string;
+  cnyRate: number;
+  onCancelSale: (id: string) => void;
+  onDelete: (id: string) => void;
+  displayLang: 'ko' | 'zh';
+}
+
+const HKInventoryRow = memo(function HKInventoryRow({
+  item,
+  isChecked,
+  onCheckChange,
+  getModelDisplayName,
+  cnyRate,
+  onCancelSale,
+  onDelete,
+  displayLang
+}: HKInventoryRowProps) {
+  return (
+    <tr>
+      <td style={{ textAlign: 'center' }}>
+        <input
+          type="checkbox"
+          aria-label={`${item.model_name} 선택`}
+          checked={isChecked}
+          onChange={(e) => onCheckChange(item.id, e.target.checked)}
+        />
+      </td>
+      <td>{item.site_date}</td>
+      <td>{item.sticker || '-'}</td>
+      <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
+      <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
+      <td>{item.color || '-'}</td>
+      <td>{item.battery_pct}%</td>
+      <td style={{ color: 'var(--text-secondary)' }}>
+        ₩{Number(item.purchase_cost || 0).toLocaleString()}
+      </td>
+      <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+        HK${Number(item.selling_price || 0).toLocaleString()}
+        {item.is_sold && (
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+            (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
+          </div>
+        )}
+      </td>
+      <td>{item.stock_location || '-'}</td>
+      <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+        {item.notes || '-'}
+      </td>
+      <td>
+        <span style={{
+          padding: '3px 8px',
+          borderRadius: '12px',
+          fontSize: '11px',
+          fontWeight: 'bold',
+          backgroundColor: !item.is_sold
+            ? 'rgba(16, 185, 129, 0.1)'
+            : !item.is_approved
+              ? 'rgba(245, 158, 11, 0.1)'
+              : 'rgba(255, 255, 255, 0.05)',
+          color: !item.is_sold
+            ? 'var(--success-color)'
+            : !item.is_approved
+              ? 'var(--warning-color)'
+              : 'var(--text-secondary)'
+        }}>
+          {!item.is_sold
+            ? (displayLang === 'zh' ? '可售' : '판매 가능')
+            : !item.is_approved
+              ? (displayLang === 'zh' ? '待审批' : '승인 대기')
+              : (displayLang === 'zh' ? '已售' : '판매 완료')}
+        </span>
+      </td>
+      <td>
+        {item.is_sold && (
+          <button
+            onClick={() => onCancelSale(item.id)}
+            className={styles.btnSave}
+            style={{
+              padding: '6px 10px',
+              fontSize: '11px',
+              border: '1px solid var(--warning-color)',
+              color: 'var(--warning-color)',
+              backgroundColor: 'transparent',
+              cursor: 'pointer',
+              marginRight: '8px'
+            }}
+          >
+            {displayLang === 'zh' ? '取消销售' : '판매 취소'}
+          </button>
+        )}
+        <button
+          onClick={() => onDelete(item.id)}
+          className={styles.btnCancel}
+          style={{ padding: '6px 10px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
+        >
+          {displayLang === 'zh' ? '删除' : '삭제'}
+        </button>
+      </td>
+    </tr>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.isChecked === nextProps.isChecked &&
+    prevProps.item === nextProps.item &&
+    prevProps.displayLang === nextProps.displayLang &&
+    prevProps.cnyRate === nextProps.cnyRate &&
+    prevProps.getModelDisplayName === nextProps.getModelDisplayName
+  );
+});
+
 export default function AdminDashboard() {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names'>('home');
@@ -200,6 +314,16 @@ export default function AdminDashboard() {
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
   const [cnyRate, setCnyRate] = useState<number>(175); // 추가: 홍콩달러 환율
+
+  // 홍콩 재고 페이지네이션 상태
+  const [hkPage, setHkPage] = useState(1);
+  const [hkPageSize, setHkPageSize] = useState<number | 'all'>(50);
+
+  // 검색/필터 변경 시 페이지 1로 리셋
+  useEffect(() => {
+    setHkPage(1);
+  }, [hkStatusFilter, hkSearchQuery, hkSortColumn, hkSortDirection, hkPageSize]);
+
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
@@ -304,6 +428,14 @@ export default function AdminDashboard() {
     if (valA > valB) return hkSortDirection === 'asc' ? 1 : -1;
     return 0;
   }), [filteredHKItems, hkSortColumn, hkSortDirection]);
+
+  // ✅ 성능 최적화: paginatedHKItems 추가
+  const paginatedHKItems = useMemo(() => {
+    if (hkPageSize === 'all') return sortedHKItems;
+    const start = (hkPage - 1) * hkPageSize;
+    return sortedHKItems.slice(start, start + hkPageSize);
+  }, [sortedHKItems, hkPage, hkPageSize]);
+
   const [settlementSeller, setSettlementSeller] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
 
@@ -386,7 +518,7 @@ export default function AdminDashboard() {
   }, [router]);
 
   // 전역 데이터 페칭
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
@@ -426,7 +558,7 @@ export default function AdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   // 2. 매입 승인 관리 액션 (수정 모달 오픈)
   const openTradeInModal = (trade: TradeIn) => {
@@ -1143,7 +1275,7 @@ export default function AdminDashboard() {
   };
 
   // 홍콩 재고 단건 삭제
-  const executeDeleteHK = async (id: string) => {
+  const executeDeleteHK = useCallback(async (id: string) => {
     if (!confirm('정말로 이 재고를 목록에서 삭제하시겠습니까?')) return;
     try {
       const res = await fetch(`/api/hongkong-inventory?id=${id}`, { method: 'DELETE' });
@@ -1156,10 +1288,10 @@ export default function AdminDashboard() {
     } catch (e) {
       alert('삭제 중 오류가 발생했습니다.');
     }
-  };
+  }, [loadAllData]);
 
   // 홍콩 재고 선택 항목 일괄 삭제
-  const executeDeleteHKBatch = async (ids: string[]) => {
+  const executeDeleteHKBatch = useCallback(async (ids: string[]) => {
     if (ids.length === 0) return;
     if (!confirm(`선택한 ${ids.length}대의 재고 데이터를 목록에서 완전히 삭제하시겠습니까?\n确认完全删除这 ${ids.length} 台设备库存数据吗？`)) return;
     
@@ -1180,10 +1312,10 @@ export default function AdminDashboard() {
     } catch (e) {
       alert('삭제 중 서버 통신 오류가 발생했습니다.');
     }
-  };
+  }, [loadAllData]);
 
   // 홍콩 재고 판매 취소
-  const executeCancelSales = async (deviceIds: string[]) => {
+  const executeCancelSales = useCallback(async (deviceIds: string[]) => {
     if (deviceIds.length === 0) return;
     const msg = deviceIds.length === 1 
       ? '이 기기의 판매를 취소하고 판매 가능 재고로 되돌리시겠습니까?' 
@@ -1207,7 +1339,24 @@ export default function AdminDashboard() {
     } catch (e) {
       alert('오류가 발생했습니다.');
     }
-  };
+  }, [loadAllData]);
+
+  // stable row action handlers
+  const handleHKCheckChange = useCallback((id: string, checked: boolean) => {
+    if (checked) {
+      setSelectedHKIds(prev => [...prev, id]);
+    } else {
+      setSelectedHKIds(prev => prev.filter(x => x !== id));
+    }
+  }, []);
+
+  const handleCancelSale = useCallback((id: string) => {
+    executeCancelSales([id]);
+  }, [executeCancelSales]);
+
+  const handleDeleteHK = useCallback((id: string) => {
+    executeDeleteHK(id);
+  }, [executeDeleteHK]);
 
   // 지표 계산기
   const getStats = () => {
@@ -2047,9 +2196,11 @@ export default function AdminDashboard() {
           <div className="animate-fade-in">
             <div className={styles.headerRow} style={{ flexWrap: 'wrap', gap: '16px' }}>
               <div>
-                <h2 className={styles.pageTitle}>홍콩 재고 관리 / 香港库存管理</h2>
+                <h2 className={styles.pageTitle}>{displayLang === 'zh' ? '香港库存管理' : '홍콩 재고 관리'}</h2>
                 <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
-                  홍콩 입고된 기기의 상태를 조회하고 일괄 판매완료 처리합니다.
+                  {displayLang === 'zh' 
+                    ? '查询香港入库设备的状态并进行批量销售处理。' 
+                    : '홍콩 입고된 기기의 상태를 조회하고 일괄 판매완료 처리합니다.'}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
@@ -2058,7 +2209,7 @@ export default function AdminDashboard() {
                   className={styles.btnSave}
                   style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
                 >
-                  <Plus size={16} /> 대량 입고 (엑셀 붙여넣기) / 批量导入
+                  <Plus size={16} /> {displayLang === 'zh' ? '批量导入 (Excel 粘贴)' : '대량 입고 (엑셀 붙여넣기)'}
                 </button>
                 <button
                   onClick={() => setIsBulkSaleModalOpen(true)}
@@ -2074,7 +2225,7 @@ export default function AdminDashboard() {
                   }}
                   disabled={hongkongInventory.filter(x => !x.is_sold).length === 0}
                 >
-                  <CheckCircle2 size={16} /> 일괄 판매 처리 / 批量销售
+                  <CheckCircle2 size={16} /> {displayLang === 'zh' ? '批量销售' : '일괄 판매 처리'}
                 </button>
                 {selectedHKIds.length > 0 && selectedHKSoldDevicesCount > 0 && (
                   <button
@@ -2093,7 +2244,7 @@ export default function AdminDashboard() {
                       cursor: 'pointer'
                     }}
                   >
-                    <X size={16} /> 선택 판매 취소 / 批量取消销售 ({selectedHKSoldDevicesCount}대)
+                    <X size={16} /> {displayLang === 'zh' ? `批量取消销售 (${selectedHKSoldDevicesCount}台)` : `선택 판매 취소 (${selectedHKSoldDevicesCount}대)`}
                   </button>
                 )}
                 {selectedHKIds.length > 0 && (
@@ -2110,7 +2261,7 @@ export default function AdminDashboard() {
                       cursor: 'pointer'
                     }}
                   >
-                    <Trash2 size={16} /> 선택 삭제 / 批量删除 ({selectedHKIds.length}대)
+                    <Trash2 size={16} /> {displayLang === 'zh' ? `批量删除 (${selectedHKIds.length}台)` : `선택 삭제 (${selectedHKIds.length}대)`}
                   </button>
                 )}
               </div>
@@ -2130,12 +2281,12 @@ export default function AdminDashboard() {
               flexWrap: 'wrap'
             }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 상태 / 销售状态:</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>{displayLang === 'zh' ? '销售状态:' : '판매 상태:'}</span>
                 {(['all', 'available', 'sold_pending', 'sold'] as const).map(status => {
-                  let label = '전체 / 全部';
-                  if (status === 'available') label = '판매 가능 / 可售';
-                  if (status === 'sold_pending') label = '승인 대기 / 待审批';
-                  if (status === 'sold') label = '판매 완료 / 已售';
+                  let label = displayLang === 'zh' ? '全部' : '전체';
+                  if (status === 'available') label = displayLang === 'zh' ? '可售' : '판매 가능';
+                  if (status === 'sold_pending') label = displayLang === 'zh' ? '待审批' : '승인 대기';
+                  if (status === 'sold') label = displayLang === 'zh' ? '已售' : '판매 완료';
                   return (
                     <button
                       key={status}
@@ -2150,10 +2301,10 @@ export default function AdminDashboard() {
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '搜索:' : '기기 검색:'}</span>
                 <input
                   type="text"
-                  placeholder="IMEI / 모델 / 스티커 번호"
+                  placeholder={displayLang === 'zh' ? "串号 / 机型 / 贴纸号" : "IMEI / 모델 / 스티커 번호"}
                   value={hkSearchQuery}
                   onChange={(e) => setHkSearchQuery(e.target.value)}
                   style={{
@@ -2193,16 +2344,16 @@ export default function AdminDashboard() {
                   fontWeight: 'bold',
                   border: '1px solid rgba(16, 185, 129, 0.2)'
                 }}>
-                  홍콩달러 환율 / 汇率 (Naver): ₩{cnyRate.toFixed(2)}
+                  {displayLang === 'zh' ? '汇率' : '홍콩달러 환율'} (Naver): ₩{cnyRate.toFixed(2)}
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                  전체 입고 기기 / 总设备: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>대
+                  {displayLang === 'zh' ? '总设备' : '전체 입고 기기'}: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>{displayLang === 'zh' ? '台' : '대'}
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                  현재 필터 기기 / 当前筛选: <strong style={{ color: 'var(--accent-light)' }}>{filteredHKItems.length}</strong>대
+                  {displayLang === 'zh' ? '当前筛选' : '현재 필터 기기'}: <strong style={{ color: 'var(--accent-light)' }}>{filteredHKItems.length}</strong>{displayLang === 'zh' ? '台' : '대'}
                 </span>
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
-                  판매 가능 재고 / 可售库存: <strong style={{ color: 'var(--success-color)' }}>{hongkongInventory.filter(x => !x.is_sold).length}</strong>대
+                  {displayLang === 'zh' ? '可售库存' : '판매 가능 재고'}: <strong style={{ color: 'var(--success-color)' }}>{hongkongInventory.filter(x => !x.is_sold).length}</strong>{displayLang === 'zh' ? '台' : '대'}
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -2216,7 +2367,7 @@ export default function AdminDashboard() {
                       fontWeight: 'bold',
                       border: '1px solid rgba(59, 130, 246, 0.3)'
                     }}>
-                      선택됨 / 已선택: <strong>{selectedHKIds.length}</strong>대
+                      {displayLang === 'zh' ? '已选择' : '선택됨'}: <strong>{selectedHKIds.length}</strong>{displayLang === 'zh' ? '台' : '대'}
                     </span>
                     <button
                       onClick={() => setSelectedHKIds([])}
@@ -2230,12 +2381,14 @@ export default function AdminDashboard() {
                         padding: '2px 6px'
                       }}
                     >
-                      선택 해제 / 取消选择
+                      {displayLang === 'zh' ? '取消选择' : '선택 해제'}
                     </button>
                   </div>
                 ) : (
                   <span style={{ color: 'var(--text-muted)', fontSize: '12px' }}>
-                    각 기기의 체크박스를 선택하여 개별 또는 대량 관리가 가능합니다.
+                    {displayLang === 'zh'
+                      ? '通过勾选各设备的复选框，可以进行单台 or 批量管理。'
+                      : '각 기기의 체크박스를 선택하여 개별 또는 대량 관리가 가능합니다.'}
                   </span>
                 )}
               </div>
@@ -2264,138 +2417,149 @@ export default function AdminDashboard() {
                         />
                       </th>
                       <th onClick={() => handleHKSort('site_date')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        입고일 / 导入日期 {renderSortIcon('site_date')}
+                        {displayLang === 'zh' ? '导入日期' : '입고일'} {renderSortIcon('site_date')}
                       </th>
                       <th onClick={() => handleHKSort('sticker')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        스티커 / 贴纸 {renderSortIcon('sticker')}
+                        {displayLang === 'zh' ? '贴纸' : '스티커'} {renderSortIcon('sticker')}
                       </th>
                       <th onClick={() => handleHKSort('model_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        모델명 / 机型 {renderSortIcon('model_name')}
+                        {displayLang === 'zh' ? '机型' : '모델명'} {renderSortIcon('model_name')}
                       </th>
                       <th onClick={() => handleHKSort('imei')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        IMEI / 串号 {renderSortIcon('imei')}
+                        {displayLang === 'zh' ? '串号 (IMEI)' : 'IMEI'} {renderSortIcon('imei')}
                       </th>
                       <th onClick={() => handleHKSort('color')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        색상 / 颜色 {renderSortIcon('color')}
+                        {displayLang === 'zh' ? '颜色' : '색상'} {renderSortIcon('color')}
                       </th>
                       <th onClick={() => handleHKSort('battery_pct')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        배터리 / 电池 {renderSortIcon('battery_pct')}
+                        {displayLang === 'zh' ? '电池' : '배터리'} {renderSortIcon('battery_pct')}
                       </th>
                       <th onClick={() => handleHKSort('purchase_cost')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        입고가 / 成本 {renderSortIcon('purchase_cost')}
+                        {displayLang === 'zh' ? '成本' : '입고가'} {renderSortIcon('purchase_cost')}
                       </th>
                       <th onClick={() => handleHKSort('selling_price')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        판매가 / 售价 {renderSortIcon('selling_price')}
+                        {displayLang === 'zh' ? '售价' : '판매가'} {renderSortIcon('selling_price')}
                       </th>
-                      <th>위치 / 仓库</th>
-                      <th>비고 / 备注</th>
+                      <th>{displayLang === 'zh' ? '仓库' : '위치'}</th>
+                      <th>{displayLang === 'zh' ? '备注' : '비고'}</th>
                       <th onClick={() => handleHKSort('is_sold')} style={{ cursor: 'pointer', userSelect: 'none' }}>
-                        상태 / 状态 {renderSortIcon('is_sold')}
+                        {displayLang === 'zh' ? '状态' : '상태'} {renderSortIcon('is_sold')}
                       </th>
-                      <th>작업 / 操作</th>
+                      <th>{displayLang === 'zh' ? '操作' : '작업'}</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {sortedHKItems.map(item => (
-                      <tr key={item.id}>
-                        <td style={{ textAlign: 'center' }}>
-                          <input
-                            type="checkbox"
-                            aria-label={`${item.model_name} 선택`}
-                            checked={selectedHKIdsSet.has(item.id)}
-                            onChange={(e) => {
-                              const id = item.id;
-                              if (e.target.checked) {
-                                setSelectedHKIds(prev => [...prev, id]);
-                              } else {
-                                setSelectedHKIds(prev => prev.filter(x => x !== id));
-                              }
-                            }}
-                          />
-                        </td>
-                        <td>{item.site_date}</td>
-                        <td>{item.sticker || '-'}</td>
-                        <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
-                        <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
-                        <td>{item.color || '-'}</td>
-                        <td>{item.battery_pct}%</td>
-                        <td style={{ color: 'var(--text-secondary)' }}>
-                          ₩{Number(item.purchase_cost || 0).toLocaleString()}
-                        </td>
-                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                          HK${Number(item.selling_price || 0).toLocaleString()}
-                          {item.is_sold && (
-                            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                              (₩{Math.round(Number(item.selling_price || 0) * cnyRate).toLocaleString()})
-                            </div>
-                          )}
-                        </td>
-                        <td>{item.stock_location || '-'}</td>
-                        <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                          {item.notes || '-'}
-                        </td>
-                        <td>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '12px',
-                            fontSize: '11px',
-                            fontWeight: 'bold',
-                            backgroundColor: !item.is_sold
-                              ? 'rgba(16, 185, 129, 0.1)'
-                              : !item.is_approved
-                                ? 'rgba(245, 158, 11, 0.1)'
-                                : 'rgba(255, 255, 255, 0.05)',
-                            color: !item.is_sold
-                              ? 'var(--success-color)'
-                              : !item.is_approved
-                                ? 'var(--warning-color)'
-                                : 'var(--text-secondary)'
-                          }}>
-                            {!item.is_sold
-                              ? '판매 가능 / 可售'
-                              : !item.is_approved
-                                ? '승인 대기 / 待审批'
-                                : '판매 완료 / 已售'}
-                          </span>
-                        </td>
-                        <td>
-                          {item.is_sold && (
-                            <button
-                              onClick={() => executeCancelSales([item.id])}
-                              className={styles.btnSave}
-                              style={{
-                                padding: '6px 10px',
-                                fontSize: '11px',
-                                border: '1px solid var(--warning-color)',
-                                color: 'var(--warning-color)',
-                                backgroundColor: 'transparent',
-                                cursor: 'pointer',
-                                marginRight: '8px'
-                              }}
-                            >
-                              판매 취소 / 取消销售
-                            </button>
-                          )}
-                          <button
-                            onClick={() => executeDeleteHK(item.id)}
-                            className={styles.btnCancel}
-                            style={{ padding: '6px 10px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
-                          >
-                            삭제 / 删除
-                          </button>
-                        </td>
-                      </tr>
+                    {paginatedHKItems.map(item => (
+                      <HKInventoryRow
+                        key={item.id}
+                        item={item}
+                        isChecked={selectedHKIdsSet.has(item.id)}
+                        onCheckChange={handleHKCheckChange}
+                        getModelDisplayName={getModelDisplayName}
+                        cnyRate={cnyRate}
+                        onCancelSale={handleCancelSale}
+                        onDelete={handleDeleteHK}
+                        displayLang={displayLang}
+                      />
                     ))}
                     {sortedHKItems.length === 0 && (
                       <tr>
                         <td colSpan={13} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                          홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.
+                          {displayLang === 'zh' ? '没有香港入库的库存数据。请通过批量导入添加库存。' : '홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.'}
                         </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
               </div>
+
+              {/* 페이지네이션 컨트롤 추가 */}
+              {sortedHKItems.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  marginTop: '16px',
+                  padding: '8px 16px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                      {hkPageSize === 'all'
+                        ? (displayLang === 'zh' ? `共 ${sortedHKItems.length} 条` : `총 ${sortedHKItems.length}개 표시 중`)
+                        : (displayLang === 'zh' 
+                          ? `显示 ${(hkPage - 1) * hkPageSize + 1} - ${Math.min(hkPage * hkPageSize, sortedHKItems.length)} 条，共 ${sortedHKItems.length} 条`
+                          : `현재 ${(hkPage - 1) * hkPageSize + 1} - ${Math.min(hkPage * hkPageSize, sortedHKItems.length)}개 표시 중 (총 ${sortedHKItems.length}개)`)
+                      }
+                    </span>
+                    <select
+                      value={hkPageSize}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setHkPageSize(val === 'all' ? 'all' : Number(val));
+                      }}
+                      style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: '#fff',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        padding: '4px 8px',
+                        fontSize: '12px',
+                        outline: 'none',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <option value={50}>50개씩 보기 / 每页 50 条</option>
+                      <option value={100}>100개씩 보기 / 每页 100 条</option>
+                      <option value={200}>200개씩 보기 / 每页 200 条</option>
+                      <option value={500}>500개씩 보기 / 每页 500 条</option>
+                      <option value="all">전체보기 / 全部显示</option>
+                    </select>
+                  </div>
+                  {hkPageSize !== 'all' && sortedHKItems.length > hkPageSize && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => setHkPage(prev => Math.max(1, prev - 1))}
+                        disabled={hkPage === 1}
+                        className={styles.btnCancel}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          cursor: hkPage === 1 ? 'not-allowed' : 'pointer',
+                          opacity: hkPage === 1 ? 0.5 : 1
+                        }}
+                      >
+                        {displayLang === 'zh' ? '上一页' : '이전'}
+                      </button>
+                      <span style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '0 12px',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        color: '#fff'
+                      }}>
+                        {hkPage} / {Math.ceil(sortedHKItems.length / hkPageSize)}
+                      </span>
+                      <button
+                        onClick={() => setHkPage(prev => Math.min(Math.ceil(sortedHKItems.length / hkPageSize), prev + 1))}
+                        disabled={hkPage >= Math.ceil(sortedHKItems.length / hkPageSize)}
+                        className={styles.btnCancel}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          cursor: hkPage >= Math.ceil(sortedHKItems.length / hkPageSize) ? 'not-allowed' : 'pointer',
+                          opacity: hkPage >= Math.ceil(sortedHKItems.length / hkPageSize) ? 0.5 : 1
+                        }}
+                      >
+                        {displayLang === 'zh' ? '下一页' : '다음'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
