@@ -4746,18 +4746,18 @@ export default function AdminDashboard() {
                       
                       if (val.length === 5) {
                         const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
-                        const match = availableHKDevices.find(d => d.sticker === val && !excludedDeviceIds.has(d.id));
+                        const match = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && !excludedDeviceIds.has(d.id));
                         if (match) {
                           setExcludedDeviceIds(prev => {
                             const next = new Set(prev);
                             next.add(match.id);
                             return next;
                           });
-                          setLastActionMsg(`제외 완료: 스티커 ${val}`);
+                          setLastActionMsg(`제외 완료: 스티커 ${match.sticker || val}`);
                         } else {
-                          const alreadyExcluded = availableHKDevices.find(d => d.sticker === val && excludedDeviceIds.has(d.id));
+                          const alreadyExcluded = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && excludedDeviceIds.has(d.id));
                           if (alreadyExcluded) {
-                            setLastActionMsg(`이미 제외됨: 스티커 ${val}`);
+                            setLastActionMsg(`이미 제외됨: 스티커 ${alreadyExcluded.sticker || val}`);
                           } else {
                             setLastActionMsg(`찾을 수 없음: 스티커 ${val}`);
                           }
