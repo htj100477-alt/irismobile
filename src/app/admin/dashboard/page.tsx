@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
@@ -324,6 +324,15 @@ export default function AdminDashboard() {
   useEffect(() => {
     setHkPage(1);
   }, [hkStatusFilter, hkSearchQuery, hkSortColumn, hkSortDirection, hkPageSize, hkViewMode]);
+
+  // 기종 카드 일괄 판매 상태
+  const [cardBulkSaleModel, setCardBulkSaleModel] = useState<string | null>(null);
+  const [excludedDeviceIds, setExcludedDeviceIds] = useState<Set<string>>(new Set());
+  const [stickerInput, setStickerInput] = useState('');
+  const [cardBulkUnitPrice, setCardBulkUnitPrice] = useState('');
+  const [cardBulkSaleDate, setCardBulkSaleDate] = useState('');
+  const [lastActionMsg, setLastActionMsg] = useState('');
+  const stickerInputRef = useRef<HTMLInputElement>(null);
 
   const [completedSalesFilter, setCompletedSalesFilter] = useState<'all' | 'sold_pending' | 'sold'>('all');
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
@@ -1291,6 +1300,83 @@ export default function AdminDashboard() {
     }
   };
 
+  // 기종 카드 일괄 판매 모달 오픈
+  const openCardBulkSaleModal = useCallback((modelName: string) => {
+    setCardBulkSaleModel(modelName);
+    setExcludedDeviceIds(new Set());
+    setStickerInput('');
+    setCardBulkUnitPrice('');
+    setCardBulkSaleDate(bulkSaleDate || new Date().toISOString().split('T')[0]);
+    setLastActionMsg('');
+  }, [bulkSaleDate]);
+
+  // 기종 카드 일괄 판매 처리 실행
+  const executeCardBulkSale = async () => {
+    if (!cardBulkSaleModel) return;
+    if (!bulkSellerName.trim()) {
+      alert('판매원 이름을 입력해주세요. / 请输入销售员姓名。');
+      return;
+    }
+    if (!cardBulkSaleDate) {
+      alert('판매 날짜를 선택해주세요. / 请选择销售日期。');
+      return;
+    }
+    if (!cardBulkUnitPrice || isNaN(Number(cardBulkUnitPrice)) || Number(cardBulkUnitPrice) <= 0) {
+      alert('올바른 홍콩달러(HKD) 판매단가를 입력해주세요. / 请输入正确的销售单价。');
+      return;
+    }
+
+    const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+    const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
+    const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
+
+    if (soldDevices.length === 0) {
+      alert('판매 완료 처리할 기기가 없습니다. 모든 기기가 제외되었습니다.');
+      return;
+    }
+
+    const confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
+      `- 판매 처리: ${soldDevices.length}대\n` +
+      `- 판매 단가: HK$${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
+      `- 제외 기기: ${excludedDevices.length}대\n\n` +
+      `정말로 판매 처리를 실행하시겠습니까?\n确认执行批量销售吗？`;
+
+    if (!confirm(confirmMsg)) return;
+
+    setProcessingBulkSale(true);
+    try {
+      const soldIds = availableHKDevices.map(d => d.id);
+      const remainingIdentifiers = excludedDevices.flatMap(d => [d.imei, d.sticker]).filter(Boolean);
+      const modelPrices = { [cardBulkSaleModel]: Number(cardBulkUnitPrice) };
+
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'sell',
+          saleDate: cardBulkSaleDate,
+          sellerName: bulkSellerName.trim(),
+          sellingPrice: 0,
+          modelPrices,
+          soldIds,
+          remainingIdentifiers
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(`성공적으로 ${soldDevices.length}대의 판매 처리가 완료되었습니다!`);
+        setCardBulkSaleModel(null);
+        loadAllData();
+      } else {
+        alert(data.error || '판매 처리 실패');
+      }
+    } catch (e) {
+      alert('서버 통신 중 오류가 발생했습니다.');
+    } finally {
+      setProcessingBulkSale(false);
+    }
+  };
+
   // 판매완료 기기 최종 정산 승인
   const executeFinalApproval = async (deviceIds: string[]) => {
     if (deviceIds.length === 0) return;
@@ -1479,7 +1565,11 @@ export default function AdminDashboard() {
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
 
           <button 
-            onClick={() => setActiveTab('hongkong-inventory')}
+            onClick={() => {
+              setActiveTab('hongkong-inventory');
+              setHkViewMode('card');
+              setHkSearchQuery('');
+            }}
             className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
           >
             <Smartphone size={18} /> 홍콩 재고 관리
@@ -2364,7 +2454,10 @@ export default function AdminDashboard() {
                       {displayLang === 'zh' ? '列表' : '리스트 표'}
                     </button>
                     <button
-                      onClick={() => setHkViewMode('card')}
+                      onClick={() => {
+                        setHkViewMode('card');
+                        setHkSearchQuery('');
+                      }}
                       style={{
                         padding: '6px 12px',
                         fontSize: '12px',
@@ -2549,7 +2642,7 @@ export default function AdminDashboard() {
                       <div style={{ display: 'flex', gap: '8px', fontSize: '11px', marginBottom: '10px', flexWrap: 'wrap' }}>
                         {g.available > 0 && (
                           <span style={{ color: 'var(--success-color)', backgroundColor: 'rgba(16, 185, 129, 0.08)', padding: '2px 6px', borderRadius: '4px', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-                            {displayLang === 'zh' ? '可售' : '가용'} <strong>{g.available}</strong>
+                            {displayLang === 'zh' ? '可售' : '현재고'} <strong>{g.available}</strong>
                           </span>
                         )}
                         {g.pending > 0 && (
@@ -2590,15 +2683,31 @@ export default function AdminDashboard() {
                         ))}
                       </div>
 
-                      <div style={{
-                        textAlign: 'right',
-                        fontSize: '10px',
-                        color: 'var(--accent-light)',
-                        marginTop: '8px',
-                        fontWeight: 'bold',
-                        opacity: 0.8
-                      }}>
-                        {displayLang === 'zh' ? '查看明细 →' : '상세 보기 →'}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openCardBulkSaleModal(g.modelName);
+                          }}
+                          style={{
+                            backgroundColor: 'rgba(59, 130, 246, 0.15)',
+                            color: '#60a5fa',
+                            border: '1px solid rgba(59, 130, 246, 0.3)',
+                            borderRadius: '4px',
+                            padding: '4px 8px',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            zIndex: 10,
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {displayLang === 'zh' ? '整包销售' : '통으로 판매'}
+                        </button>
+                        
+                        <span style={{ fontSize: '11px', color: 'var(--accent-light)', fontWeight: 'bold' }}>
+                          {displayLang === 'zh' ? '查看明细 →' : '상세 보기 →'}
+                        </span>
                       </div>
                     </div>
                   );
@@ -4557,6 +4666,229 @@ export default function AdminDashboard() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* 카드 기종 일괄 판매 모달 */}
+      {cardBulkSaleModel && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '650px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {displayLang === 'zh' ? '기종 통으로 판매 (整包销售)' : '기종 통으로 판매'}
+              </h3>
+              <button onClick={() => setCardBulkSaleModel(null)} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+
+            <div style={{ overflowY: 'auto', flex: 1, padding: '16px 0', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {/* 기종 정보 및 판매 설정 */}
+              <div style={{ padding: '12px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                <div style={{ fontSize: '15px', fontWeight: 'bold', color: '#fff', marginBottom: '12px' }}>
+                  {getModelDisplayName(cardBulkSaleModel)}
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 이름 / 销售员</label>
+                    <input
+                      type="text"
+                      value={bulkSellerName}
+                      disabled
+                      style={{ backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: 'var(--text-secondary)', cursor: 'not-allowed' }}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 일자 / 销售日期</label>
+                    <input
+                      type="date"
+                      value={cardBulkSaleDate}
+                      onChange={(e) => setCardBulkSaleDate(e.target.value)}
+                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종별 판매단가 / 销售单价 (HKD)</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <input
+                      type="number"
+                      placeholder="예: 2500"
+                      value={cardBulkUnitPrice}
+                      onChange={(e) => setCardBulkUnitPrice(e.target.value)}
+                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
+                    />
+                    <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 고속 제외 스캐너/키패드 입력부 */}
+              <div 
+                onClick={() => stickerInputRef.current?.focus()}
+                style={{ cursor: 'text', padding: '16px', backgroundColor: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', flexDirection: 'column', gap: '10px' }}
+              >
+                <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>
+                  {displayLang === 'zh' ? '输入贴纸号排除 (5位数字)' : '제외할 스티커 번호 입력 (5자리 입력 시 즉시 제외)'}
+                </label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  <input
+                    ref={stickerInputRef}
+                    type="text"
+                    placeholder="스티커 5자리 입력 (예: 01234)"
+                    value={stickerInput}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setStickerInput(val);
+                      
+                      if (val.length === 5) {
+                        const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                        const match = availableHKDevices.find(d => d.sticker === val && !excludedDeviceIds.has(d.id));
+                        if (match) {
+                          setExcludedDeviceIds(prev => {
+                            const next = new Set(prev);
+                            next.add(match.id);
+                            return next;
+                          });
+                          setLastActionMsg(`제외 완료: 스티커 ${val}`);
+                        } else {
+                          const alreadyExcluded = availableHKDevices.find(d => d.sticker === val && excludedDeviceIds.has(d.id));
+                          if (alreadyExcluded) {
+                            setLastActionMsg(`이미 제외됨: 스티커 ${val}`);
+                          } else {
+                            setLastActionMsg(`찾을 수 없음: 스티커 ${val}`);
+                          }
+                        }
+                        setStickerInput('');
+                      }
+                    }}
+                    autoFocus
+                    style={{
+                      backgroundColor: 'var(--bg-tertiary)',
+                      border: '2px solid #2563eb',
+                      borderRadius: '6px',
+                      padding: '12px',
+                      color: '#fff',
+                      fontSize: '18px',
+                      fontWeight: 'bold',
+                      letterSpacing: '3px',
+                      textAlign: 'center',
+                      width: '200px',
+                      outline: 'none'
+                    }}
+                  />
+                  {lastActionMsg && (
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      color: lastActionMsg.startsWith('제외') ? 'var(--success-color)' : 'var(--danger-color)',
+                      backgroundColor: 'rgba(0,0,0,0.2)',
+                      padding: '6px 12px',
+                      borderRadius: '4px'
+                    }}>
+                      {lastActionMsg}
+                    </span>
+                  )}
+                </div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                  * 오른쪽 키패드나 바코드 스캐너에서 엔터 없이 5자리 숫자만 빠르게 연달아 입력하여 고속으로 기기를 제외할 수 있습니다.
+                </span>
+              </div>
+
+              {/* 통계 요약 */}
+              {(() => {
+                const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
+                const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
+                return (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center', fontSize: '12px' }}>
+                    <div style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
+                      <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>대상 기기</span>
+                      <strong style={{ fontSize: '14px', color: '#fff' }}>{availableHKDevices.length}대</strong>
+                    </div>
+                    <div style={{ padding: '8px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+                      <span style={{ color: 'var(--success-color)', display: 'block', marginBottom: '2px' }}>판매 완료 처리</span>
+                      <strong style={{ fontSize: '14px', color: 'var(--success-color)' }}>{soldDevices.length}대</strong>
+                    </div>
+                    <div style={{ padding: '8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
+                      <span style={{ color: 'var(--warning-color)', display: 'block', marginBottom: '2px' }}>제외됨 (재고 유지)</span>
+                      <strong style={{ fontSize: '14px', color: 'var(--warning-color)' }}>{excludedDevices.length}대</strong>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* 제외된 기기 상세 리스트 및 제외 해제 */}
+              <div>
+                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', display: 'block', marginBottom: '8px' }}>
+                  제외된 기기 목록 / 已排除的设备 列表 ({hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold && excludedDeviceIds.has(x.id)).length}대)
+                </span>
+                <div style={{
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '8px',
+                  backgroundColor: 'rgba(0,0,0,0.1)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '6px'
+                }}>
+                  {(() => {
+                    const availableHKDevices = hongkongInventory.filter(x => x.model_name === cardBulkSaleModel && !x.is_sold);
+                    const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
+                    if (excludedDevices.length === 0) {
+                      return <span style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', padding: '10px 0' }}>제외된 기기가 없습니다.</span>;
+                    }
+                    return excludedDevices.map(dev => (
+                      <div key={dev.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', border: '1px solid rgba(245, 158, 11, 0.1)', borderRadius: '4px', fontSize: '11px' }}>
+                        <span>
+                          <strong style={{ color: 'var(--warning-color)' }}>[제외됨]</strong> Sticker: <strong>{dev.sticker || '-'}</strong> | {dev.color} | IMEI: {dev.imei?.startsWith('NO_IMEI-') ? '-' : dev.imei}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExcludedDeviceIds(prev => {
+                              const next = new Set(prev);
+                              next.delete(dev.id);
+                              return next;
+                            });
+                            setLastActionMsg(`복구 완료: 스티커 ${dev.sticker}`);
+                            setTimeout(() => stickerInputRef.current?.focus(), 50);
+                          }}
+                          style={{
+                            backgroundColor: 'transparent',
+                            color: 'var(--accent-light)',
+                            border: 'none',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }}
+                        >
+                          복구 / 恢复
+                        </button>
+                      </div>
+                    ));
+                  })()}
+                </div>
+              </div>
+            </div>
+
+            <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
+              <button onClick={() => setCardBulkSaleModel(null)} className={styles.btnCancel}>취소</button>
+              <button
+                onClick={executeCardBulkSale}
+                className={styles.btnSave}
+                disabled={processingBulkSale}
+                style={{ minWidth: '120px' }}
+              >
+                {processingBulkSale ? '판매 처리 중...' : '판매 처리 실행 / 确认销售'}
+              </button>
+            </div>
           </div>
         </div>
       )}
