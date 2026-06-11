@@ -128,6 +128,20 @@ const translateModelName = (name: string): string => {
   return translated;
 };
 
+const getYearMonth = (dateStr: string) => {
+  if (!dateStr) return '기타/날짜없음';
+  const clean = dateStr.replace(/\s+/g, '').replace(/-/g, '.');
+  const parts = clean.split('.');
+  if (parts.length >= 2) {
+    let year = parts[0];
+    let month = parts[1];
+    if (year.startsWith('20')) year = year.slice(2);
+    if (month.length === 1) month = '0' + month;
+    return `20${year}-${month}`;
+  }
+  return '기타/날짜없음';
+};
+
 interface HKInventoryRowProps {
   item: any;
   isChecked: boolean;
@@ -336,7 +350,7 @@ export default function AdminDashboard() {
   const [expandedBulkModels, setExpandedBulkModels] = useState<Record<string, boolean>>({});
 
   // 신규 탭 검색, 필터링 및 선택 상태
-  const [hkStatusFilter, setHkStatusFilter] = useState<'all' | 'available' | 'sold_pending' | 'sold'>('all');
+  const [hkStatusFilter, setHkStatusFilter] = useState<'all' | 'available' | 'sold_pending' | 'sold'>('available');
   const [hkSearchQuery, setHkSearchQuery] = useState('');
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -355,6 +369,7 @@ export default function AdminDashboard() {
   const [hkPage, setHkPage] = useState(1);
   const [hkPageSize, setHkPageSize] = useState<number | 'all'>(50);
   const [hkViewMode, setHkViewMode] = useState<'list' | 'card'>('list');
+  const [settlementViewMode, setSettlementViewMode] = useState<'list' | 'card'>('list');
 
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
@@ -2556,23 +2571,18 @@ export default function AdminDashboard() {
               flexWrap: 'wrap'
             }}>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>{displayLang === 'zh' ? '销售状态:' : '판매 상태:'}</span>
-                {(['all', 'available', 'sold_pending', 'sold'] as const).map(status => {
-                  let label = displayLang === 'zh' ? '全部' : '전체';
-                  if (status === 'available') label = displayLang === 'zh' ? '可售' : '판매 가능';
-                  if (status === 'sold_pending') label = displayLang === 'zh' ? '待审批' : '승인 대기';
-                  if (status === 'sold') label = displayLang === 'zh' ? '已售' : '판매 완료';
-                  return (
-                    <button
-                      key={status}
-                      onClick={() => setHkStatusFilter(status)}
-                      className={hkStatusFilter === status ? styles.btnSave : styles.btnCancel}
-                      style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', border: hkStatusFilter === status ? 'none' : '1px solid var(--border-color)', cursor: 'pointer' }}
-                    >
-                      {label}
-                    </button>
-                  );
-                })}
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: '600' }}>{displayLang === 'zh' ? '库存状态:' : '재고 상태:'}</span>
+                <span style={{
+                  fontSize: '11px',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  color: 'var(--success-color)',
+                  padding: '3px 10px',
+                  borderRadius: '12px',
+                  fontWeight: 'bold',
+                  border: '1px solid rgba(16, 185, 129, 0.2)'
+                }}>
+                  {displayLang === 'zh' ? '仅显示在库 (Available)' : '가용 실재고만 표시'}
+                </span>
               </div>
 
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -3376,6 +3386,39 @@ export default function AdminDashboard() {
           const totalMargin = totalRevenue - totalCost;
           const averageMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
+          // 판매완료 기종 카드 뷰용 그룹화 데이터
+          const groupedSettled = settledDevices.reduce((acc: any[], item) => {
+            const month = getYearMonth(item.sale_date || '');
+            const model = item.model_name || 'UNKNOWN';
+            const key = `${month}_${model}`;
+            
+            let existing = acc.find(x => x.key === key);
+            if (!existing) {
+              existing = {
+                key,
+                month,
+                modelName: model,
+                count: 0,
+                totalRevenue: 0,
+                totalCost: 0,
+                totalMargin: 0
+              };
+              acc.push(existing);
+            }
+            
+            existing.count++;
+            const rev = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
+            existing.totalRevenue += rev;
+            const cost = Number(item.purchase_cost) || 0;
+            existing.totalCost += cost;
+            existing.totalMargin += (rev - cost);
+            
+            return acc;
+          }, []).sort((a: any, b: any) => {
+            if (a.month !== b.month) return b.month.localeCompare(a.month);
+            return b.count - a.count;
+          });
+
           // 판매원 고유 목록 추출
           const sellersList = Array.from(new Set(
             hongkongInventory
@@ -3463,91 +3506,229 @@ export default function AdminDashboard() {
                   ))}
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>기기 검색 / 搜索:</span>
-                  <input
-                    type="text"
-                    placeholder="IMEI 또는 모델명"
-                    value={settlementSearch}
-                    onChange={(e) => setSettlementSearch(e.target.value)}
-                    style={{
-                      backgroundColor: 'var(--bg-tertiary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '20px',
-                      padding: '6px 14px',
-                      color: '#fff',
-                      fontSize: '13px',
-                      outline: 'none',
-                      minWidth: '200px'
-                    }}
-                  />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '视图:' : '보기:'}</span>
+                    <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: '20px', overflow: 'hidden' }}>
+                      <button
+                        onClick={() => setSettlementViewMode('list')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          border: 'none',
+                          borderRadius: 0,
+                          cursor: 'pointer',
+                          backgroundColor: settlementViewMode === 'list' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                          color: '#fff',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {displayLang === 'zh' ? '列表' : '리스트 표'}
+                      </button>
+                      <button
+                        onClick={() => setSettlementViewMode('card')}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          border: 'none',
+                          borderRadius: 0,
+                          cursor: 'pointer',
+                          backgroundColor: settlementViewMode === 'card' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                          color: '#fff',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {displayLang === 'zh' ? '卡片' : '기종 카드'}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '设备搜索:' : '기기 검색:'}</span>
+                    <input
+                      type="text"
+                      placeholder={displayLang === 'zh' ? 'IMEI 或 机型' : 'IMEI 또는 모델명'}
+                      value={settlementSearch}
+                      onChange={(e) => setSettlementSearch(e.target.value)}
+                      style={{
+                        backgroundColor: 'var(--bg-tertiary)',
+                        border: '1px solid var(--border-color)',
+                        borderRadius: '20px',
+                        padding: '6px 14px',
+                        color: '#fff',
+                        fontSize: '13px',
+                        outline: 'none',
+                        minWidth: '200px'
+                      }}
+                    />
+                  </div>
                 </div>
               </div>
 
-              {/* 상세 마진 테이블 */}
-              <div className={styles.tableSection}>
-                <div className={styles.tableWrapper}>
-                  <table className={styles.adminTable}>
-                    <thead>
-                      <tr>
-                        <th>정산일자 / 结算日期</th>
-                        <th>판매원 / 销售员</th>
-                        <th>모델명 / 机型</th>
-                        <th>IMEI / 串号</th>
-                        <th>입고원가 / 成本</th>
-                        <th>판매가 / 售价</th>
-                        <th>순마진 / 利润</th>
-                        <th>마진율 / 利润率</th>
-                        <th>상태</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {settledDevices.map(item => {
-                        const revenueKRW = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
-                        const margin = revenueKRW - (Number(item.purchase_cost) || 0);
-                        const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
-                        return (
-                          <tr key={item.id}>
-                            <td>{item.sale_date || '-'}</td>
-                            <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
-                            <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
-                            <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
-                            <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
-                            <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
-                              HK${Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
-                            </td>
-                            <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              ₩{Math.round(margin).toLocaleString()}
-                            </td>
-                            <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                              {rate.toFixed(1)}%
-                            </td>
-                            <td>
-                              <span style={{
-                                padding: '2px 6px',
-                                borderRadius: '4px',
-                                fontSize: '11px',
-                                fontWeight: 'bold',
-                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                color: 'var(--success-color)'
-                              }}>
-                                정산확정
-                              </span>
+              {/* 상세 마진 테이블 / 기종 카드 */}
+              {settlementViewMode === 'card' ? (
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                  gap: '16px',
+                  marginTop: '16px'
+                }}>
+                  {groupedSettled.map((g: any) => {
+                    const displayName = getModelDisplayName(g.modelName);
+                    const avgMargin = g.count > 0 ? g.totalMargin / g.count : 0;
+                    return (
+                      <div
+                        key={g.key}
+                        onClick={() => {
+                          setSettlementSearch(g.modelName);
+                          setSettlementViewMode('list');
+                        }}
+                        style={{
+                          backgroundColor: '#1e293b',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '12px',
+                          padding: '16px',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'space-between',
+                          minHeight: '170px'
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--accent-light)';
+                          e.currentTarget.style.transform = 'translateY(-3px)';
+                          e.currentTarget.style.boxShadow = '0 10px 20px rgba(0,0,0,0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = 'var(--border-color)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                          e.currentTarget.style.boxShadow = 'none';
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                            <span style={{ fontSize: '11px', backgroundColor: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                              {g.month}
+                            </span>
+                            <span style={{ fontSize: '11px', backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)', padding: '2px 8px', borderRadius: '4px', fontWeight: 'bold' }}>
+                              {g.count}대 판매완료
+                            </span>
+                          </div>
+                          <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', margin: '0 0 4px 0' }}>
+                            {displayName}
+                          </h3>
+                          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '12px', fontFamily: 'monospace' }}>
+                            {g.modelName}
+                          </div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>총 매출액:</span>
+                              <span style={{ color: '#fff', fontWeight: '600' }}>₩{Math.round(g.totalRevenue).toLocaleString()}</span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span>총 원가:</span>
+                              <span style={{ color: '#fff' }}>₩{g.totalCost.toLocaleString()}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                          <div>
+                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>총 순마진</span>
+                            <strong style={{ color: g.totalMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontSize: '14px' }}>
+                              ₩{Math.round(g.totalMargin).toLocaleString()}
+                            </strong>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>대당 평균마진</span>
+                            <strong style={{ color: avgMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                              ₩{Math.round(avgMargin).toLocaleString()}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {groupedSettled.length === 0 && (
+                    <div style={{
+                      gridColumn: '1 / -1',
+                      textAlign: 'center',
+                      color: 'var(--text-muted)',
+                      padding: '60px 40px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      정산 조건에 맞는 판매 완료 내역이 없습니다.
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className={styles.tableSection}>
+                  <div className={styles.tableWrapper}>
+                    <table className={styles.adminTable}>
+                      <thead>
+                        <tr>
+                          <th>정산일자 / 结算日期</th>
+                          <th>판매원 / 销售员</th>
+                          <th>모델명 / 机型</th>
+                          <th>IMEI / 串号</th>
+                          <th>입고원가 / 成本</th>
+                          <th>판매가 / 售价</th>
+                          <th>순마진 / 利润</th>
+                          <th>마진율 / 利润率</th>
+                          <th>상태</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {settledDevices.map(item => {
+                          const revenueKRW = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
+                          const margin = revenueKRW - (Number(item.purchase_cost) || 0);
+                          const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
+                          return (
+                            <tr key={item.id}>
+                              <td>{item.sale_date || '-'}</td>
+                              <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
+                              <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
+                              <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
+                              <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
+                              <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
+                                HK${Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
+                              </td>
+                              <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
+                                ₩{Math.round(margin).toLocaleString()}
+                              </td>
+                              <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                                {rate.toFixed(1)}%
+                              </td>
+                              <td>
+                                <span style={{
+                                  padding: '2px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: 'bold',
+                                  backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                  color: 'var(--success-color)'
+                                }}>
+                                  정산확정
+                                </span>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                        {settledDevices.length === 0 && (
+                          <tr>
+                            <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                              정산 조건에 맞는 판매 내역이 없습니다.
                             </td>
                           </tr>
-                        );
-                      })}
-                      {settledDevices.length === 0 && (
-                        <tr>
-                          <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                            정산 조건에 맞는 판매 내역이 없습니다.
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           );
         })()}
