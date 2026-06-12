@@ -1,10 +1,18 @@
 import { NextResponse } from 'next/server';
 import { getMenuPermissions, saveMenuPermissions } from '@/lib/db';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   try {
     const data = await getMenuPermissions();
-    return NextResponse.json({ success: true, data });
+    return new Response(JSON.stringify({ success: true, data }), {
+      status: 200,
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Content-Type': 'application/json'
+      }
+    });
   } catch (error: any) {
     console.error('GET Permissions Error:', error);
     return NextResponse.json({ error: error.message || '서버 오류' }, { status: 500 });

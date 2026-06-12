@@ -616,7 +616,7 @@ export default function AdminDashboard() {
   const handleSavePermissions = async () => {
     try {
       const roles = ['admin', 'manager', 'staff', 'general'];
-      await Promise.all(roles.map(role => 
+      const responses = await Promise.all(roles.map(role => 
         fetch('/api/permissions', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -624,12 +624,18 @@ export default function AdminDashboard() {
         })
       ));
       
+      const failed = responses.find(r => !r.ok);
+      if (failed) {
+        const errData = await failed.json();
+        throw new Error(errData.error || 'API 저장 실패');
+      }
+      
       localStorage.setItem('admin_menu_permissions', JSON.stringify(tempPermissions));
       setPermissions(tempPermissions);
       alert(displayLang === 'zh' ? '权限设置已保存！' : '권한 설정이 저장되었습니다!');
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert(displayLang === 'zh' ? '保存失败' : '권한 저장 중 오류가 발생했습니다.');
+      alert((displayLang === 'zh' ? '保存失败: ' : '권한 저장 실패: ') + (e.message || ''));
     }
   };
 
@@ -1108,7 +1114,7 @@ export default function AdminDashboard() {
         fetch('/api/exchange-rate'),
         fetch('/api/model-pet-names'),
         fetch('/api/members'),
-        fetch('/api/permissions')
+        fetch('/api/permissions', { cache: 'no-store' })
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
@@ -1143,7 +1149,7 @@ export default function AdminDashboard() {
       if (permData?.success && permData.data && permData.data.length > 0) {
         const permRecord: Record<string, Record<string, boolean>> = {};
         permData.data.forEach((item: any) => {
-          permRecord[item.role] = item.permissions;
+          permRecord[item.role] = typeof item.permissions === 'string' ? JSON.parse(item.permissions) : item.permissions;
         });
         setPermissions(prev => ({
           ...DEFAULT_PERMISSIONS,
