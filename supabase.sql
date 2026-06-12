@@ -6,6 +6,10 @@ CREATE TABLE IF NOT EXISTS public.members (
     phone_number VARCHAR(20) UNIQUE NOT NULL,
     pin_code VARCHAR(4) NOT NULL,
     name VARCHAR(50) NOT NULL,
+    role VARCHAR(20) DEFAULT 'general' NOT NULL,
+    address_province VARCHAR(100) DEFAULT '',
+    address_city VARCHAR(100) DEFAULT '',
+    address_detail TEXT DEFAULT '',
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -181,6 +185,14 @@ ALTER TABLE public.categories ALTER COLUMN image DROP NOT NULL;
 -- (3) 카테고리 이름 고유(UNIQUE) 제약 조건 완화 (서로 다른 부모 아래 동일한 이름 허용)
 ALTER TABLE public.categories DROP CONSTRAINT IF EXISTS categories_name_key;
 ALTER TABLE public.categories ADD CONSTRAINT categories_name_parent_unique UNIQUE (name, parent_id);
+
+
+-- [2026-06-12 추가] 회원 테이블 권한 및 주소 컬럼 추가 마이그레이션
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS role VARCHAR(20) DEFAULT 'general' NOT NULL;
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_province VARCHAR(100) DEFAULT '';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_city VARCHAR(100) DEFAULT '';
+ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_detail TEXT DEFAULT '';
+
 
 
 
