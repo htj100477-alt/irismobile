@@ -202,23 +202,16 @@ const HKInventoryRow = memo(function HKInventoryRow({
       <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
       <td>{item.color || '-'}</td>
       <td style={{ color: 'var(--text-secondary)' }}>
-        {displayLang === 'zh'
-          ? `HK${Math.round((Number(item.purchase_cost) || 0) / cnyRate).toLocaleString()}`
-          : `₩${Number(item.purchase_cost || 0).toLocaleString()}`}
+        ₩{Number(item.purchase_cost || 0).toLocaleString()}
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+          (HK${Math.round((Number(item.purchase_cost) || 0) / cnyRate).toLocaleString()})
+        </span>
       </td>
       <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-        {displayLang === 'zh' ? (
-          `HK${Number(item.selling_price || 0).toLocaleString()}`
-        ) : (
-          <>
-            ₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()}
-            {item.is_sold && (
-              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
-                (HK${Number(item.selling_price || 0).toLocaleString()})
-              </span>
-            )}
-          </>
-        )}
+        HK${Number(item.selling_price || 0).toLocaleString()}
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+          (₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()})
+        </span>
       </td>
       <td>{item.stock_location || '-'}</td>
       <td>
@@ -2468,7 +2461,11 @@ export default function AdminDashboard() {
     }).filter(Boolean);
     const soldSummary = soldSummaryList.join(', ');
 
-    const priceDetails = selectedBulkModels.map(m => `- ${m}: HK${Number(bulkSellingPrices[m]).toLocaleString()} (HKD)`).join('\n');
+    const priceDetails = selectedBulkModels.map(m => {
+      const hkVal = Number(bulkSellingPrices[m]) || 0;
+      const krwVal = hkVal * cnyRate;
+      return `- ${m}: HK$${hkVal.toLocaleString()} (₩${Math.round(krwVal).toLocaleString()})`;
+    }).join('\n');
 
     let confirmMsg = `선택하신 기종 총 ${candidateDevices.length}대 중\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
@@ -2476,7 +2473,7 @@ export default function AdminDashboard() {
       `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n`;
 
     if (appliedDeductions.length > 0) {
-      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK${d.total_hkd.toLocaleString()})`).join('\n') + `\n`;
+      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK$${d.total_hkd.toLocaleString()} / ₩${Math.round(d.total_krw).toLocaleString()})`).join('\n') + `\n`;
     }
 
     confirmMsg += `\n정말로 판매 완료 처리를 실행하시겠습니까?`;
@@ -2597,11 +2594,11 @@ export default function AdminDashboard() {
     let confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
       `- 등급: ${cardBulkSaleGrades && cardBulkSaleGrades.length > 0 ? cardBulkSaleGrades.join(', ') : (displayLang === 'zh' ? '所有等级 (전체)' : '전체 등급')}\n` +
       `- 판매 처리: ${soldDevices.length}대\n` +
-      `- 판매 단가: HK${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
+      `- 판매 단가: HK$${Number(cardBulkUnitPrice).toLocaleString()} (₩${Math.round(Number(cardBulkUnitPrice) * cnyRate).toLocaleString()})\n` +
       `- 제외 기기: ${excludedDevices.length}대\n`;
 
     if (appliedDeductions.length > 0) {
-      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK${d.total_hkd.toLocaleString()})`).join('\n') + `\n`;
+      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK$${d.total_hkd.toLocaleString()} / ₩${Math.round(d.total_krw).toLocaleString()})`).join('\n') + `\n`;
     }
 
     confirmMsg += `\n정말로 판매 처리를 실행하시겠습니까?\n确认执行批量销售吗？`;
@@ -4705,7 +4702,12 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 매출 합계 / 预计销售额</span>
-                    <span className={styles.metricVal}>{formatCurrency(pendingRevenue, 'KRW')}</span>
+                    <span className={styles.metricVal}>
+                      ₩{Math.round(pendingRevenue).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(pendingRevenue / cnyRate).toLocaleString()})
+                      </span>
+                    </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
                     <Coins size={22} />
@@ -4715,7 +4717,12 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 원가 합계 / 预计成本</span>
-                    <span className={styles.metricVal}>{formatCurrency(pendingCost, 'KRW')}</span>
+                    <span className={styles.metricVal}>
+                      ₩{Math.round(pendingCost).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(pendingCost / cnyRate).toLocaleString()})
+                      </span>
+                    </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
                     <Coins size={22} />
@@ -4726,7 +4733,13 @@ export default function AdminDashboard() {
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 마진 & 마진율 / 预计利润 & 利润率</span>
                     <span className={styles.metricVal} style={{ color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                      {formatCurrency(pendingMargin, 'KRW')} ({pendingMarginRate.toFixed(1)}%)
+                      ₩{Math.round(pendingMargin).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(pendingMargin / cnyRate).toLocaleString()})
+                      </span>
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        ({pendingMarginRate.toFixed(1)}%)
+                      </span>
                     </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: pendingMargin >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
@@ -4866,16 +4879,24 @@ export default function AdminDashboard() {
                             <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                             <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>{item.color || '-'}</td>
-                            <td>{formatCurrency(Number(item.purchase_cost || 0), 'KRW')}</td>
-                            <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                              {formatCurrency(Number(item.selling_price || 0), 'HKD')}
+                            <td>
+                              ₩{Number(item.purchase_cost || 0).toLocaleString()}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                                ({formatCurrency(revenueKRW, 'KRW')})
+                                (HK${Math.round((Number(item.purchase_cost) || 0) / cnyRate).toLocaleString()})
+                              </div>
+                            </td>
+                            <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
+                              HK${Number(item.selling_price || 0).toLocaleString()}
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (₩{Math.round(revenueKRW).toLocaleString()})
                               </div>
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              {formatCurrency(margin, 'KRW')}
+                              ₩{Math.round(margin).toLocaleString()}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (HK${Math.round(margin / cnyRate).toLocaleString()})
+                              </div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
                                 ({rate.toFixed(1)}%)
                               </div>
                             </td>
@@ -5056,7 +5077,12 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>총 매출액 / 占销售额</span>
-                    <span className={styles.metricVal}>{formatCurrency(totalRevenue, 'KRW')}</span>
+                    <span className={styles.metricVal}>
+                      ₩{Math.round(totalRevenue).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(totalRevenue / cnyRate).toLocaleString()})
+                      </span>
+                    </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
                     <Coins size={22} />
@@ -5066,7 +5092,12 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>총 원가 / 总成本</span>
-                    <span className={styles.metricVal}>{formatCurrency(totalCost, 'KRW')}</span>
+                    <span className={styles.metricVal}>
+                      ₩{Math.round(totalCost).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(totalCost / cnyRate).toLocaleString()})
+                      </span>
+                    </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
                     <Coins size={22} />
@@ -5076,31 +5107,19 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>
-                      {displayLang === 'zh' ? '总利润 & 利润率 (已扣除)' : '총 마진 및 평균 마진율 (차감 반영)'}
+                      총 마진 및 평균 마진율 (차감 반영) / 总利润 & 利润率 (已扣除)
                     </span>
                     <span className={styles.metricVal}>
-                      {displayLang === 'zh' ? (
-                        <>
-                          HK${Math.round((totalRevenue - totalCost) / cnyRate - totalDeductionsHKD).toLocaleString()}
-                          <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                            ({netAverageMarginRate.toFixed(1)}%)
-                          </span>
-                        </>
-                      ) : (
-                        <>
-                          ₩{Math.round(netTotalMarginKRW).toLocaleString()}
-                          <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>
-                            ({netAverageMarginRate.toFixed(1)}%)
-                          </span>
-                        </>
-                      )}
+                      ₩{Math.round(netTotalMarginKRW).toLocaleString()}
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '6px' }}>
+                        (HK${Math.round(netTotalMarginKRW / cnyRate).toLocaleString()})
+                      </span>
+                      <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                        ({netAverageMarginRate.toFixed(1)}%)
+                      </span>
                     </span>
                     <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                      {displayLang === 'zh' ? (
-                        `毛利润: HK${Math.round((totalRevenue - totalCost) / cnyRate).toLocaleString()} | 扣除项: HK${Math.round(totalDeductionsHKD).toLocaleString()}`
-                      ) : (
-                        `기기 마진: ₩${Math.round(totalMargin).toLocaleString()} | 총 차감액: ₩${Math.round(totalDeductionsKRW).toLocaleString()}`
-                      )}
+                      기기 마진 / 毛利润: ₩{Math.round(totalMargin).toLocaleString()} (HK${Math.round(totalMargin / cnyRate).toLocaleString()}) | 총 차감액 / 扣除项: ₩{Math.round(totalDeductionsKRW).toLocaleString()} (HK${Math.round(totalDeductionsHKD).toLocaleString()})
                     </div>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}>
@@ -5146,13 +5165,24 @@ export default function AdminDashboard() {
                           </div>
                           <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '销售额:' : '매출액:'}</span>
-                            <span style={{ color: '#fff', fontWeight: '600' }}>{formatCurrency(s.revenue, 'KRW')}</span>
+                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '销售额 / 매출액:' : '매출액 / 销售额:'}</span>
+                            <span style={{ color: '#fff', fontWeight: '600', textAlign: 'right' }}>
+                              ₩{Math.round(s.revenue).toLocaleString()}
+                              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (HK${Math.round(s.revenue / cnyRate).toLocaleString()})
+                              </div>
+                            </span>
                           </div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
-                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '利润 (率):' : '마진 (율):'}</span>
-                            <span style={{ color: s.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              {formatCurrency(s.margin, 'KRW')} ({marginRate.toFixed(1)}%)
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginTop: '4px' }}>
+                            <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '利润 (率) / 마진 (율):' : '마진 (율) / 利润 (率):'}</span>
+                            <span style={{ color: s.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold', textAlign: 'right' }}>
+                              ₩{Math.round(s.margin).toLocaleString()}
+                              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (HK${Math.round(s.margin / cnyRate).toLocaleString()})
+                              </div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                ({marginRate.toFixed(1)}%)
+                              </div>
                             </span>
                           </div>
                         </div>
@@ -5470,12 +5500,23 @@ export default function AdminDashboard() {
                               <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
                               <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                               <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
-                              <td>{formatCurrency(Number(item.purchase_cost || 0), 'KRW')}</td>
+                              <td>
+                                ₩{Number(item.purchase_cost || 0).toLocaleString()}
+                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                  (HK${Math.round((Number(item.purchase_cost) || 0) / cnyRate).toLocaleString()})
+                                </div>
+                              </td>
                               <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
-                                {formatCurrency(Number(item.selling_price || 0), 'HKD')} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
+                                HK${Number(item.selling_price || 0).toLocaleString()}
+                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                  (₩{Math.round(revenueKRW).toLocaleString()})
+                                </div>
                               </td>
                               <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                                {formatCurrency(margin, 'KRW')}
+                                ₩{Math.round(margin).toLocaleString()}
+                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                  (HK${Math.round(margin / cnyRate).toLocaleString()})
+                                </div>
                               </td>
                               <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
                                 {rate.toFixed(1)}%
@@ -5543,12 +5584,8 @@ export default function AdminDashboard() {
                         </tr>
                       ) : (
                         filteredDeductions.map(log => {
-                          const unitPriceDisp = displayLang === 'zh'
-                            ? `HK${Number(log.amount_hkd).toLocaleString()}`
-                            : `₩${Math.round(Number(log.amount_hkd) * (Number(log.exchange_rate) || cnyRate)).toLocaleString()}`;
-                          const totalDisp = displayLang === 'zh'
-                            ? `HK${Number(log.total_hkd).toLocaleString()}`
-                            : `₩${Number(log.total_krw).toLocaleString()}`;
+                          const unitPriceDisp = `HK$${Number(log.amount_hkd).toLocaleString()} (₩${Math.round(Number(log.amount_hkd) * (Number(log.exchange_rate) || cnyRate)).toLocaleString()})`;
+                          const totalDisp = `HK$${Number(log.total_hkd).toLocaleString()} (₩${Number(log.total_krw).toLocaleString()})`;
                           
                           return (
                             <tr key={log.id}>
@@ -7466,7 +7503,12 @@ export default function AdminDashboard() {
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                       <span>{displayLang === 'zh' ? '总成本 (KRW):' : '총 원가 / 总成本 (KRW):'}</span>
-                      <span style={{ color: '#fff', fontWeight: '500' }}>₩{totalCostKRW.toLocaleString()}</span>
+                      <span style={{ color: '#fff', fontWeight: '500' }}>
+                        ₩{totalCostKRW.toLocaleString()}
+                        <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                          (HK${Math.round(totalCostKRW / cnyRate).toLocaleString()})
+                        </span>
+                      </span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                       <span>{displayLang === 'zh' ? '总售价 (HKD):' : '총 판매가 / 총 판매 (HKD):'}</span>
@@ -7500,6 +7542,9 @@ export default function AdminDashboard() {
                             color: netMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                           }}>
                             {netMarginKRW >= 0 ? '+' : ''}₩{Math.round(netMarginKRW).toLocaleString()}
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (HK${Math.round(netMarginKRW / cnyRate).toLocaleString()})
+                            </span>
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7510,6 +7555,9 @@ export default function AdminDashboard() {
                             color: avgNetMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                           }}>
                             {avgNetMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgNetMarginKRW).toLocaleString()}
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (HK${Math.round(avgNetMarginKRW / cnyRate).toLocaleString()})
+                            </span>
                           </span>
                         </div>
                       </>
@@ -7523,6 +7571,9 @@ export default function AdminDashboard() {
                             color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                           }}>
                             {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (HK${Math.round(totalMarginKRW / cnyRate).toLocaleString()})
+                            </span>
                           </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -7533,6 +7584,9 @@ export default function AdminDashboard() {
                             color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                           }}>
                             {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (HK${Math.round(avgMarginKRW / cnyRate).toLocaleString()})
+                            </span>
                           </span>
                         </div>
                       </>
@@ -7962,8 +8016,11 @@ export default function AdminDashboard() {
                         </span>
                         <strong style={{ fontSize: '13px', color: 'var(--accent-light)' }}>
                           ₩{Math.round(avgCostKRW).toLocaleString()} 
+                          <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                            (HK${Math.round(avgCostKRW / cnyRate).toLocaleString()})
+                          </span>
                           <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '6px' }}>
-                            (총 ₩{totalCostKRW.toLocaleString()} / {soldDevices.length}대)
+                            (총 ₩{totalCostKRW.toLocaleString()} (HK${Math.round(totalCostKRW / cnyRate).toLocaleString()}) / {soldDevices.length}대)
                           </span>
                         </strong>
                       </div>
@@ -7983,7 +8040,12 @@ export default function AdminDashboard() {
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                           <span>{displayLang === 'zh' ? '总成本 (KRW):' : '총 원가 / 总成本 (KRW):'}</span>
-                          <span style={{ color: '#fff', fontWeight: '500' }}>₩{totalCostKRW.toLocaleString()}</span>
+                          <span style={{ color: '#fff', fontWeight: '500' }}>
+                            ₩{totalCostKRW.toLocaleString()}
+                            <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                              (HK${Math.round(totalCostKRW / cnyRate).toLocaleString()})
+                            </span>
+                          </span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
                           <span>{displayLang === 'zh' ? '总售价 (HKD):' : '총 판매가 / 总售价 (HKD):'}</span>
@@ -8016,6 +8078,9 @@ export default function AdminDashboard() {
                                 color: netMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                               }}>
                                 {netMarginKRW >= 0 ? '+' : ''}₩{Math.round(netMarginKRW).toLocaleString()}
+                                <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  (HK${Math.round(netMarginKRW / cnyRate).toLocaleString()})
+                                </span>
                               </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -8026,6 +8091,9 @@ export default function AdminDashboard() {
                                 color: avgNetMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                               }}>
                                 {avgNetMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgNetMarginKRW).toLocaleString()}
+                                <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  (HK${Math.round(avgNetMarginKRW / cnyRate).toLocaleString()})
+                                </span>
                               </span>
                             </div>
                           </>
@@ -8039,6 +8107,9 @@ export default function AdminDashboard() {
                                 color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                               }}>
                                 {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
+                                <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  (HK${Math.round(totalMarginKRW / cnyRate).toLocaleString()})
+                                </span>
                               </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -8049,6 +8120,9 @@ export default function AdminDashboard() {
                                 color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
                               }}>
                                 {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
+                                <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                  (HK${Math.round(avgMarginKRW / cnyRate).toLocaleString()})
+                                </span>
                               </span>
                             </div>
                           </>
