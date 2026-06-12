@@ -167,9 +167,21 @@ CREATE TABLE IF NOT EXISTS public.hongkong_inventory (
 );
 
 -- RLS 활성화 및 데모 정책
-ALTER TABLE public.hongkong_inventory ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Anyone can manage hongkong_inventory for demo" ON public.hongkong_inventory 
-    FOR ALL USING (true) WITH CHECK (true);
+
+-- =========================================================================
+-- [2026-06-12 추가] 카테고리 3단계 계층 구조 마이그레이션
+-- =========================================================================
+
+-- (1) categories 테이블에 parent_id 컬럼 추가 (자신을 참조하여 계층형 구조 생성)
+ALTER TABLE public.categories ADD COLUMN IF NOT EXISTS parent_id UUID REFERENCES public.categories(id) ON DELETE CASCADE;
+
+-- (2) subcategory를 등록할 수 있도록 image 컬럼을 NULL 허용으로 변경
+ALTER TABLE public.categories ALTER COLUMN image DROP NOT NULL;
+
+-- (3) 카테고리 이름 고유(UNIQUE) 제약 조건 완화 (서로 다른 부모 아래 동일한 이름 허용)
+ALTER TABLE public.categories DROP CONSTRAINT IF EXISTS categories_name_key;
+ALTER TABLE public.categories ADD CONSTRAINT categories_name_parent_unique UNIQUE (name, parent_id);
+
 
 
 

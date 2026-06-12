@@ -1296,6 +1296,18 @@ export default function AdminDashboard() {
     }
   }, []);
 
+  const loadCategoriesOnly = useCallback(async () => {
+    try {
+      const res = await fetch('/api/categories');
+      const data = await res.json();
+      if (data.success) {
+        setCategories(data.data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }, []);
+
   // 회원 관리 관련 상태 및 액션
   const [memberSearchQuery, setMemberSearchQuery] = useState('');
   
@@ -1978,7 +1990,7 @@ export default function AdminDashboard() {
       const data = await res.json();
       if (res.ok && data.success) {
         setIsCategoryModalOpen(false);
-        loadAllData();
+        loadCategoriesOnly();
       } else {
         alert(data.error || '카테고리 저장 실패');
       }
@@ -1993,7 +2005,7 @@ export default function AdminDashboard() {
     try {
       const res = await fetch(`/api/categories?id=${id}`, { method: 'DELETE' });
       if (res.ok) {
-        loadAllData();
+        loadCategoriesOnly();
       } else {
         alert('카테고리 삭제 실패');
       }
