@@ -620,6 +620,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'completed-sales': true,
     'margin-settlement': true,
     'model-pet-names': true,
+    deductions: true,
     scanner: true,
     permissions: true,
     members: true
@@ -635,6 +636,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'completed-sales': true,
     'margin-settlement': true,
     'model-pet-names': true,
+    deductions: true,
     scanner: true,
     permissions: false,
     members: false
@@ -650,6 +652,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'completed-sales': false,
     'margin-settlement': false,
     'model-pet-names': false,
+    deductions: false,
     scanner: true,
     permissions: false,
     members: false
@@ -665,6 +668,7 @@ const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
     'completed-sales': false,
     'margin-settlement': false,
     'model-pet-names': false,
+    deductions: false,
     scanner: true,
     permissions: false,
     members: false
@@ -700,7 +704,12 @@ export default function AdminDashboard() {
       const saved = localStorage.getItem('admin_menu_permissions');
       if (saved) {
         try {
-          return JSON.parse(saved);
+          const parsed = JSON.parse(saved);
+          const merged = { ...DEFAULT_PERMISSIONS };
+          Object.keys(merged).forEach(role => {
+            merged[role] = { ...merged[role], ...parsed[role] };
+          });
+          return merged;
         } catch (e) {
           console.error(e);
         }
