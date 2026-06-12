@@ -208,13 +208,13 @@ const HKInventoryRow = memo(function HKInventoryRow({
       </td>
       <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
         {displayLang === 'zh' ? (
-          `HK${Number(item.selling_price || 0).toLocaleString()}`
+          `{formatCurrency(Number(item.selling_price || 0), 'HKD')}`
         ) : (
           <>
             ₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()}
             {item.is_sold && (
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
-                (HK${Number(item.selling_price || 0).toLocaleString()})
+                ({formatCurrency(Number(item.selling_price || 0), 'HKD')})
               </span>
             )}
           </>
@@ -2854,7 +2854,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'home' ? styles.menuItemActive : ''}`}
             >
-              <BarChart3 size={18} /> 대시보드 홈
+              <BarChart3 size={18} /> {displayLang === 'zh' ? '控制台' : '대시보드 홈'}
             </button>
           )}
           
@@ -2866,7 +2866,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'trade-ins' ? styles.menuItemActive : ''}`}
             >
-              <Smartphone size={18} /> 매입 신청 관리 ({tradeIns.length})
+              <Smartphone size={18} /> {displayLang === 'zh' ? `回收订单 (${tradeIns.length})` : `매입 신청 관리 (${tradeIns.length})`}
             </button>
           )}
           
@@ -2878,7 +2878,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'products' ? styles.menuItemActive : ''}`}
             >
-              <ShoppingBag size={18} /> 판매 상품 관리 ({products.length})
+              <ShoppingBag size={18} /> {displayLang === 'zh' ? `商品管理 (${products.length})` : `판매 상품 관리 (${products.length})`}
             </button>
           )}
           
@@ -2890,7 +2890,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'orders' ? styles.menuItemActive : ''}`}
             >
-              <ClipboardList size={18} /> 주문 배송 관리 ({orders.length})
+              <ClipboardList size={18} /> {displayLang === 'zh' ? `订单发货 (${orders.length})` : `주문 배송 관리 (${orders.length})`}
             </button>
           )}
           
@@ -2902,7 +2902,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
             >
-              <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
+              <Settings size={18} /> {displayLang === 'zh' ? `回收报价 (${tradeInPrices.length})` : `매입 시세 설정 (${tradeInPrices.length})`}
             </button>
           )}
 
@@ -2914,7 +2914,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
             >
-              <Layers size={18} /> 카테고리 관리 ({categories.length})
+              <Layers size={18} /> {displayLang === 'zh' ? `分类管理 (${categories.length})` : `카테고리 관리 (${categories.length})`}
             </button>
           )}
 
@@ -2930,7 +2930,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
             >
-              <Smartphone size={18} /> 홍콩 재고 관리
+              <Smartphone size={18} /> {displayLang === 'zh' ? '香港库存' : '홍콩 재고 관리'}
             </button>
           )}
 
@@ -2954,7 +2954,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'margin-settlement' ? styles.menuItemActive : ''}`}
             >
-              <Coins size={18} /> 마진 및 정산
+              <Coins size={18} /> {displayLang === 'zh' ? '利润结算' : '마진 및 정산'}
             </button>
           )}
 
@@ -2966,7 +2966,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'model-pet-names' ? styles.menuItemActive : ''}`}
             >
-              <Settings size={18} style={{ color: 'var(--accent-light)' }} /> 기종 펫네임 관리 ({modelPetNames.length})
+              <Settings size={18} style={{ color: 'var(--accent-light)' }} /> {displayLang === 'zh' ? `型号别称 (${modelPetNames.length})` : `기종 펫네임 관리 (${modelPetNames.length})`}
             </button>
           )}
 
@@ -3003,7 +3003,7 @@ export default function AdminDashboard() {
               }}
               className={`${styles.menuItem} ${activeTab === 'permissions' ? styles.menuItemActive : ''}`}
             >
-              <Settings size={18} style={{ color: 'var(--warning-color)' }} /> 메뉴 권한 설정
+              <Settings size={18} style={{ color: 'var(--warning-color)' }} /> {displayLang === 'zh' ? '权限管理' : '메뉴 권한 설정'}
             </button>
           )}
 
@@ -3019,7 +3019,7 @@ export default function AdminDashboard() {
               style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}
             >
               <Smartphone size={18} style={{ color: 'var(--warning-color)' }} />
-              <span style={{ color: 'var(--warning-color)' }}>바코드 스캐너 / 扫码销售 ↗</span>
+              <span style={{ color: 'var(--warning-color)' }}>{displayLang === 'zh' ? '扫码销售 ↗' : '바코드 스캐너 / 扫码销售 ↗'}</span>
             </a>
           )}
         </nav>
@@ -3033,7 +3033,7 @@ export default function AdminDashboard() {
           className={styles.menuItem}
         >
           <LogOut size={18} style={{ color: 'var(--danger-color)' }} />
-          <span style={{ color: 'var(--danger-color)' }}>로그아웃</span>
+          <span style={{ color: 'var(--danger-color)' }}>{displayLang === 'zh' ? '退出登录' : '로그아웃'}</span>
         </button>
       </aside>
 
@@ -3140,16 +3140,16 @@ export default function AdminDashboard() {
         {activeTab === 'home' && (
           <div className="animate-fade-in">
             <div className={styles.headerRow}>
-              <h2 className={styles.pageTitle}>대시보드 종합 요약</h2>
-              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>실시간 거래 집계</span>
+              <h2 className={styles.pageTitle}>{displayLang === 'zh' ? '控制台概要' : '대시보드 종합 요약'}</h2>
+              <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '实时交易统计' : '실시간 거래 집계'}</span>
             </div>
 
             {/* 통계 지표 카드 */}
             <div className={styles.metricsGrid}>
               <div className={styles.metricCard}>
                 <div className={styles.metricInfo}>
-                  <span className={styles.metricLabel}>총 매입 정산 지출</span>
-                  <span className={styles.metricVal}>{stats.totalPaid.toLocaleString()}원</span>
+                  <span className={styles.metricLabel}>{displayLang === 'zh' ? '回收结算总支出' : '총 매입 정산 지출'}</span>
+                  <span className={styles.metricVal}>{formatCurrency(stats.totalPaid, 'KRW')}</span>
                 </div>
                 <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
                   <Coins size={22} />
@@ -3158,8 +3158,8 @@ export default function AdminDashboard() {
 
               <div className={styles.metricCard}>
                 <div className={styles.metricInfo}>
-                  <span className={styles.metricLabel}>진행중인 매입 건수</span>
-                  <span className={styles.metricVal}>{stats.activeRequests}건</span>
+                  <span className={styles.metricLabel}>{displayLang === 'zh' ? '进行中回收单수' : '진행중인 매입 건수'}</span>
+                  <span className={styles.metricVal}>{stats.activeRequests}{displayLang === 'zh' ? '单' : '건'}</span>
                 </div>
                 <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}>
                   <Smartphone size={22} />
@@ -3168,8 +3168,8 @@ export default function AdminDashboard() {
 
               <div className={styles.metricCard}>
                 <div className={styles.metricInfo}>
-                  <span className={styles.metricLabel}>총 중고폰 판매 매출</span>
-                  <span className={styles.metricVal}>{stats.totalSales.toLocaleString()}원</span>
+                  <span className={styles.metricLabel}>{displayLang === 'zh' ? '二手手机销售总额' : '총 중고폰 판매 매출'}</span>
+                  <span className={styles.metricVal}>{formatCurrency(stats.totalSales, 'KRW')}</span>
                 </div>
                 <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
                   <ShoppingBag size={22} />
@@ -3181,25 +3181,29 @@ export default function AdminDashboard() {
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
               <div className={styles.tableSection}>
                 <div className={styles.tableHeader}>
-                  <span className={styles.tableTitle}>최근 접수된 매입 신청</span>
+                  <span className={styles.tableTitle}>{displayLang === 'zh' ? '最新回收申请' : '최근 접수된 매입 신청'}</span>
                 </div>
                 <div className={styles.tableWrapper}>
                   <table className={styles.adminTable}>
                     <thead>
                       <tr>
-                        <th>고객명</th>
-                        <th>기종</th>
-                        <th>자가진단가</th>
-                        <th>상태</th>
+                        <th>{displayLang === 'zh' ? '客户姓名' : '고객명'}</th>
+                        <th>{displayLang === 'zh' ? '机型' : '기종'}</th>
+                        <th>{displayLang === 'zh' ? '自测价格' : '자가진단가'}</th>
+                        <th>{displayLang === 'zh' ? '状态' : '상태'}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {tradeIns.slice(0, 5).map(t => (
                         <tr key={t.id}>
-                          <td>{t.members?.name || '가입탈퇴'}</td>
+                          <td>{t.members?.name || (displayLang === 'zh' ? '注销会员' : '가입탈퇴')}</td>
                           <td>{t.brand} {t.model_name} ({t.storage})</td>
                           <td>{formatCurrency(t.estimated_price, 'KRW')}</td>
-                          <td>{t.status}</td>
+                          <td>
+                            {t.status === 'pending' ? (displayLang === 'zh' ? '待处理' : '대기') : 
+                             t.status === 'cancelled' ? (displayLang === 'zh' ? '已取消' : '취소됨') : 
+                             (displayLang === 'zh' ? '已完成' : '완료')}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -3209,15 +3213,15 @@ export default function AdminDashboard() {
 
               <div className={styles.tableSection}>
                 <div className={styles.tableHeader}>
-                  <span className={styles.tableTitle}>최근 접수된 주문</span>
+                  <span className={styles.tableTitle}>{displayLang === 'zh' ? '最新订单' : '최근 접수된 주문'}</span>
                 </div>
                 <div className={styles.tableWrapper}>
                   <table className={styles.adminTable}>
                     <thead>
                       <tr>
-                        <th>구매자</th>
-                        <th>금액</th>
-                        <th>배송상태</th>
+                        <th>{displayLang === 'zh' ? '购买者' : '구매자'}</th>
+                        <th>{displayLang === 'zh' ? '金额' : '금액'}</th>
+                        <th>{displayLang === 'zh' ? '配送状态' : '배송상태'}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -3225,7 +3229,12 @@ export default function AdminDashboard() {
                         <tr key={o.id}>
                           <td>{o.shipping_name}</td>
                           <td>{formatCurrency(o.price, 'KRW')}</td>
-                          <td>{o.status}</td>
+                          <td>
+                            {o.status === 'pending' ? (displayLang === 'zh' ? '待发货' : '배송대기') : 
+                             o.status === 'shipping' ? (displayLang === 'zh' ? '已发货' : '배송중') : 
+                             o.status === 'delivered' ? (displayLang === 'zh' ? '已完成' : '배송완료') : 
+                             (displayLang === 'zh' ? '已取消' : '취소')}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -4626,7 +4635,7 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 매출 합계 / 预计销售额</span>
-                    <span className={styles.metricVal}>₩{Math.round(pendingRevenue).toLocaleString()}</span>
+                    <span className={styles.metricVal}>{formatCurrency(pendingRevenue, 'KRW')}</span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
                     <Coins size={22} />
@@ -4636,7 +4645,7 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 원가 합계 / 预计成本</span>
-                    <span className={styles.metricVal}>₩{Math.round(pendingCost).toLocaleString()}</span>
+                    <span className={styles.metricVal}>{formatCurrency(pendingCost, 'KRW')}</span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
                     <Coins size={22} />
@@ -4647,7 +4656,7 @@ export default function AdminDashboard() {
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>예상 마진 & 마진율 / 预计利润 & 利润率</span>
                     <span className={styles.metricVal} style={{ color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                      ₩{Math.round(pendingMargin).toLocaleString()} ({pendingMarginRate.toFixed(1)}%)
+                      {formatCurrency(pendingMargin, 'KRW')} ({pendingMarginRate.toFixed(1)}%)
                     </span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: pendingMargin >= 0 ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)', color: pendingMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
@@ -4787,15 +4796,15 @@ export default function AdminDashboard() {
                             <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                             <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
                             <td>{item.color || '-'}</td>
-                            <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
+                            <td>{formatCurrency(Number(item.purchase_cost || 0), 'KRW')}</td>
                             <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-                              HK${Number(item.selling_price || 0).toLocaleString()}
+                              {formatCurrency(Number(item.selling_price || 0), 'HKD')}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-                                (₩{Math.round(revenueKRW).toLocaleString()})
+                                ({formatCurrency(revenueKRW, 'KRW')})
                               </div>
                             </td>
                             <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              ₩{Math.round(margin).toLocaleString()}
+                              {formatCurrency(margin, 'KRW')}
                               <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
                                 ({rate.toFixed(1)}%)
                               </div>
@@ -5068,12 +5077,12 @@ export default function AdminDashboard() {
                           <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                             <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '销售额:' : '매출액:'}</span>
-                            <span style={{ color: '#fff', fontWeight: '600' }}>₩{Math.round(s.revenue).toLocaleString()}</span>
+                            <span style={{ color: '#fff', fontWeight: '600' }}>{formatCurrency(s.revenue, 'KRW')}</span>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
                             <span style={{ color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '利润 (率):' : '마진 (율):'}</span>
                             <span style={{ color: s.margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                              ₩{Math.round(s.margin).toLocaleString()} ({marginRate.toFixed(1)}%)
+                              {formatCurrency(s.margin, 'KRW')} ({marginRate.toFixed(1)}%)
                             </span>
                           </div>
                         </div>
@@ -5391,12 +5400,12 @@ export default function AdminDashboard() {
                               <td style={{ fontWeight: 'bold' }}>{item.seller_name || '-'}</td>
                               <td style={{ fontWeight: 'bold' }}>{getModelDisplayName(item.model_name)}</td>
                               <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
-                              <td>₩{Number(item.purchase_cost || 0).toLocaleString()}</td>
+                              <td>{formatCurrency(Number(item.purchase_cost || 0), 'KRW')}</td>
                               <td style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
-                                HK${Number(item.selling_price || 0).toLocaleString()} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
+                                {formatCurrency(Number(item.selling_price || 0), 'HKD')} <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>(₩{Math.round(revenueKRW).toLocaleString()})</span>
                               </td>
                               <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontWeight: 'bold' }}>
-                                ₩{Math.round(margin).toLocaleString()}
+                                {formatCurrency(margin, 'KRW')}
                               </td>
                               <td style={{ color: margin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
                                 {rate.toFixed(1)}%
