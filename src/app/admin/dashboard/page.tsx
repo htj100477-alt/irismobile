@@ -2970,7 +2970,7 @@ export default function AdminDashboard() {
             </button>
           )}
 
-          {permissions[userRole]?.['deductions'] && (
+          {(userRole === 'admin' || userRole === 'manager' || permissions[userRole]?.['deductions']) && (
             <button 
               onClick={() => {
                 setActiveTab('deduction-rules');
