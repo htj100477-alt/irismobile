@@ -1697,23 +1697,60 @@ export async function deleteBulkSaleDeductionLog(id: string) {
 
 export async function updateBulkSettledPrices(month: string, modelName: string, sellingPrice: number) {
   if (supabase) {
-    const { error } = await supabase
-      .from('hongkong_inventory')
-      .update({
-        selling_price: sellingPrice
-      })
-      .eq('model_name', modelName)
-      .eq('is_sold', true)
-      .eq('is_approved', true)
-      .like('sale_date', `${month}%`);
-    if (error) throw error;
-    return true;
+    // 1. model_pet_names에서 해당 펫네임(한국어 또는 중국어)을 가지고 있는 모든 model_code 조회
+    const { data: petNames, error: petErr } = await supabase
+      .from('model_pet_names')
+      .select('model_code')
+      .or(`pet_name_ko.eq."${modelName}",pet_name_zh.eq."${modelName}"`);
+      
+    if (petErr) throw petErr;
+    
+    const modelCodes = petNames && petNames.length > 0 ? petNames.map(x => x.model_code) : [];
+    
+    // 2. 만약 매치되는 모델 코드들이 있다면, 그 코드들에 속하는 기기들 전체 일괄 업데이트
+    if (modelCodes.length > 0) {
+      const { error } = await supabase
+        .from('hongkong_inventory')
+        .update({
+          selling_price: sellingPrice
+        })
+        .in('model_name', modelCodes)
+        .eq('is_sold', true)
+        .eq('is_approved', true)
+        .like('sale_date', `${month}%`);
+      if (error) throw error;
+      return true;
+    } else {
+      // 매치되는 펫네임이 없으면 단일 model_name 매칭 업데이트
+      const { error } = await supabase
+        .from('hongkong_inventory')
+        .update({
+          selling_price: sellingPrice
+        })
+        .eq('model_name', modelName)
+        .eq('is_sold', true)
+        .eq('is_approved', true)
+        .like('sale_date', `${month}%`);
+      if (error) throw error;
+      return true;
+    }
   } else {
     const db = readMockDB();
     if (!db.hongkong_inventory) db.hongkong_inventory = [];
+    
+    // 1. model_pet_names에서 매칭되는 모델 코드 찾기
+    const petList = db.model_pet_names || [];
+    const modelCodes = petList
+      .filter(x => x.pet_name_ko === modelName || x.pet_name_zh === modelName)
+      .map(x => x.model_code);
+      
     db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      const isTargetModel = modelCodes.length > 0 
+        ? modelCodes.includes(d.model_name)
+        : d.model_name === modelName;
+        
       if (
-        d.model_name === modelName &&
+        isTargetModel &&
         d.is_sold &&
         d.is_approved &&
         d.sale_date &&

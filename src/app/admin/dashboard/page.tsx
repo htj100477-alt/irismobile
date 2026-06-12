@@ -1179,9 +1179,13 @@ export default function AdminDashboard() {
 
     for (const item of filteredHKItems) {
       const model = item.model_name || 'UNKNOWN';
-      if (!groups[model]) {
-        groups[model] = {
-          modelName: model,
+      const cleanModel = model.trim().toUpperCase();
+      const foundPet = petNameMap.get(cleanModel);
+      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+
+      if (!groups[groupKey]) {
+        groups[groupKey] = {
+          modelName: groupKey,
           total: 0,
           available: 0,
           pending: 0,
@@ -1191,7 +1195,7 @@ export default function AdminDashboard() {
         };
       }
       
-      const g = groups[model];
+      const g = groups[groupKey];
       g.total++;
       if (!item.is_sold) {
         g.available++;
@@ -5209,14 +5213,17 @@ export default function AdminDashboard() {
           const groupedSettled = settledDevices.reduce((acc: any[], item) => {
             const month = getYearMonth(item.sale_date || '');
             const model = item.model_name || 'UNKNOWN';
-            const key = `${month}_${model}`;
+            const cleanModel = model.trim().toUpperCase();
+            const foundPet = petNameMap.get(cleanModel);
+            const petName = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+            const key = `${month}_${petName}`;
             
             let existing = acc.find(x => x.key === key);
             if (!existing) {
               existing = {
                 key,
                 month,
-                modelName: model,
+                modelName: petName,
                 count: 0,
                 totalRevenue: 0,
                 totalCost: 0,
