@@ -1653,3 +1653,44 @@ export async function createBulkSaleDeductionLog(logData: any) {
     return newLog;
   }
 }
+
+export async function updateBulkSaleDeductionLog(id: string, updateData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('bulk_sale_deductions')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.bulk_sale_deductions) db.bulk_sale_deductions = [];
+    const index = db.bulk_sale_deductions.findIndex(l => l.id === id);
+    if (index === -1) throw new Error("Bulk sale deduction log not found");
+    db.bulk_sale_deductions[index] = {
+      ...db.bulk_sale_deductions[index],
+      ...updateData
+    };
+    writeMockDB(db);
+    return db.bulk_sale_deductions[index];
+  }
+}
+
+export async function deleteBulkSaleDeductionLog(id: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('bulk_sale_deductions')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.bulk_sale_deductions) db.bulk_sale_deductions = [];
+    db.bulk_sale_deductions = db.bulk_sale_deductions.filter(l => l.id !== id);
+    writeMockDB(db);
+    return true;
+  }
+}

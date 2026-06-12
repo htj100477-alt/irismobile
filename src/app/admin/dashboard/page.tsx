@@ -895,6 +895,14 @@ export default function AdminDashboard() {
   const [editSaleDate, setEditSaleDate] = useState('');
   const [editSellerName, setEditSellerName] = useState('');
 
+  // 차감 내역 수정 모달 상태
+  const [editDeductionModalOpen, setEditDeductionModalOpen] = useState(false);
+  const [editDeductionItem, setEditDeductionItem] = useState<any | null>(null);
+  const [editDeductionNameKo, setEditDeductionNameKo] = useState('');
+  const [editDeductionNameZh, setEditDeductionNameZh] = useState('');
+  const [editDeductionQty, setEditDeductionQty] = useState('');
+  const [editDeductionAmountHkd, setEditDeductionAmountHkd] = useState('');
+
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
     setHkPage(1);
@@ -2785,6 +2793,87 @@ export default function AdminDashboard() {
         loadAllData();
       } else {
         alert(data.error || '수정 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
+  // 차감 내역 수정 모달 오픈
+  const openEditDeductionModal = (log: any) => {
+    setEditDeductionItem(log);
+    setEditDeductionNameKo(log.name_ko);
+    setEditDeductionNameZh(log.name_zh);
+    setEditDeductionQty(log.quantity.toString());
+    setEditDeductionAmountHkd(log.amount_hkd.toString());
+    setEditDeductionModalOpen(true);
+  };
+
+  // 차감 내역 수정 실행
+  const executeUpdateDeduction = async () => {
+    if (!editDeductionItem) return;
+    if (!editDeductionNameKo || !editDeductionNameZh) {
+      alert('차감 사유를 한국어와 중국어 모두 입력해주세요.');
+      return;
+    }
+    if (isNaN(Number(editDeductionQty)) || Number(editDeductionQty) <= 0) {
+      alert('올바른 수량을 입력해주세요.');
+      return;
+    }
+    if (isNaN(Number(editDeductionAmountHkd)) || Number(editDeductionAmountHkd) < 0) {
+      alert('올바른 단가를 입력해주세요.');
+      return;
+    }
+
+    const qty = Number(editDeductionQty);
+    const unitHkd = Number(editDeductionAmountHkd);
+    const totHkd = qty * unitHkd;
+    const totKrw = Math.round(totHkd * (editDeductionItem.exchange_rate || cnyRate));
+
+    try {
+      const res = await fetch('/api/bulk-sale-deductions', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: editDeductionItem.id,
+          name_ko: editDeductionNameKo,
+          name_zh: editDeductionNameZh,
+          quantity: qty,
+          amount_hkd: unitHkd,
+          total_hkd: totHkd,
+          total_krw: totKrw,
+          exchange_rate: editDeductionItem.exchange_rate || cnyRate,
+          seller_name: editDeductionItem.seller_name,
+          sold_summary: editDeductionItem.sold_summary
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('차감 내역이 수정되었습니다! / 扣除项修改成功！');
+        setEditDeductionModalOpen(false);
+        setEditDeductionItem(null);
+        loadAllData();
+      } else {
+        alert(data.error || '수정 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
+  // 차감 내역 삭제 실행
+  const executeDeleteDeduction = async (id: string) => {
+    if (!confirm('정말로 이 차감 내역을 삭제하시겠습니까?\n确认删除该扣除项记录吗？')) return;
+    try {
+      const res = await fetch(`/api/bulk-sale-deductions?id=${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('차감 내역이 성공적으로 삭제되었습니다. / 删除成功！');
+        loadAllData();
+      } else {
+        alert(data.error || '삭제 실패');
       }
     } catch (e) {
       alert('오류가 발생했습니다.');
@@ -5748,12 +5837,13 @@ export default function AdminDashboard() {
                         <th style={{ textAlign: 'center' }}>{displayLang === 'zh' ? '数量' : '수량'}</th>
                         <th style={{ textAlign: 'right' }}>{displayLang === 'zh' ? '单价' : '차감 단가'}</th>
                         <th style={{ textAlign: 'right' }}>{displayLang === 'zh' ? '总计' : '총 차감액'}</th>
+                        <th>{displayLang === 'zh' ? '操作' : '작업'}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDeductions.length === 0 ? (
                         <tr>
-                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                          <td colSpan={8} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
                             {displayLang === 'zh' ? '在此筛选条件下无扣除记录。' : '해당 필터 조건 하에 차감 내역이 없습니다.'}
                           </td>
                         </tr>
@@ -5775,6 +5865,29 @@ export default function AdminDashboard() {
                               <td style={{ textAlign: 'center' }}>{log.quantity}대 / 台</td>
                               <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{unitPriceDisp}</td>
                               <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--danger-color)' }}>-{totalDisp}</td>
+                              <td style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={() => openEditDeductionModal(log)}
+                                  className={styles.btnCancel}
+                                  style={{ padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                >
+                                  {displayLang === 'zh' ? '编辑' : '수정'}
+                                </button>
+                                <button
+                                  onClick={() => executeDeleteDeduction(log.id)}
+                                  className={styles.btnCancel}
+                                  style={{ 
+                                    padding: '4px 8px', 
+                                    fontSize: '11px', 
+                                    cursor: 'pointer',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    color: 'var(--danger-color)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                  }}
+                                >
+                                  {displayLang === 'zh' ? '删除' : '삭제'}
+                                </button>
+                              </td>
                             </tr>
                           );
                         })
@@ -8410,6 +8523,99 @@ export default function AdminDashboard() {
                 {displayLang === 'zh' ? '取消' : '취소'}
               </button>
               <button onClick={executeUpdateSaleInfo} className={styles.btnSave}>
+                {displayLang === 'zh' ? '保存' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 차감 내역 수정 모달 */}
+      {editDeductionModalOpen && editDeductionItem && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '450px', width: '90%', backgroundColor: '#1e293b', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {displayLang === 'zh' ? '修改扣除项 (차감 항목 수정)' : '차감 항목 수정'}
+              </h3>
+              <button onClick={() => { setEditDeductionModalOpen(false); setEditDeductionItem(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#fff' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매 내역 / 销售明细</span>
+                <div style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '2px' }}>{editDeductionItem.sold_summary || '-'}</div>
+              </div>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>차감 사유 (한국어) / 扣除原因 (韩语)</label>
+                <input
+                  type="text"
+                  value={editDeductionNameKo}
+                  onChange={(e) => setEditDeductionNameKo(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>차감 사유 (중국어) / 扣除原因 (中文)</label>
+                <input
+                  type="text"
+                  value={editDeductionNameZh}
+                  onChange={(e) => setEditDeductionNameZh(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>수량 / 数量</label>
+                <input
+                  type="number"
+                  value={editDeductionQty}
+                  onChange={(e) => setEditDeductionQty(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>차감 단가 / 扣除单价 (HKD)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={editDeductionAmountHkd}
+                    onChange={(e) => setEditDeductionAmountHkd(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
+                </div>
+              </div>
+
+              {/* 실시간 총 차감 계산 안내 */}
+              {Number(editDeductionQty) > 0 && Number(editDeductionAmountHkd) >= 0 && (
+                <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>총 차감액 (HKD):</span>
+                    <strong style={{ color: 'var(--danger-color)' }}>
+                      -HK${(Number(editDeductionQty) * Number(editDeductionAmountHkd)).toLocaleString()}
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>총 차감액 (원화 환산):</span>
+                    <strong style={{ color: 'var(--danger-color)' }}>
+                      -₩{Math.round(Number(editDeductionQty) * Number(editDeductionAmountHkd) * (editDeductionItem.exchange_rate || cnyRate)).toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '16px' }}>
+              <button onClick={() => { setEditDeductionModalOpen(false); setEditDeductionItem(null); }} className={styles.btnCancel}>
+                {displayLang === 'zh' ? '取消' : '취소'}
+              </button>
+              <button onClick={executeUpdateDeduction} className={styles.btnSave}>
                 {displayLang === 'zh' ? '保存' : '저장'}
               </button>
             </div>
