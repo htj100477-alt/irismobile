@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users, MinusCircle } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users, MinusCircle, XCircle } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 대한민국 행정구역 데이터 (도/시 및 시/군/구 매핑)
@@ -886,6 +886,14 @@ export default function AdminDashboard() {
   const [hkViewMode, setHkViewMode] = useState<'list' | 'card'>('list');
   const [settlementViewMode, setSettlementViewMode] = useState<'list' | 'card'>('list');
   const [hkCardSortMode, setHkCardSortMode] = useState<'count' | 'name'>('count');
+  const [settlementCardSortMode, setSettlementCardSortMode] = useState<'count' | 'name' | 'margin'>('count');
+
+  // 승인 대기 / 완료 판매 정보 수정 모달 상태
+  const [editSaleModalOpen, setEditSaleModalOpen] = useState(false);
+  const [editSaleDevice, setEditSaleDevice] = useState<any | null>(null);
+  const [editSalePrice, setEditSalePrice] = useState('');
+  const [editSaleDate, setEditSaleDate] = useState('');
+  const [editSellerName, setEditSellerName] = useState('');
 
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
@@ -2663,6 +2671,59 @@ export default function AdminDashboard() {
     }
   };
 
+  // 판매 승인 대기 기기 반려 (재고 복구)
+  const executeCancelApproval = async (deviceIds: string[]) => {
+    if (deviceIds.length === 0) return;
+    if (!confirm(`선택한 ${deviceIds.length}건의 판매를 반려하고 재고 상태로 되돌리시겠습니까? \n确认驳回这 ${deviceIds.length} 笔销售并退回库存吗？`)) return;
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel_sale',
+          deviceIds
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('반려 처리가 완료되어 재고로 복구되었습니다. / 驳회처리 완료！');
+        setSelectedPendingIds([]);
+        loadAllData();
+      } else {
+        alert(data.error || '반려 처리 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
+  // 정산 완료 기기 승인 취소 (대기 상태로 롤백)
+  const executeCancelSettledApproval = async (deviceIds: string[]) => {
+    if (deviceIds.length === 0) return;
+    if (!confirm(`선택한 ${deviceIds.length}건의 정산 승인을 취소하고 승인 대기 상태로 되돌리시겠습니까? \n确认取消这 ${deviceIds.length} 笔销售审批并退回待审批状态吗？`)) return;
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'cancel_approval',
+          deviceIds
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('승인 취소 처리가 완료되어 대기 목록으로 이동되었습니다. / 审批已取消！');
+        loadAllData();
+      } else {
+        alert(data.error || '승인 취소 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
   // 홍콩 재고 단건 삭제
   const executeDeleteHK = useCallback(async (id: string) => {
     if (!confirm('정말로 이 재고를 목록에서 삭제하시겠습니까?')) return;
@@ -2678,6 +2739,57 @@ export default function AdminDashboard() {
       alert('삭제 중 오류가 발생했습니다.');
     }
   }, [loadAllData]);
+
+  // 기기 판매 정보 수정 모달 오픈
+  const openEditSaleModal = (device: any) => {
+    setEditSaleDevice(device);
+    setEditSalePrice(device.selling_price?.toString() || '0');
+    setEditSaleDate(device.sale_date || new Date().toISOString().split('T')[0]);
+    setEditSellerName(device.seller_name || '');
+    setEditSaleModalOpen(true);
+  };
+
+  // 기기 판매 정보 수정 실행
+  const executeUpdateSaleInfo = async () => {
+    if (!editSaleDevice) return;
+    if (!editSaleDate) {
+      alert('판매 일자를 입력해주세요.');
+      return;
+    }
+    if (!editSellerName) {
+      alert('판매원을 선택해주세요.');
+      return;
+    }
+    if (!editSalePrice || isNaN(Number(editSalePrice)) || Number(editSalePrice) < 0) {
+      alert('올바른 판매가를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_sale_info',
+          id: editSaleDevice.id,
+          saleDate: editSaleDate,
+          sellerName: editSellerName,
+          sellingPrice: Number(editSalePrice)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('판매 정보 수정이 완료되었습니다! / 修改成功！');
+        setEditSaleModalOpen(false);
+        setEditSaleDevice(null);
+        loadAllData();
+      } else {
+        alert(data.error || '수정 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
 
 
 
@@ -4601,7 +4713,7 @@ export default function AdminDashboard() {
                     판매원이 판매완료 처리한 기기들을 최종 승인하여 마진 및 정산 장부에 등록합니다.
                   </p>
                 </div>
-                <div>
+                <div style={{ display: 'flex', gap: '8px' }}>
                   <button
                     onClick={() => executeFinalApproval(selectedPendingIds)}
                     className={styles.btnSave}
@@ -4609,6 +4721,22 @@ export default function AdminDashboard() {
                     disabled={selectedPendingIds.length === 0}
                   >
                     <CheckCircle2 size={16} /> 선택 항목 최종 승인 / 最终审批 ({selectedPendingIds.length}건)
+                  </button>
+                  <button
+                    onClick={() => executeCancelApproval(selectedPendingIds)}
+                    className={styles.btnCancel}
+                    style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '6px', 
+                      cursor: 'pointer',
+                      backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                      color: 'var(--danger-color)',
+                      border: '1px solid rgba(239, 68, 68, 0.3)'
+                    }}
+                    disabled={selectedPendingIds.length === 0}
+                  >
+                    <XCircle size={16} /> 선택 항목 반려 / 批量驳回 ({selectedPendingIds.length}건)
                   </button>
                 </div>
               </div>
@@ -4838,13 +4966,34 @@ export default function AdminDashboard() {
                                 최종 승인 대기 / 待审批
                               </span>
                             </td>
-                            <td>
+                            <td style={{ display: 'flex', gap: '4px' }}>
                               <button
                                 onClick={() => executeFinalApproval([item.id])}
                                 className={styles.btnSave}
-                                style={{ padding: '6px 12px', fontSize: '12px', cursor: 'pointer' }}
+                                style={{ padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}
                               >
-                                승인 / 审批
+                                {displayLang === 'zh' ? '审批' : '승인'}
+                              </button>
+                              <button
+                                onClick={() => openEditSaleModal(item)}
+                                className={styles.btnCancel}
+                                style={{ padding: '6px 10px', fontSize: '11px', cursor: 'pointer' }}
+                              >
+                                {displayLang === 'zh' ? '编辑' : '수정'}
+                              </button>
+                              <button
+                                onClick={() => executeCancelApproval([item.id])}
+                                className={styles.btnCancel}
+                                style={{ 
+                                  padding: '6px 10px', 
+                                  fontSize: '11px', 
+                                  cursor: 'pointer',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                  color: 'var(--danger-color)',
+                                  border: '1px solid rgba(239, 68, 68, 0.3)'
+                                }}
+                              >
+                                {displayLang === 'zh' ? '驳回' : '반려'}
                               </button>
                             </td>
                           </tr>
@@ -4950,6 +5099,13 @@ export default function AdminDashboard() {
             return acc;
           }, []).sort((a: any, b: any) => {
             if (a.month !== b.month) return b.month.localeCompare(a.month);
+            if (settlementCardSortMode === 'name') {
+              const nameA = getModelDisplayName(a.modelName);
+              const nameB = getModelDisplayName(b.modelName);
+              return nameA.localeCompare(nameB);
+            } else if (settlementCardSortMode === 'margin') {
+              return b.totalMargin - a.totalMargin;
+            }
             return b.count - a.count;
           });
 
@@ -5277,6 +5433,59 @@ export default function AdminDashboard() {
                     </div>
                   </div>
 
+                  {settlementViewMode === 'card' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '排序:' : '정렬:'}</span>
+                      <div style={{ display: 'flex', border: '1px solid var(--border-color)', borderRadius: '20px', overflow: 'hidden' }}>
+                        <button
+                          onClick={() => setSettlementCardSortMode('count')}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            border: 'none',
+                            borderRadius: 0,
+                            cursor: 'pointer',
+                            backgroundColor: settlementCardSortMode === 'count' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                            color: '#fff',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {displayLang === 'zh' ? '按数量' : '개수순'}
+                        </button>
+                        <button
+                          onClick={() => setSettlementCardSortMode('name')}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            border: 'none',
+                            borderRadius: 0,
+                            cursor: 'pointer',
+                            backgroundColor: settlementCardSortMode === 'name' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                            color: '#fff',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {displayLang === 'zh' ? '按名称' : '이름순'}
+                        </button>
+                        <button
+                          onClick={() => setSettlementCardSortMode('margin')}
+                          style={{
+                            padding: '6px 12px',
+                            fontSize: '12px',
+                            border: 'none',
+                            borderRadius: 0,
+                            cursor: 'pointer',
+                            backgroundColor: settlementCardSortMode === 'margin' ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                            color: '#fff',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {displayLang === 'zh' ? '按利润' : '마진순'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{displayLang === 'zh' ? '设备搜索:' : '기기 검색:'}</span>
                     <input
@@ -5357,27 +5566,43 @@ export default function AdminDashboard() {
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>총 매출액:</span>
-                              <span style={{ color: '#fff', fontWeight: '600' }}>₩{Math.round(g.totalRevenue).toLocaleString()}</span>
+                              <span>{displayLang === 'zh' ? '总销售额:' : '총 매출액:'}</span>
+                              <span style={{ color: '#fff', fontWeight: '600' }}>
+                                ₩{Math.round(g.totalRevenue).toLocaleString()}
+                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+                                  (HK${Math.round(g.totalRevenue / cnyRate).toLocaleString()})
+                                </span>
+                              </span>
                             </div>
                             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                              <span>총 원가:</span>
-                              <span style={{ color: '#fff' }}>₩{g.totalCost.toLocaleString()}</span>
+                              <span>{displayLang === 'zh' ? '总成本:' : '총 원가:'}</span>
+                              <span style={{ color: '#fff' }}>
+                                ₩{g.totalCost.toLocaleString()}
+                                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+                                  (HK${Math.round(g.totalCost / cnyRate).toLocaleString()})
+                                </span>
+                              </span>
                             </div>
                           </div>
                         </div>
                         
                         <div style={{ borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px', marginTop: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
                           <div>
-                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>총 순마진</span>
+                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>{displayLang === 'zh' ? '净利润' : '총 순마진'}</span>
                             <strong style={{ color: g.totalMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)', fontSize: '14px' }}>
                               ₩{Math.round(g.totalMargin).toLocaleString()}
+                              <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (HK${Math.round(g.totalMargin / cnyRate).toLocaleString()})
+                              </span>
                             </strong>
                           </div>
                           <div style={{ textAlign: 'right' }}>
-                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>대당 평균마진</span>
+                            <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '10px' }}>{displayLang === 'zh' ? '平均单台利润' : '대당 평균마진'}</span>
                             <strong style={{ color: avgMargin >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
                               ₩{Math.round(avgMargin).toLocaleString()}
+                              <span style={{ display: 'block', fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
+                                (HK${Math.round(avgMargin / cnyRate).toLocaleString()})
+                              </span>
                             </strong>
                           </div>
                         </div>
@@ -5413,6 +5638,7 @@ export default function AdminDashboard() {
                           <th>순마진 / 利润</th>
                           <th>마진율 / 利润率</th>
                           <th>상태</th>
+                          <th>작업 / 操作</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -5459,12 +5685,35 @@ export default function AdminDashboard() {
                                   정산확정
                                 </span>
                               </td>
+                              <td style={{ display: 'flex', gap: '4px' }}>
+                                <button
+                                  onClick={() => openEditSaleModal(item)}
+                                  className={styles.btnCancel}
+                                  style={{ padding: '4px 8px', fontSize: '11px', cursor: 'pointer' }}
+                                >
+                                  {displayLang === 'zh' ? '编辑' : '수정'}
+                                </button>
+                                <button
+                                  onClick={() => executeCancelSettledApproval([item.id])}
+                                  className={styles.btnCancel}
+                                  style={{ 
+                                    padding: '4px 8px', 
+                                    fontSize: '11px', 
+                                    cursor: 'pointer',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    color: 'var(--danger-color)',
+                                    border: '1px solid rgba(239, 68, 68, 0.3)'
+                                  }}
+                                >
+                                  {displayLang === 'zh' ? '取消审批' : '승인 취소'}
+                                </button>
+                              </td>
                             </tr>
                           );
                         })}
                         {settledDevices.length === 0 && (
                           <tr>
-                            <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                            <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                               정산 조건에 맞는 판매 내역이 없습니다.
                             </td>
                           </tr>
@@ -8056,6 +8305,117 @@ export default function AdminDashboard() {
       )}
 
       {/* 차감 항목 추가/수정 모달 제거 */}
+
+      {/* 승인 대기 / 완료 판매 정보 수정 모달 */}
+      {editSaleModalOpen && editSaleDevice && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '450px', width: '90%', backgroundColor: '#1e293b', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {displayLang === 'zh' ? '修改销售信息 (판매 정보 수정)' : '판매 정보 수정'}
+              </h3>
+              <button onClick={() => { setEditSaleModalOpen(false); setEditSaleDevice(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#fff' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>모델명 / 机型</span>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>{getModelDisplayName(editSaleDevice.model_name)}</div>
+              </div>
+              
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>IMEI / 串号</span>
+                <div style={{ fontSize: '13px', fontFamily: 'monospace', marginTop: '2px' }}>
+                  {editSaleDevice.imei?.startsWith('NO_IMEI-') ? '-' : editSaleDevice.imei}
+                </div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>입고원가 / 成本</span>
+                <div style={{ fontSize: '13px', marginTop: '2px' }}>
+                  ₩{Number(editSaleDevice.purchase_cost || 0).toLocaleString()} (HK${Math.round((Number(editSaleDevice.purchase_cost) || 0) / cnyRate).toLocaleString()})
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 일자 / 销售日期</label>
+                <input
+                  type="date"
+                  value={editSaleDate}
+                  onChange={(e) => setEditSaleDate(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 / 销售员</label>
+                <select
+                  value={editSellerName}
+                  onChange={(e) => setEditSellerName(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', outline: 'none' }}
+                >
+                  <option value="">{displayLang === 'zh' ? '选择销售员' : '판매원 선택'}</option>
+                  {Array.from(new Set(
+                    hongkongInventory
+                      .filter(x => x.seller_name)
+                      .map(x => x.seller_name)
+                  )).map(name => (
+                    <option key={name as string} value={name as string}>{name as string}</option>
+                  ))}
+                  {editSaleDevice.seller_name && !Array.from(new Set(hongkongInventory.filter(x => x.seller_name).map(x => x.seller_name))).includes(editSaleDevice.seller_name) && (
+                    <option value={editSaleDevice.seller_name}>{editSaleDevice.seller_name}</option>
+                  )}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 단가 / 销售单价 (HKD)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={editSalePrice}
+                    onChange={(e) => setEditSalePrice(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
+                </div>
+              </div>
+
+              {/* 실시간 예상 마진 계산 안내 */}
+              {Number(editSalePrice) >= 0 && (
+                <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>예상 매출액:</span>
+                    <strong style={{ color: 'var(--accent-light)' }}>
+                      ₩{Math.round(Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate)).toLocaleString()}
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+                        (HK${Number(editSalePrice).toLocaleString()})
+                      </span>
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>예상 순마진:</span>
+                    <strong style={{ color: (Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate) - Number(editSaleDevice.purchase_cost || 0)) >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                      ₩{Math.round(Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate) - Number(editSaleDevice.purchase_cost || 0)).toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '16px' }}>
+              <button onClick={() => { setEditSaleModalOpen(false); setEditSaleDevice(null); }} className={styles.btnCancel}>
+                {displayLang === 'zh' ? '取消' : '취소'}
+              </button>
+              <button onClick={executeUpdateSaleInfo} className={styles.btnSave}>
+                {displayLang === 'zh' ? '保存' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

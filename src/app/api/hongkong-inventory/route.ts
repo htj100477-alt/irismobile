@@ -8,7 +8,9 @@ import {
   deleteHongKongInventory,
   deleteHongKongInventoryBatch,
   updateHongKongNotes,
-  createBulkSaleDeductionLog
+  createBulkSaleDeductionLog,
+  updateHongKongSaleInfo,
+  cancelHongKongApproval
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -87,6 +89,24 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Missing deviceIds for cancellation' }, { status: 400 });
       }
       await cancelHongKongSales(deviceIds);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_sale_info') {
+      const { id, saleDate, sellerName, sellingPrice } = body;
+      if (!id) {
+        return NextResponse.json({ success: false, error: 'Missing id parameter' }, { status: 400 });
+      }
+      await updateHongKongSaleInfo(id, saleDate, sellerName, Number(sellingPrice) || 0);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'cancel_approval') {
+      const { deviceIds } = body;
+      if (!Array.isArray(deviceIds)) {
+        return NextResponse.json({ success: false, error: 'Missing deviceIds for cancellation of approval' }, { status: 400 });
+      }
+      await cancelHongKongApproval(deviceIds);
       return NextResponse.json({ success: true });
     }
 

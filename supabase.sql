@@ -193,6 +193,24 @@ ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_province VARCHAR(100
 ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_city VARCHAR(100) DEFAULT '';
 ALTER TABLE public.members ADD COLUMN IF NOT EXISTS address_detail TEXT DEFAULT '';
 
+-- [2026-06-12 추가] 일괄 판매 차감 적용 로그 테이블 및 sold_summary 컬럼 추가
+CREATE TABLE IF NOT EXISTS public.bulk_sale_deductions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    sale_date VARCHAR(50) NOT NULL,
+    name_ko VARCHAR(100) NOT NULL,
+    name_zh VARCHAR(100) NOT NULL,
+    quantity INTEGER DEFAULT 1 NOT NULL,
+    amount_hkd NUMERIC DEFAULT 0 NOT NULL,
+    total_hkd NUMERIC DEFAULT 0 NOT NULL,
+    total_krw NUMERIC DEFAULT 0 NOT NULL,
+    exchange_rate NUMERIC NOT NULL,
+    seller_name VARCHAR(100) DEFAULT '',
+    sold_summary TEXT DEFAULT '',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+ALTER TABLE public.bulk_sale_deductions ADD COLUMN IF NOT EXISTS sold_summary TEXT DEFAULT '';
+
 
 
 

@@ -1230,7 +1230,9 @@ export async function cancelHongKongSales(deviceIds: string[]) {
         is_sold: false,
         sale_date: null,
         seller_name: null,
-        is_approved: false
+        is_approved: false,
+        selling_price: 0,
+        sale_rate: null
       })
       .in('id', deviceIds);
     if (error) throw error;
@@ -1246,6 +1248,70 @@ export async function cancelHongKongSales(deviceIds: string[]) {
           is_sold: false,
           sale_date: null,
           seller_name: null,
+          is_approved: false,
+          selling_price: 0,
+          sale_rate: null
+        };
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return true;
+  }
+}
+
+export async function updateHongKongSaleInfo(id: string, saleDate: string, sellerName: string, sellingPrice: number) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({
+        sale_date: saleDate,
+        seller_name: sellerName,
+        selling_price: sellingPrice
+      })
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (d.id === id) {
+        return {
+          ...d,
+          sale_date: saleDate,
+          seller_name: sellerName,
+          selling_price: sellingPrice
+        };
+      }
+      return d;
+    });
+
+    writeMockDB(db);
+    return true;
+  }
+}
+
+export async function cancelHongKongApproval(deviceIds: string[]) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({
+        is_approved: false
+      })
+      .in('id', deviceIds);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (deviceIds.includes(d.id)) {
+        return {
+          ...d,
           is_approved: false
         };
       }
