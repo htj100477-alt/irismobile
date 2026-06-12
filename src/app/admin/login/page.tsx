@@ -13,9 +13,27 @@ export default function AdminLoginPage() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // 단순 데모용 마스터 관리자 비밀번호
+    let role = '';
+    let roleName = '';
+
     if (password === 'admin1234') {
+      role = 'admin';
+      roleName = '어드민';
+    } else if (password === 'manager1234') {
+      role = 'manager';
+      roleName = '매니저';
+    } else if (password === 'staff1234') {
+      role = 'staff';
+      roleName = '스탭';
+    } else if (password === 'user1234') {
+      role = 'general';
+      roleName = '일반';
+    }
+
+    if (role) {
       sessionStorage.setItem('admin_token', 'true');
+      sessionStorage.setItem('admin_role', role);
+      sessionStorage.setItem('admin_role_name', roleName);
       router.push('/admin/dashboard');
     } else {
       setError('비밀번호가 일치하지 않습니다.');
@@ -95,10 +113,14 @@ export default function AdminLoginPage() {
           padding: '12px',
           fontSize: '11px',
           color: 'var(--text-muted)',
-          textAlign: 'center',
-          lineHeight: '1.4'
+          textAlign: 'left',
+          lineHeight: '1.6'
         }}>
-          🔑 **테스트 번호**: `admin1234`
+          🔑 **테스트 로그인 비밀번호**:<br />
+          - 어드민 권한: `admin1234`<br />
+          - 매니저 권한: `manager1234`<br />
+          - 스탭 권한: `staff1234`<br />
+          - 일반 권한: `user1234`
         </div>
       </div>
     </div>

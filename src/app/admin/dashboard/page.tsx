@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 이미지 압축 헬퍼 함수
@@ -283,10 +283,348 @@ const HKInventoryRow = memo(function HKInventoryRow({
   );
 });
 
+interface MemberRowProps {
+  member: any;
+  onUpdate: (id: string, name: string, pin: string, role: string) => void;
+  onDelete: (id: string, name: string) => void;
+  displayLang: 'ko' | 'zh';
+}
+
+const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayLang }: MemberRowProps) {
+  const [name, setName] = useState(member.name);
+  const [pin, setPin] = useState(member.pin_code);
+  const [role, setRole] = useState(member.role || 'general');
+  const [isEditing, setIsEditing] = useState(false);
+
+  const handleSave = () => {
+    if (!name.trim()) {
+      alert(displayLang === 'zh' ? '姓名不能为空' : '이름을 입력해주세요.');
+      return;
+    }
+    if (pin.length !== 4 || isNaN(Number(pin))) {
+      alert(displayLang === 'zh' ? 'PIN 必须是4位数字' : 'PIN 번호는 4자리 숫자여야 합니다.');
+      return;
+    }
+    onUpdate(member.id, name, pin, role);
+    setIsEditing(false);
+  };
+
+  return (
+    <tr>
+      <td style={{ padding: '14px 16px' }}>
+        {isEditing ? (
+          <input 
+            type="text" 
+            value={name} 
+            onChange={(e) => setName(e.target.value)} 
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: '#fff',
+              fontSize: '13px',
+              width: '120px'
+            }}
+          />
+        ) : (
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>{member.name}</span>
+        )}
+      </td>
+      <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontSize: '13px' }}>
+        {member.phone_number.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}
+      </td>
+      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+        {isEditing ? (
+          <input 
+            type="password" 
+            value={pin} 
+            onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))} 
+            maxLength={4}
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: '#fff',
+              fontSize: '13px',
+              width: '80px',
+              textAlign: 'center',
+              letterSpacing: '2px'
+            }}
+          />
+        ) : (
+          <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>••••</span>
+        )}
+      </td>
+      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+        {isEditing ? (
+          <select
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            style={{
+              backgroundColor: 'var(--bg-tertiary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              padding: '8px 12px',
+              color: '#fff',
+              fontSize: '13px',
+              cursor: 'pointer'
+            }}
+          >
+            <option value="admin">{displayLang === 'zh' ? '管理员' : '어드민'}</option>
+            <option value="manager">{displayLang === 'zh' ? '经理' : '매니저'}</option>
+            <option value="staff">{displayLang === 'zh' ? '职员' : '스탭'}</option>
+            <option value="general">{displayLang === 'zh' ? '普通会员' : '일반회원'}</option>
+          </select>
+        ) : (
+          <span style={{
+            padding: '4px 8px',
+            borderRadius: '4px',
+            fontSize: '11px',
+            fontWeight: 'bold',
+            backgroundColor: 
+              role === 'admin' ? 'rgba(239, 68, 68, 0.1)' :
+              role === 'manager' ? 'rgba(245, 158, 11, 0.1)' :
+              role === 'staff' ? 'rgba(95, 93, 236, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+            color: 
+              role === 'admin' ? 'var(--danger-color)' :
+              role === 'manager' ? 'var(--warning-color)' :
+              role === 'staff' ? 'var(--accent-light)' : 'var(--text-secondary)'
+          }}>
+            {role === 'admin' ? (displayLang === 'zh' ? '어드민' : '어드민') :
+             role === 'manager' ? (displayLang === 'zh' ? '매니저' : '매니저') :
+             role === 'staff' ? (displayLang === 'zh' ? '스탭' : '스탭') : (displayLang === 'zh' ? '일반' : '일반')}
+          </span>
+        )}
+      </td>
+      <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
+        {new Date(member.created_at).toLocaleDateString()}
+      </td>
+      <td style={{ padding: '14px 16px', textAlign: 'center' }}>
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+          {isEditing ? (
+            <>
+              <button 
+                onClick={handleSave}
+                style={{
+                  backgroundColor: 'var(--accent-light)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                {displayLang === 'zh' ? '保存' : '저장'}
+              </button>
+              <button 
+                onClick={() => {
+                  setName(member.name);
+                  setPin(member.pin_code);
+                  setRole(member.role || 'general');
+                  setIsEditing(false);
+                }}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  padding: '5px 12px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  cursor: 'pointer'
+                }}
+              >
+                {displayLang === 'zh' ? '取消' : '취소'}
+              </button>
+            </>
+          ) : (
+            <>
+              <button 
+                onClick={() => setIsEditing(true)}
+                style={{
+                  backgroundColor: 'transparent',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '4px',
+                  padding: '5px 12px',
+                  color: 'var(--text-secondary)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Edit size={12} /> {displayLang === 'zh' ? '编辑' : '수정'}
+              </button>
+              <button 
+                onClick={() => onDelete(member.id, member.name)}
+                style={{
+                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  color: 'var(--danger-color)',
+                  fontSize: '12px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '4px'
+                }}
+              >
+                <Trash2 size={12} /> {displayLang === 'zh' ? '删除' : '삭제'}
+              </button>
+            </>
+          )}
+        </div>
+      </td>
+    </tr>
+  );
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.member.id === nextProps.member.id &&
+    prevProps.member.name === nextProps.member.name &&
+    prevProps.member.phone_number === nextProps.member.phone_number &&
+    prevProps.member.pin_code === nextProps.member.pin_code &&
+    prevProps.member.role === nextProps.member.role &&
+    prevProps.member.created_at === nextProps.member.created_at &&
+    prevProps.displayLang === nextProps.displayLang
+  );
+});
+
+const DEFAULT_PERMISSIONS: Record<string, Record<string, boolean>> = {
+  admin: {
+    home: true,
+    'trade-ins': true,
+    products: true,
+    orders: true,
+    prices: true,
+    categories: true,
+    'hongkong-inventory': true,
+    'completed-sales': true,
+    'margin-settlement': true,
+    'model-pet-names': true,
+    scanner: true,
+    permissions: true,
+    members: true
+  },
+  manager: {
+    home: true,
+    'trade-ins': true,
+    products: true,
+    orders: true,
+    prices: false,
+    categories: false,
+    'hongkong-inventory': true,
+    'completed-sales': true,
+    'margin-settlement': true,
+    'model-pet-names': true,
+    scanner: true,
+    permissions: false,
+    members: false
+  },
+  staff: {
+    home: true,
+    'trade-ins': true,
+    products: false,
+    orders: false,
+    prices: false,
+    categories: false,
+    'hongkong-inventory': true,
+    'completed-sales': false,
+    'margin-settlement': false,
+    'model-pet-names': false,
+    scanner: true,
+    permissions: false,
+    members: false
+  },
+  general: {
+    home: true,
+    'trade-ins': false,
+    products: false,
+    orders: false,
+    prices: false,
+    categories: false,
+    'hongkong-inventory': false,
+    'completed-sales': false,
+    'margin-settlement': false,
+    'model-pet-names': false,
+    scanner: true,
+    permissions: false,
+    members: false
+  }
+};
+
+const MENU_KEYS = [
+  { key: 'home', label: '대시보드 홈 / 控制台' },
+  { key: 'trade-ins', label: '매입 신청 관리 / 回收订单' },
+  { key: 'products', label: '판매 상품 관리 / 商品管理' },
+  { key: 'orders', label: '주문 배송 관리 / 订单发货' },
+  { key: 'prices', label: '매입 시세 설정 / 回收报价' },
+  { key: 'categories', label: '카테고리 관리 / 分类管理' },
+  { key: 'hongkong-inventory', label: '홍콩 재고 관리 / 香港库存' },
+  { key: 'completed-sales', label: '판매 승인 / 销售审批' },
+  { key: 'margin-settlement', label: '마진 및 정산 / 利润结算' },
+  { key: 'model-pet-names', label: '기종 펫네임 관리 / 型号别称' },
+  { key: 'members', label: '회원 등급 관리 / 会员管理' },
+  { key: 'scanner', label: '바코드 스캐너 / 扫码销售' },
+  { key: 'permissions', label: '메뉴 권한 설정 / 权限管理' }
+];
+
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names' | 'permissions' | 'members'>('home');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  
+  const [userRole, setUserRole] = useState<'admin' | 'manager' | 'staff' | 'general'>('admin');
+  
+  const [permissions, setPermissions] = useState<Record<string, Record<string, boolean>>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('admin_menu_permissions');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+    return DEFAULT_PERMISSIONS;
+  });
+
+  const [tempPermissions, setTempPermissions] = useState<Record<string, Record<string, boolean>>>(permissions);
+
+  // 권한 설정 탭 진입 시 임시 상태 동기화
+  useEffect(() => {
+    if (activeTab === 'permissions') {
+      setTempPermissions(permissions);
+    }
+  }, [activeTab, permissions]);
+
+  const handlePermissionChange = (role: string, menuKey: string, checked: boolean) => {
+    setTempPermissions(prev => ({
+      ...prev,
+      [role]: {
+        ...prev[role],
+        [menuKey]: checked
+      }
+    }));
+  };
+
+  const handleSavePermissions = () => {
+    localStorage.setItem('admin_menu_permissions', JSON.stringify(tempPermissions));
+    setPermissions(tempPermissions);
+    alert(displayLang === 'zh' ? '权限设置已保存！' : '권한 설정이 저장되었습니다!');
+  };
+
+  const handleResetPermissions = () => {
+    if (confirm(displayLang === 'zh' ? '确定要恢复为默认权限设置吗？' : '기본 권한 설정으로 복원하시겠습니까?')) {
+      setTempPermissions(DEFAULT_PERMISSIONS);
+    }
+  };
+
   const [loading, setLoading] = useState(true);
   const [uploadingImage, setUploadingImage] = useState(false);
 
@@ -309,6 +647,7 @@ export default function AdminDashboard() {
   
   // 기종 펫네임 매핑 및 다국어 표시 상태
   const [modelPetNames, setModelPetNames] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
   const [displayLang, setDisplayLang] = useState<'ko' | 'zh'>('ko');
   const [isPetModalOpen, setIsPetModalOpen] = useState(false);
   const [selectedPet, setSelectedPet] = useState<any | null>(null);
@@ -722,9 +1061,15 @@ export default function AdminDashboard() {
   // 1. 관리자 토큰 검증
   useEffect(() => {
     const token = sessionStorage.getItem('admin_token');
+    const role = sessionStorage.getItem('admin_role') as any;
     if (!token) {
       router.push('/admin/login');
+    } else if (role === 'general') {
+      router.push('/mypage');
     } else {
+      if (role) {
+        setUserRole(role);
+      }
       loadAllData();
       // 모바일 환경일 때 기본적으로 홍콩 재고 탭으로 시작하고 기종 카드 뷰로 봅니다.
       if (typeof window !== 'undefined' && window.innerWidth <= 768) {
@@ -739,7 +1084,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
-      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes] = await Promise.all([
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes, memberRes] = await Promise.all([
         fetch('/api/trade-ins'),
         fetch('/api/products'),
         fetch('/api/orders'),
@@ -747,11 +1092,12 @@ export default function AdminDashboard() {
         fetch('/api/categories'),
         fetch('/api/hongkong-inventory'),
         fetch('/api/exchange-rate'),
-        fetch('/api/model-pet-names')
+        fetch('/api/model-pet-names'),
+        fetch('/api/members')
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
-      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData] = await Promise.all([
+      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData, memberData] = await Promise.all([
         tradeRes.json(),
         prodRes.json(),
         orderRes.json(),
@@ -759,7 +1105,8 @@ export default function AdminDashboard() {
         catRes.json(),
         hkRes.json(),
         rateRes.json(),
-        petRes.json()
+        petRes.json(),
+        memberRes.json()
       ]);
 
       if (tradeData.success) setTradeIns(tradeData.data);
@@ -775,12 +1122,66 @@ export default function AdminDashboard() {
         }
       }
       if (petData.success) setModelPetNames(petData.data);
+      if (memberData.success) setMembers(memberData.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
     }
   }, []);
+
+  // 회원 관리 관련 상태 및 액션
+  const [memberSearchQuery, setMemberSearchQuery] = useState('');
+  
+  const filteredMembers = useMemo(() => {
+    const query = memberSearchQuery.trim().toLowerCase();
+    if (!query) return members;
+    return members.filter(m => 
+      (m.name && m.name.toLowerCase().includes(query)) ||
+      (m.phone_number && m.phone_number.includes(query))
+    );
+  }, [members, memberSearchQuery]);
+
+  const handleUpdateMember = async (id: string, name: string, pin: string, role: string) => {
+    try {
+      const res = await fetch('/api/members', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, name, pin_code: pin, role })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(displayLang === 'zh' ? '会员信息已更新！' : '회원 정보가 성공적으로 변경되었습니다!');
+        loadAllData();
+      } else {
+        alert(data.error || '회원 수정 실패');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('네트워크 오류');
+    }
+  };
+
+  const handleDeleteMember = async (id: string, name: string) => {
+    if (!confirm(displayLang === 'zh' ? `确认删除会员 [${name}] 吗？` : `정말 [${name}] 회원을 삭제하시겠습니까?`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/members?id=${id}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert(displayLang === 'zh' ? '会员已删除！' : '회원이 성공적으로 삭제되었습니다!');
+        loadAllData();
+      } else {
+        alert(data.error || '회원 삭제 실패');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('네트워크 오류');
+    }
+  };
 
   // 2. 매입 승인 관리 액션 (수정 모달 오픈)
   const openTradeInModal = (trade: TradeIn) => {
@@ -1840,126 +2241,183 @@ export default function AdminDashboard() {
 
       {/* 1. 사이드 바 */}
       <aside className={`${styles.sidebar} ${isMobileSidebarOpen ? styles.sidebarOpen : ''}`}>
-        <div className={styles.logo}>TRUE MOBILE ADMIN</div>
+        <div className={styles.logo}>
+          TRUE MOBILE ADMIN
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', fontWeight: 'bold' }}>
+            {displayLang === 'zh' ? '当前权限' : '접속 권한'}: <span style={{ color: 'var(--accent-light)' }}>{
+              userRole === 'admin' ? (displayLang === 'zh' ? '超级管理员' : '어드민') :
+              userRole === 'manager' ? (displayLang === 'zh' ? '经理' : '매니저') :
+              userRole === 'staff' ? (displayLang === 'zh' ? '职员' : '스탭') :
+              (displayLang === 'zh' ? '普通会员' : '일반')
+            }</span>
+          </div>
+        </div>
         
         <nav className={styles.menuList}>
-          <button 
-            onClick={() => {
-              setActiveTab('home');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'home' ? styles.menuItemActive : ''}`}
-          >
-            <BarChart3 size={18} /> 대시보드 홈
-          </button>
+          {permissions[userRole]?.['home'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('home');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'home' ? styles.menuItemActive : ''}`}
+            >
+              <BarChart3 size={18} /> 대시보드 홈
+            </button>
+          )}
           
-          <button 
-            onClick={() => {
-              setActiveTab('trade-ins');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'trade-ins' ? styles.menuItemActive : ''}`}
-          >
-            <Smartphone size={18} /> 매입 신청 관리 ({tradeIns.length})
-          </button>
+          {permissions[userRole]?.['trade-ins'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('trade-ins');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'trade-ins' ? styles.menuItemActive : ''}`}
+            >
+              <Smartphone size={18} /> 매입 신청 관리 ({tradeIns.length})
+            </button>
+          )}
           
-          <button 
-            onClick={() => {
-              setActiveTab('products');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'products' ? styles.menuItemActive : ''}`}
-          >
-            <ShoppingBag size={18} /> 판매 상품 관리 ({products.length})
-          </button>
+          {permissions[userRole]?.['products'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('products');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'products' ? styles.menuItemActive : ''}`}
+            >
+              <ShoppingBag size={18} /> 판매 상품 관리 ({products.length})
+            </button>
+          )}
           
-          <button 
-            onClick={() => {
-              setActiveTab('orders');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'orders' ? styles.menuItemActive : ''}`}
-          >
-            <ClipboardList size={18} /> 주문 배송 관리 ({orders.length})
-          </button>
+          {permissions[userRole]?.['orders'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('orders');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'orders' ? styles.menuItemActive : ''}`}
+            >
+              <ClipboardList size={18} /> 주문 배송 관리 ({orders.length})
+            </button>
+          )}
           
-          <button 
-            onClick={() => {
-              setActiveTab('prices');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
-          >
-            <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
-          </button>
+          {permissions[userRole]?.['prices'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('prices');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'prices' ? styles.menuItemActive : ''}`}
+            >
+              <Settings size={18} /> 매입 시세 설정 ({tradeInPrices.length})
+            </button>
+          )}
 
-          <button 
-            onClick={() => {
-              setActiveTab('categories');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
-          >
-            <Layers size={18} /> 카테고리 관리 ({categories.length})
-          </button>
+          {permissions[userRole]?.['categories'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('categories');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'categories' ? styles.menuItemActive : ''}`}
+            >
+              <Layers size={18} /> 카테고리 관리 ({categories.length})
+            </button>
+          )}
 
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
 
-          <button 
-            onClick={() => {
-              setActiveTab('hongkong-inventory');
-              setHkViewMode('card');
-              setHkSearchQuery('');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
-          >
-            <Smartphone size={18} /> 홍콩 재고 관리
-          </button>
+          {permissions[userRole]?.['hongkong-inventory'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('hongkong-inventory');
+                setHkViewMode('card');
+                setHkSearchQuery('');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'hongkong-inventory' ? styles.menuItemActive : ''}`}
+            >
+              <Smartphone size={18} /> 홍콩 재고 관리
+            </button>
+          )}
 
-          <button 
-            onClick={() => {
-              setActiveTab('completed-sales');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'completed-sales' ? styles.menuItemActive : ''}`}
-          >
-            <CheckCircle2 size={18} /> {displayLang === 'zh' ? '销售审批' : '판매 승인'}
-          </button>
+          {permissions[userRole]?.['completed-sales'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('completed-sales');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'completed-sales' ? styles.menuItemActive : ''}`}
+            >
+              <CheckCircle2 size={18} /> {displayLang === 'zh' ? '销售审批' : '판매 승인'}
+            </button>
+          )}
 
-          <button 
-            onClick={() => {
-              setActiveTab('margin-settlement');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'margin-settlement' ? styles.menuItemActive : ''}`}
-          >
-            <Coins size={18} /> 마진 및 정산
-          </button>
+          {permissions[userRole]?.['margin-settlement'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('margin-settlement');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'margin-settlement' ? styles.menuItemActive : ''}`}
+            >
+              <Coins size={18} /> 마진 및 정산
+            </button>
+          )}
 
-          <button 
-            onClick={() => {
-              setActiveTab('model-pet-names');
-              setIsMobileSidebarOpen(false);
-            }}
-            className={`${styles.menuItem} ${activeTab === 'model-pet-names' ? styles.menuItemActive : ''}`}
-          >
-            <Settings size={18} style={{ color: 'var(--accent-light)' }} /> 기종 펫네임 관리 ({modelPetNames.length})
-          </button>
+          {permissions[userRole]?.['model-pet-names'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('model-pet-names');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'model-pet-names' ? styles.menuItemActive : ''}`}
+            >
+              <Settings size={18} style={{ color: 'var(--accent-light)' }} /> 기종 펫네임 관리 ({modelPetNames.length})
+            </button>
+          )}
+
+          {permissions[userRole]?.['members'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('members');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'members' ? styles.menuItemActive : ''}`}
+            >
+              <Users size={18} style={{ color: 'var(--accent-light)' }} /> {displayLang === 'zh' ? '会员管理' : '회원 등급 관리'} ({members.length})
+            </button>
+          )}
+
+          {/* 권한 관리 탭 */}
+          {permissions[userRole]?.['permissions'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('permissions');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'permissions' ? styles.menuItemActive : ''}`}
+            >
+              <Settings size={18} style={{ color: 'var(--warning-color)' }} /> 메뉴 권한 설정
+            </button>
+          )}
 
           <div style={{ height: '1px', background: 'var(--border-color)', margin: '10px 0' }} />
 
-          <a 
-            href="/admin/scanner"
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setIsMobileSidebarOpen(false)}
-            className={styles.menuItem}
-            style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}
-          >
-            <Smartphone size={18} style={{ color: 'var(--warning-color)' }} />
-            <span style={{ color: 'var(--warning-color)' }}>바코드 스캐너 / 扫码销售 ↗</span>
-          </a>
+          {permissions[userRole]?.['scanner'] && (
+            <a 
+              href="/admin/scanner"
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setIsMobileSidebarOpen(false)}
+              className={styles.menuItem}
+              style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '12px' }}
+            >
+              <Smartphone size={18} style={{ color: 'var(--warning-color)' }} />
+              <span style={{ color: 'var(--warning-color)' }}>바코드 스캐너 / 扫码销售 ↗</span>
+            </a>
+          )}
         </nav>
 
         <button 
@@ -4183,6 +4641,168 @@ export default function AdminDashboard() {
                         </tr>
                       ));
                     })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 메뉴 권한 설정 탭 */}
+        {activeTab === 'permissions' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>메뉴 권한 관리 / 菜单权限管理</h2>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  각 회원 등급별 좌측 메뉴 노출 여부를 체크박스로 설정할 수 있습니다.
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={handleResetPermissions}
+                  className={styles.btnCancel}
+                  style={{ cursor: 'pointer', padding: '10px 18px', border: '1px solid var(--border-color)', background: 'transparent' }}
+                >
+                  기본값 복원 / 恢复默认
+                </button>
+                <button
+                  onClick={handleSavePermissions}
+                  className={styles.btnSave}
+                  style={{ cursor: 'pointer' }}
+                >
+                  권한 저장 / 保存权限
+                </button>
+              </div>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '14px 16px' }}>메뉴 명칭 / 菜单名称</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>어드민 / Admin</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>매니저 / Manager</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>스탭 / Staff</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>일반 / User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MENU_KEYS.map(menu => (
+                      <tr key={menu.key}>
+                        <td style={{ fontWeight: 'bold', padding: '14px 16px' }}>
+                          {menu.label}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={tempPermissions.admin?.[menu.key] || false}
+                            onChange={(e) => handlePermissionChange('admin', menu.key, e.target.checked)}
+                            disabled={menu.key === 'permissions'} // 어드민의 권한설정 메뉴는 해제 불가
+                            style={{ width: '18px', height: '18px', cursor: menu.key === 'permissions' ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={tempPermissions.manager?.[menu.key] || false}
+                            onChange={(e) => handlePermissionChange('manager', menu.key, e.target.checked)}
+                            disabled={menu.key === 'permissions'}
+                            style={{ width: '18px', height: '18px', cursor: menu.key === 'permissions' ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={tempPermissions.staff?.[menu.key] || false}
+                            onChange={(e) => handlePermissionChange('staff', menu.key, e.target.checked)}
+                            disabled={menu.key === 'permissions'}
+                            style={{ width: '18px', height: '18px', cursor: menu.key === 'permissions' ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '14px 16px' }}>
+                          <input
+                            type="checkbox"
+                            checked={tempPermissions.general?.[menu.key] || false}
+                            onChange={(e) => handlePermissionChange('general', menu.key, e.target.checked)}
+                            disabled={menu.key === 'permissions'}
+                            style={{ width: '18px', height: '18px', cursor: menu.key === 'permissions' ? 'not-allowed' : 'pointer' }}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 회원 등급 관리 탭 */}
+        {activeTab === 'members' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>회원 권한 등급 관리 / 会员管理</h2>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  가입된 회원들의 이름, PIN, 권한 등급을 수정하거나 삭제할 수 있습니다.
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {displayLang === 'zh' ? '搜索:' : '검색:'}
+                </span>
+                <input 
+                  type="text" 
+                  placeholder={displayLang === 'zh' ? '姓名 或 电话号码' : '이름 또는 전화번호'}
+                  value={memberSearchQuery}
+                  onChange={(e) => setMemberSearchQuery(e.target.value)}
+                  style={{
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    padding: '8px 14px',
+                    fontSize: '13px',
+                    color: '#fff',
+                    outline: 'none',
+                    width: '200px'
+                  }}
+                />
+              </div>
+            </div>
+
+            <div className={styles.tableSection}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ padding: '14px 16px' }}>이름 / 姓名</th>
+                      <th style={{ padding: '14px 16px' }}>전화번호 / 电话</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>PIN / 密码</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>등급 / 角色</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>가입일 / 注册日期</th>
+                      <th style={{ textAlign: 'center', padding: '14px 16px' }}>작업 / 操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredMembers.length > 0 ? (
+                      filteredMembers.map(m => (
+                        <MemberRow 
+                          key={m.id}
+                          member={m}
+                          displayLang={displayLang}
+                          onUpdate={handleUpdateMember}
+                          onDelete={handleDeleteMember}
+                        />
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                          {displayLang === 'zh' ? '没有找到匹配的会员。' : '검색 조건에 일치하는 회원이 없습니다.'}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>

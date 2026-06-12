@@ -377,7 +377,7 @@ export async function createMember(phone: string, pin: string, name: string) {
   if (supabase) {
     const { data, error } = await supabase
       .from('members')
-      .insert([{ phone_number: cleanPhone, pin_code: pin, name }])
+      .insert([{ phone_number: cleanPhone, pin_code: pin, name, role: 'general' }])
       .select()
       .single();
     if (error) throw error;
@@ -389,6 +389,7 @@ export async function createMember(phone: string, pin: string, name: string) {
       phone_number: cleanPhone,
       pin_code: pin,
       name,
+      role: 'general',
       created_at: new Date().toISOString()
     };
     db.members.push(newMember);
@@ -1219,3 +1220,60 @@ export async function deleteModelPetName(modelCode: string) {
   }
 }
 
+export async function getMembers() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('members')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.members) db.members = [];
+    return [...db.members].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+}
+
+export async function updateMember(id: string, memberData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('members')
+      .update(memberData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.members) db.members = [];
+    const idx = db.members.findIndex(m => m.id === id);
+    if (idx !== -1) {
+      db.members[idx] = {
+        ...db.members[idx],
+        ...memberData
+      };
+      writeMockDB(db);
+      return db.members[idx];
+    }
+    throw new Error('Member not found');
+  }
+}
+
+export async function deleteMember(id: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('members')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.members) db.members = [];
+    db.members = db.members.filter(m => m.id !== id);
+    writeMockDB(db);
+    return true;
+  }
+}

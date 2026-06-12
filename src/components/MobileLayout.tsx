@@ -77,18 +77,7 @@ export default function MobileLayout({ children, title, showBack, onBack }: Mobi
           <h1 className={styles.headerTitle}>{getHeaderTitle()}</h1>
 
           {/* 오른쪽 정렬용 목업 버튼 또는 관리자 바로가기 */}
-          {pathname === '/' ? (
-            <button 
-              onClick={() => router.push('/admin')} 
-              className={styles.headerAction} 
-              title="관리자 모드"
-              aria-label="관리자 모드 이동"
-            >
-              <span style={{ fontSize: '12px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>ADMIN</span>
-            </button>
-          ) : (
-            <div className={styles.headerAction} style={{ opacity: 0 }} />
-          )}
+          <div className={styles.headerAction} style={{ opacity: 0 }} />
         </header>
 
         {/* 콘텐츠 본문 */}

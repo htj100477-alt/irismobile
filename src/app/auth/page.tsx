@@ -6,20 +6,24 @@ import { Smartphone, Lock, User, ArrowRight, CheckCircle2 } from 'lucide-react';
 import MobileLayout from '@/components/MobileLayout';
 import styles from '@/styles/auth.module.css';
 
-type AuthStep = 'phone' | 'login_pin' | 'register_name' | 'register_pin' | 'register_pin_confirm';
+import { useRef } from 'react';
 
 function AuthContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectPath = searchParams.get('redirect') || '/mypage';
 
-  const [step, setStep] = useState<AuthStep>('phone');
   const [phone, setPhone] = useState('');
-  const [name, setName] = useState('');
+  const [name, setName] = useState('고객');
   const [pin, setPin] = useState('');
   const [pinConfirm, setPinConfirm] = useState('');
+  const [userExists, setUserExists] = useState<boolean | null>(null);
+  const [checkingPhone, setCheckingPhone] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const pinInputRef = useRef<HTMLInputElement>(null);
+  const confirmInputRef = useRef<HTMLInputElement>(null);
 
   // 휴대폰 번호 입력 시 자동 포맷팅 (010-XXXX-XXXX)
   const formatPhoneNumber = (value: string) => {
@@ -29,99 +33,84 @@ function AuthContent() {
     return `${cleanValue.slice(0, 3)}-${cleanValue.slice(3, 7)}-${cleanValue.slice(7, 11)}`;
   };
 
-  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhoneChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError('');
-    setPhone(formatPhoneNumber(e.target.value));
-  };
+    const formatted = formatPhoneNumber(e.target.value);
+    setPhone(formatted);
 
-  // 휴대폰 번호 존재 여부 확인
-  const handleCheckPhone = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const cleanPhone = phone.replace(/[^0-9]/g, '');
-    if (cleanPhone.length < 10) {
-      setError('올바른 휴대폰 번호를 입력해주세요.');
-      return;
-    }
+    const cleanPhone = formatted.replace(/[^0-9]/g, '');
+    if (cleanPhone.length === 11) {
+      setCheckingPhone(true);
+      try {
+        const res = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'check_phone', phone_number: cleanPhone }),
+        });
+        const data = await res.json();
 
-    setLoading(true);
-    setError('');
+        if (data.exists) {
+          setUserExists(true);
+          setName(data.name || '고객');
+        } else {
+          setUserExists(false);
+          setName('고객');
+        }
 
-    try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check_phone', phone_number: cleanPhone }),
-      });
-      const data = await res.json();
-
-      if (data.exists) {
-        setStep('login_pin');
-        setName(data.name);
-      } else {
-        setStep('register_name');
+        // 상태 업데이트 후 포커스 이동을 위해 지연 처리
+        setTimeout(() => {
+          pinInputRef.current?.focus();
+        }, 100);
+      } catch (err) {
+        setError('서버 연결 실패. 다시 시도해주세요.');
+      } finally {
+        setCheckingPhone(false);
       }
-    } catch (err) {
-      setError('서버 연결 실패. 다시 시도해주세요.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // 회원가입 단계 1 (이름 입력 완료)
-  const handleNameSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!name.trim()) {
-      setError('이름을 입력해주세요.');
-      return;
-    }
-    setError('');
-    setStep('register_pin');
-  };
-
-  // 키패드 입력 핸들러 (PIN 코드 입력용)
-  const handleKeypadPress = (val: string) => {
-    setError('');
-    const currentPin = step === 'register_pin_confirm' ? pinConfirm : pin;
-    
-    if (val === 'back') {
-      if (step === 'register_pin_confirm') {
-        setPinConfirm(prev => prev.slice(0, -1));
-      } else {
-        setPin(prev => prev.slice(0, -1));
-      }
-      return;
-    }
-
-    if (currentPin.length >= 4) return;
-
-    const nextPin = currentPin + val;
-    
-    if (step === 'register_pin_confirm') {
-      setPinConfirm(nextPin);
     } else {
-      setPin(nextPin);
+      setUserExists(null);
+      setPin('');
+      setPinConfirm('');
     }
   };
 
-  // PIN 입력 감시 및 자동 서브밋
+  const handlePinChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    setPin(val);
+  };
+
+  const handlePinConfirmChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setError('');
+    const val = e.target.value.replace(/[^0-9]/g, '');
+    setPinConfirm(val);
+  };
+
+  // PIN 입력 완료 감시
   useEffect(() => {
-    if (step === 'login_pin' && pin.length === 4) {
-      handleLogin();
-    } else if (step === 'register_pin' && pin.length === 4) {
-      // 1초 지연 후 다음 단계로 넘어가 조작감이 자연스럽게 만듦
-      const timer = setTimeout(() => {
-        setStep('register_pin_confirm');
-      }, 300);
-      return () => clearTimeout(timer);
-    } else if (step === 'register_pin_confirm' && pinConfirm.length === 4) {
+    if (pin.length === 4) {
+      if (userExists === true) {
+        handleLogin();
+      } else if (userExists === false) {
+        setTimeout(() => {
+          confirmInputRef.current?.focus();
+        }, 100);
+      }
+    }
+  }, [pin, userExists]);
+
+  useEffect(() => {
+    if (pinConfirm.length === 4 && userExists === false) {
       if (pin !== pinConfirm) {
         setError('PIN 번호가 일치하지 않습니다. 다시 입력해주세요.');
         setPinConfirm('');
+        setTimeout(() => {
+          confirmInputRef.current?.focus();
+        }, 50);
       } else {
         handleRegister();
       }
     }
-  }, [pin, pinConfirm, step]);
+  }, [pinConfirm, pin, userExists]);
 
   // 로그인 요청
   const handleLogin = async () => {
@@ -138,14 +127,30 @@ function AuthContent() {
 
       if (res.ok && data.success) {
         localStorage.setItem('user', JSON.stringify(data.member));
-        router.push(redirectPath);
+        
+        // 권한에 따른 분기 라우팅
+        const role = data.member.role;
+        if (role === 'admin' || role === 'manager' || role === 'staff') {
+          sessionStorage.setItem('admin_token', 'true');
+          sessionStorage.setItem('admin_role', role);
+          sessionStorage.setItem('admin_role_name', role === 'admin' ? '어드민' : role === 'manager' ? '매니저' : '스탭');
+          router.push('/admin/dashboard');
+        } else {
+          router.push(redirectPath);
+        }
       } else {
         setError(data.error || '로그인 실패. PIN 번호를 확인해주세요.');
         setPin('');
+        setTimeout(() => {
+          pinInputRef.current?.focus();
+        }, 50);
       }
     } catch (err) {
       setError('서버 연결 실패. 다시 시도해주세요.');
       setPin('');
+      setTimeout(() => {
+        pinInputRef.current?.focus();
+      }, 50);
     } finally {
       setLoading(false);
     }
@@ -166,198 +171,140 @@ function AuthContent() {
 
       if (res.ok && data.success) {
         localStorage.setItem('user', JSON.stringify(data.member));
-        router.push(redirectPath);
+        
+        // 권한에 따른 분기 라우팅
+        const role = data.member.role;
+        if (role === 'admin' || role === 'manager' || role === 'staff') {
+          sessionStorage.setItem('admin_token', 'true');
+          sessionStorage.setItem('admin_role', role);
+          sessionStorage.setItem('admin_role_name', role === 'admin' ? '어드민' : role === 'manager' ? '매니저' : '스탭');
+          router.push('/admin/dashboard');
+        } else {
+          router.push(redirectPath);
+        }
       } else {
         setError(data.error || '회원가입 중 오류가 발생했습니다.');
         setPin('');
         setPinConfirm('');
-        setStep('register_pin');
+        setTimeout(() => {
+          pinInputRef.current?.focus();
+        }, 50);
       }
     } catch (err) {
       setError('서버 연결 실패. 다시 시도해주세요.');
       setPin('');
       setPinConfirm('');
-      setStep('register_pin');
+      setTimeout(() => {
+        pinInputRef.current?.focus();
+      }, 50);
     } finally {
       setLoading(false);
     }
   };
 
-  // 키패드 렌더러
-  const renderKeypad = () => {
-    const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', 'back'];
-    return (
-      <div className={styles.keypadGrid}>
-        {keys.map((k, idx) => {
-          if (k === '') return <div key={idx} className={styles.keypadKeyEmpty} />;
-          return (
-            <button 
-              key={idx} 
-              type="button"
-              className={styles.keypadKey}
-              onClick={() => handleKeypadPress(k)}
-              disabled={loading}
-            >
-              {k === 'back' ? '←' : k}
-            </button>
-          );
-        })}
-      </div>
-    );
-  };
-
-  // 가상 원형 PIN 인디케이터 렌더러
-  const renderPinDots = (activeCount: number) => {
-    return (
-      <div className={styles.pinIndicatorWrapper}>
-        {[0, 1, 2, 3].map((idx) => (
-          <div 
-            key={idx} 
-            className={`${styles.pinDot} ${idx < activeCount ? styles.pinDotActive : ''}`} 
-          />
-        ))}
-      </div>
-    );
-  };
-
   return (
     <MobileLayout showBack={true}>
       <div className={styles.authWrapper}>
-        
-        {/* 1단계: 휴대폰 번호 입력 */}
-        {step === 'phone' && (
-          <form onSubmit={handleCheckPhone} className={`${styles.formSection} animate-fade-in`}>
-            <div className={styles.titleSection}>
-              <h2 className={styles.title}>휴대폰 번호로<br />간편하게 시작하세요</h2>
-              <p className={styles.subtitle}>본인 명의의 휴대폰 번호로 가입/로그인합니다.</p>
-            </div>
+        <div className={`${styles.formSection} animate-fade-in`}>
+          <div className={styles.titleSection}>
+            <h2 className={styles.title}>
+              {userExists === null && <>휴대폰 번호로<br />간편하게 시작하세요</>}
+              {userExists === true && <>{name}님,<br />PIN 비밀번호를 입력하세요</>}
+              {userExists === false && <>반갑습니다!<br />새로운 PIN 번호를 설정하세요</>}
+            </h2>
+            <p className={styles.subtitle}>
+              {userExists === null && '본인 명의의 휴대폰 번호로 가입/로그인합니다.'}
+              {userExists === true && '설정한 4자리 PIN 비밀번호를 입력해주세요.'}
+              {userExists === false && '간편 로그인 및 거래 조회에 사용될 4자리 비밀번호입니다.'}
+            </p>
+          </div>
 
-            <div className={styles.inputGroup}>
-              <label htmlFor="phoneInput" className={styles.inputLabel}>휴대폰 번호</label>
+          {/* 1. 휴대폰 번호 입력 필드 */}
+          <div className={styles.inputGroup}>
+            <label htmlFor="phoneInput" className={styles.inputLabel}>휴대폰 번호</label>
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+              <Smartphone size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
+              <input 
+                id="phoneInput"
+                type="tel"
+                placeholder="010-0000-0000"
+                value={phone}
+                onChange={handlePhoneChange}
+                className={styles.inputField}
+                style={{ paddingLeft: '48px', width: '100%' }}
+                maxLength={13}
+                required
+                autoFocus
+                disabled={loading || checkingPhone}
+              />
+            </div>
+          </div>
+
+          {checkingPhone && (
+            <p style={{ color: 'var(--accent-light)', fontSize: '12px', marginTop: '4px' }}>가입 상태 조회 중...</p>
+          )}
+
+          {/* 2. PIN 비밀번호 입력 필드 (가입 상태 판별 완료 시 노출) */}
+          {userExists !== null && (
+            <div className={`${styles.inputGroup} animate-slide-up`} style={{ marginTop: '16px' }}>
+              <label htmlFor="pinInput" className={styles.inputLabel}>
+                {userExists === true ? 'PIN 비밀번호 (4자리)' : '신규 비밀번호 PIN (4자리)'}
+              </label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <Smartphone size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
+                <Lock size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
                 <input 
-                  id="phoneInput"
-                  type="tel"
-                  placeholder="010-0000-0000"
-                  value={phone}
-                  onChange={handlePhoneChange}
+                  id="pinInput"
+                  ref={pinInputRef}
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="숫자 4자리"
+                  value={pin}
+                  onChange={handlePinChange}
                   className={styles.inputField}
-                  style={{ paddingLeft: '48px', width: '100%' }}
-                  maxLength={13}
+                  style={{ paddingLeft: '48px', width: '100%', letterSpacing: '4px' }}
+                  maxLength={4}
                   required
+                  disabled={loading}
                 />
               </div>
             </div>
+          )}
 
-            {error && <p className={styles.errorText}>{error}</p>}
-
-            <button type="submit" className={styles.submitBtn} disabled={loading || phone.length < 12}>
-              {loading ? '확인 중...' : '다음'} <ArrowRight size={18} />
-            </button>
-
-            <div className={styles.infoBox}>
-              💡 **테스트 가이드**:<br />
-              원하시는 번호 아무거나 입력하여 즉시 가입/로그인 테스트할 수 있습니다.<br />
-              (테스트 계정: `010-1234-5678` / PIN: `1234`가 기본 등록되어 있습니다.)
-            </div>
-          </form>
-        )}
-
-        {/* 회원가입 1단계: 이름 입력 */}
-        {step === 'register_name' && (
-          <form onSubmit={handleNameSubmit} className={`${styles.formSection} animate-fade-in`}>
-            <div className={styles.titleSection}>
-              <h2 className={styles.title}>신규 회원가입을 위한<br />이름을 입력해주세요</h2>
-              <p className={styles.subtitle}>고객님과 거래 시 매칭할 실명을 작성해주세요.</p>
-            </div>
-
-            <div className={styles.inputGroup}>
-              <label htmlFor="nameInput" className={styles.inputLabel}>이름 (실명)</label>
+          {/* 3. 신규 가입 시 PIN 확인 필드 (1차 PIN 4자리 입력 시 노출) */}
+          {userExists === false && pin.length === 4 && (
+            <div className={`${styles.inputGroup} animate-slide-up`} style={{ marginTop: '16px' }}>
+              <label htmlFor="confirmInput" className={styles.inputLabel}>비밀번호 확인</label>
               <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                <User size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
+                <Lock size={20} color="var(--text-muted)" style={{ position: 'absolute', left: '16px' }} />
                 <input 
-                  id="nameInput"
-                  type="text"
-                  placeholder="홍길동"
-                  value={name}
-                  onChange={(e) => { setError(''); setName(e.target.value); }}
+                  id="confirmInput"
+                  ref={confirmInputRef}
+                  type="password"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  placeholder="한번 더 입력"
+                  value={pinConfirm}
+                  onChange={handlePinConfirmChange}
                   className={styles.inputField}
-                  style={{ paddingLeft: '48px', width: '100%' }}
+                  style={{ paddingLeft: '48px', width: '100%', letterSpacing: '4px' }}
+                  maxLength={4}
                   required
-                  autoFocus
+                  disabled={loading}
                 />
               </div>
             </div>
+          )}
 
-            {error && <p className={styles.errorText}>{error}</p>}
+          {error && <p className={styles.errorText} style={{ marginTop: '12px' }}>{error}</p>}
+          {loading && <p style={{ color: 'var(--accent-light)', fontSize: '13px', marginTop: '12px', textAlign: 'center' }}>로그인 및 가입을 진행 중입니다...</p>}
 
-            <button type="submit" className={styles.submitBtn} disabled={loading || !name.trim()}>
-              비밀번호(PIN) 설정으로 이동 <ArrowRight size={18} />
-            </button>
-          </form>
-        )}
-
-        {/* 기존 회원: 로그인 PIN 입력 */}
-        {step === 'login_pin' && (
-          <div className={`${styles.formSection} animate-fade-in`} style={{ flex: 1 }}>
-            <div className={styles.titleSection}>
-              <h2 className={styles.title}>{name}님,<br />PIN 비밀번호를 치세요</h2>
-              <p className={styles.subtitle}>설정한 4자리 PIN 비밀번호를 입력해주세요.</p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-              <Lock size={14} /> <span>보안 로그인 진행중</span>
-            </div>
-
-            {renderPinDots(pin.length)}
-
-            {error && <p className={styles.errorText} style={{ textAlign: 'center' }}>{error}</p>}
-
-            {renderKeypad()}
+          <div className={styles.infoBox} style={{ marginTop: '24px' }}>
+            💡 **테스트 가이드**:<br />
+            원하시는 번호 아무거나 입력하여 즉시 가입/로그인 테스트할 수 있습니다.<br />
+            (테스트 계정: `010-1234-5678` / PIN: `1234`가 기본 등록되어 있습니다.)
           </div>
-        )}
-
-        {/* 신규 회원: 회원가입 PIN 비밀번호 설정 */}
-        {step === 'register_pin' && (
-          <div className={`${styles.formSection} animate-fade-in`} style={{ flex: 1 }}>
-            <div className={styles.titleSection}>
-              <h2 className={styles.title}>사용할 4자리 PIN<br />비밀번호를 입력하세요</h2>
-              <p className={styles.subtitle}>간편 로그인에 사용될 비밀번호입니다.</p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-              <Lock size={14} /> <span>비밀번호 신규 생성</span>
-            </div>
-
-            {renderPinDots(pin.length)}
-
-            {error && <p className={styles.errorText} style={{ textAlign: 'center' }}>{error}</p>}
-
-            {renderKeypad()}
-          </div>
-        )}
-
-        {/* 신규 회원: 회원가입 PIN 비밀번호 확인 */}
-        {step === 'register_pin_confirm' && (
-          <div className={`${styles.formSection} animate-fade-in`} style={{ flex: 1 }}>
-            <div className={styles.titleSection}>
-              <h2 className={styles.title}>설정한 비밀번호를<br />한번 더 쳐주세요</h2>
-              <p className={styles.subtitle}>입력한 PIN 비밀번호와 일치해야 합니다.</p>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
-              <CheckCircle2 size={14} style={{ color: 'var(--accent-light)' }} /> <span>비밀번호 검증</span>
-            </div>
-
-            {renderPinDots(pinConfirm.length)}
-
-            {error && <p className={styles.errorText} style={{ textAlign: 'center' }}>{error}</p>}
-
-            {renderKeypad()}
-          </div>
-        )}
-
+        </div>
       </div>
     </MobileLayout>
   );
@@ -374,3 +321,4 @@ export default function AuthPage() {
     </Suspense>
   );
 }
+
