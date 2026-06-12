@@ -923,12 +923,10 @@ export default function AdminDashboard() {
       (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
     );
 
-    // Try to find a match:
-    // 1. Exact IMEI
-    // 2. Exact sticker
-    // 3. IMEI suffix (if val length >= 4)
-    // 4. Sticker suffix
+    // 1. 아직 제외되지 않은 기기 중에서 매칭 시도 (우선 매칭)
     const match = availableHKDevices.find(d => {
+      if (excludedDeviceIds.has(d.id)) return false; // 이미 제외된 기기는 제외하고 찾음
+
       const imeiClean = d.imei ? d.imei.trim() : '';
       const stickerClean = d.sticker ? d.sticker.trim() : '';
 
@@ -945,10 +943,15 @@ export default function AdminDashboard() {
         next.add(match.id);
         return next;
       });
-      const desc = match.sticker ? `스티커 ${match.sticker}` : `IMEI ${match.imei}`;
-      setLastActionMsg(`제외 완료: ${desc}`);
+      // 스티커와 IMEI 정보를 모두 상세히 노출하여 오해가 없도록 함
+      const stickerPart = match.sticker ? match.sticker : '-';
+      const imeiPart = (match.imei && !match.imei.startsWith('NO_IMEI-')) ? match.imei : '-';
+      setLastActionMsg(`제외 완료: 스티커 ${stickerPart} (IMEI: ${imeiPart})`);
     } else {
+      // 2. 이미 제외된 기기 중에서 동일한 입력이 있는지 확인
       const alreadyExcluded = availableHKDevices.find(d => {
+        if (!excludedDeviceIds.has(d.id)) return false;
+
         const imeiClean = d.imei ? d.imei.trim() : '';
         const stickerClean = d.sticker ? d.sticker.trim() : '';
 
@@ -960,14 +963,15 @@ export default function AdminDashboard() {
       });
 
       if (alreadyExcluded) {
-        const desc = alreadyExcluded.sticker ? `스티커 ${alreadyExcluded.sticker}` : `IMEI ${alreadyExcluded.imei}`;
-        setLastActionMsg(`이미 제외됨: ${desc}`);
+        const stickerPart = alreadyExcluded.sticker ? alreadyExcluded.sticker : '-';
+        const imeiPart = (alreadyExcluded.imei && !alreadyExcluded.imei.startsWith('NO_IMEI-')) ? alreadyExcluded.imei : '-';
+        setLastActionMsg(`이미 제외됨: 스티커 ${stickerPart} (IMEI: ${imeiPart})`);
       } else {
         setLastActionMsg(`찾을 수 없음: ${cleanVal}`);
       }
     }
     setStickerInput('');
-  }, [hongkongInventory, cardBulkSaleModel, cardBulkSaleGrades, displayLang]);
+  }, [hongkongInventory, cardBulkSaleModel, cardBulkSaleGrades, displayLang, excludedDeviceIds]);
   const [modalSelectedGrades, setModalSelectedGrades] = useState<string[]>([]);
   const [cardBulkSaleGradeSelection, setCardBulkSaleGradeSelection] = useState<{
     modelName: string;
