@@ -243,6 +243,10 @@ const DEFAULT_MEMBERS = [
     phone_number: '01012345678',
     pin_code: '1234',
     name: '홍길동',
+    role: 'general',
+    address_province: '서울특별시',
+    address_city: '강남구',
+    address_detail: '테헤란로 123',
     created_at: new Date().toISOString()
   }
 ];
@@ -316,23 +320,24 @@ function readMockDB(): MockDB {
     }
     const fileContent = fs.readFileSync(MOCK_DB_PATH, 'utf-8');
     const parsed = JSON.parse(fileContent);
-    
+    let needsWrite = false;
+
     // 호환성을 위한 키 체크 및 자동 복구
     if (!parsed.trade_in_prices) {
       parsed.trade_in_prices = DEFAULT_PRICES;
-      writeMockDB(parsed);
+      needsWrite = true;
     }
     if (!parsed.categories) {
       parsed.categories = DEFAULT_CATEGORIES;
-      writeMockDB(parsed);
+      needsWrite = true;
     }
     if (!parsed.hongkong_inventory) {
       parsed.hongkong_inventory = [];
-      writeMockDB(parsed);
+      needsWrite = true;
     }
     if (!parsed.model_pet_names) {
       parsed.model_pet_names = DEFAULT_MODEL_PET_NAMES;
-      writeMockDB(parsed);
+      needsWrite = true;
     }
     if (!parsed.admin_menu_permissions) {
       parsed.admin_menu_permissions = [
@@ -341,6 +346,26 @@ function readMockDB(): MockDB {
         { role: 'staff', permissions: { home: true, 'trade-ins': true, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } },
         { role: 'general', permissions: { home: true, 'trade-ins': false, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': false, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } }
       ];
+      needsWrite = true;
+    }
+
+    // 기존 회원 레코드의 주소 필드 누락 자가 복구
+    if (parsed.members) {
+      parsed.members = parsed.members.map((m: any) => {
+        if (m.address_province === undefined || m.address_city === undefined || m.address_detail === undefined) {
+          needsWrite = true;
+          return {
+            ...m,
+            address_province: m.address_province || '',
+            address_city: m.address_city || '',
+            address_detail: m.address_detail || ''
+          };
+        }
+        return m;
+      });
+    }
+
+    if (needsWrite) {
       writeMockDB(parsed);
     }
     return parsed;
@@ -382,12 +407,29 @@ export async function getMemberByPhone(phone: string) {
   }
 }
 
-export async function createMember(phone: string, pin: string, name: string) {
+export async function createMember(
+  phone: string, 
+  pin: string, 
+  name: string,
+  addressProvince?: string,
+  addressCity?: string,
+  addressDetail?: string
+) {
   const cleanPhone = phone.replace(/[^0-9]/g, '');
+  const insertData = {
+    phone_number: cleanPhone,
+    pin_code: pin,
+    name,
+    role: 'general',
+    address_province: addressProvince || '',
+    address_city: addressCity || '',
+    address_detail: addressDetail || ''
+  };
+
   if (supabase) {
     const { data, error } = await supabase
       .from('members')
-      .insert([{ phone_number: cleanPhone, pin_code: pin, name, role: 'general' }])
+      .insert([insertData])
       .select()
       .single();
     if (error) throw error;
@@ -396,10 +438,7 @@ export async function createMember(phone: string, pin: string, name: string) {
     const db = readMockDB();
     const newMember = {
       id: `member-${Date.now()}`,
-      phone_number: cleanPhone,
-      pin_code: pin,
-      name,
-      role: 'general',
+      ...insertData,
       created_at: new Date().toISOString()
     };
     db.members.push(newMember);

@@ -14,7 +14,7 @@ export async function GET() {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, pin_code, role } = body;
+    const { id, name, pin_code, role, address_province, address_city, address_detail } = body;
     
     if (!id) {
       return NextResponse.json({ error: '회원 ID가 누락되었습니다.' }, { status: 400 });
@@ -24,6 +24,9 @@ export async function PUT(request: Request) {
     if (name !== undefined) updateData.name = name;
     if (pin_code !== undefined) updateData.pin_code = pin_code;
     if (role !== undefined) updateData.role = role;
+    if (address_province !== undefined) updateData.address_province = address_province;
+    if (address_city !== undefined) updateData.address_city = address_city;
+    if (address_detail !== undefined) updateData.address_detail = address_detail;
 
     const member = await updateMember(id, updateData);
     return NextResponse.json({ success: true, member });

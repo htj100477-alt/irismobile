@@ -5,6 +5,27 @@ import { useRouter } from 'next/navigation';
 import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
+// 대한민국 행정구역 데이터 (도/시 및 시/군/구 매핑)
+const KOREA_ADDRESS_DATA: Record<string, string[]> = {
+  '서울특별시': ['강남구', '강동구', '강북구', '강서구', '관악구', '광진구', '구로구', '금천구', '노원구', '도봉구', '동대문구', '동작구', '마포구', '서대문구', '서초구', '성동구', '성북구', '송파구', '양천구', '영등포구', '용산구', '은평구', '종로구', '중구', '중랑구'],
+  '부산광역시': ['강서구', '금정구', '기장군', '남구', '동구', '동래구', '부산진구', '북구', '사상구', '사하구', '서구', '수영구', '연제구', '영도구', '중구', '해운대구'],
+  '대구광역시': ['군위군', '남구', '달서구', '달성군', '동구', '북구', '서구', '수성구', '중구'],
+  '인천광역시': ['강화군', '계양구', '남동구', '동구', '미추홀구', '부평구', '서구', '연수구', '옹진군', '중구'],
+  '광주광역시': ['광산구', '남구', '동구', '북구', '서구'],
+  '대전광역시': ['대덕구', '동구', '서구', '유성구', '중구'],
+  '울산광역시': ['남구', '동구', '북구', '울주군', '중구'],
+  '세종특별자치시': ['세종시'],
+  '경기도': ['가평군', '고양시 덕양구', '고양시 일산동구', '고양시 일산서구', '과천시', '광명시', '광주시', '구리시', '군포시', '김포시', '남양주시', '동두천시', '부천시', '성남시 분당구', '성남시 수정구', '성남시 중원구', '수원시 권선구', '수원시 영통구', '수원시 장안구', '수원시 팔달구', '시흥시', '안산시 단원구', '안산시 상록구', '안성시', '안양시 동안구', '안양시 만안구', '양주시', '양평군', '여주시', '연천군', '오산시', '용인시 기흥구', '용인시 수지구', '용인시 처인구', '의왕시', '의정부시', '이천시', '파주시', '평택시', '포천시', '하남시', '화성시'],
+  '강원특별자치도': ['강릉시', '고성군', '동해시', '삼척시', '속초시', '양구군', '양양군', '영월군', '원주시', '인제군', '정선군', '철원군', '춘천시', '태백시', '평창군', '홍천군', '화천군', '횡성군'],
+  '충청북도': ['괴산군', '단양군', '보은군', '영동군', '옥천군', '음성군', '제천시', '증평군', '진천군', '청주시 상당구', '청주시 서원구', '청주시 청원구', '청주시 흥덕구', '충주시'],
+  '충청남도': ['계룡시', '공주시', '금산군', '논산시', '당진시', '부여군', '서산시', '서천군', '아산시', '예산군', '천안시 동남구', '천안시 서북구', '청양군', '태안군', '홍성군'],
+  '전북특별자치도': ['고창군', '군산시', '김제시', '남원시', '무주군', '부안군', '순창군', '완주군', '익산시', '임실군', '장수군', '전주시 덕진구', '전주시 완산구', '정읍시', '진안군'],
+  '전라남도': ['강진군', '고흥군', '곡성군', '광양시', '구례군', '나주시', '담양군', '목포시', '무안군', '보성군', '순천시', '신안군', '여수시', '영광군', '영암군', '완도군', '장성군', '장흥군', '진도군', '함평군', '해남군', '화순군'],
+  '경상북도': ['경산시', '경주시', '고령군', '구미시', '김천시', '문경시', '봉화군', '상주시', '성주군', '안동시', '영덕군', '영양군', '영주시', '영천시', '예천군', '울릉군', '울진군', '의성군', '청도군', '청송군', '칠곡군', '포항시 남구', '포항시 북구'],
+  '경상남도': ['거제시', '거창군', '고성군', '김해시', '남해군', '밀양시', '사천시', '산청군', '양산시', '의령군', '진주시', '창녕군', '창원시 마산합포구', '창원시 마산회원구', '창원시 성산구', '창원시 의창구', '창원시 진해구', '통영시', '하동군', '함안군', '함양군', '합천군'],
+  '제주특별자치도': ['서귀포시', '제주시']
+};
+
 // 이미지 압축 헬퍼 함수
 const compressImage = (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -285,7 +306,15 @@ const HKInventoryRow = memo(function HKInventoryRow({
 
 interface MemberRowProps {
   member: any;
-  onUpdate: (id: string, name: string, pin: string, role: string) => void;
+  onUpdate: (
+    id: string, 
+    name: string, 
+    pin: string, 
+    role: string, 
+    address_province?: string, 
+    address_city?: string, 
+    address_detail?: string
+  ) => void;
   onDelete: (id: string, name: string) => void;
   displayLang: 'ko' | 'zh';
 }
@@ -294,6 +323,9 @@ const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayL
   const [name, setName] = useState(member.name);
   const [pin, setPin] = useState(member.pin_code);
   const [role, setRole] = useState(member.role || 'general');
+  const [province, setProvince] = useState(member.address_province || '');
+  const [city, setCity] = useState(member.address_city || '');
+  const [detail, setDetail] = useState(member.address_detail || '');
   const [isEditing, setIsEditing] = useState(false);
 
   const handleSave = () => {
@@ -305,7 +337,7 @@ const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayL
       alert(displayLang === 'zh' ? 'PIN 必须是4位数字' : 'PIN 번호는 4자리 숫자여야 합니다.');
       return;
     }
-    onUpdate(member.id, name, pin, role);
+    onUpdate(member.id, name, pin, role, province, city, detail);
     setIsEditing(false);
   };
 
@@ -398,6 +430,74 @@ const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayL
           </span>
         )}
       </td>
+      {/* 주소 정보 표시/수정 셀 */}
+      <td style={{ padding: '14px 16px', fontSize: '13px' }}>
+        {isEditing ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <select
+                value={province}
+                onChange={(e) => {
+                  setProvince(e.target.value);
+                  setCity('');
+                }}
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  width: '110px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">도/시 선택</option>
+                {Object.keys(KOREA_ADDRESS_DATA).map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+              <select
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                disabled={!province}
+                style={{
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '6px 10px',
+                  color: '#fff',
+                  fontSize: '12px',
+                  width: '110px',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">시/군/구 선택</option>
+                {province && KOREA_ADDRESS_DATA[province]?.map(c => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <input
+              type="text"
+              placeholder={displayLang === 'zh' ? '详细地址' : '상세주소'}
+              value={detail}
+              onChange={(e) => setDetail(e.target.value)}
+              style={{
+                backgroundColor: 'var(--bg-tertiary)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '6px',
+                padding: '6px 10px',
+                color: '#fff',
+                fontSize: '12px',
+                width: '226px'
+              }}
+            />
+          </div>
+        ) : (
+          <span>{member.address_province ? `${member.address_province} ${member.address_city} ${member.address_detail}` : '-'}</span>
+        )}
+      </td>
       <td style={{ padding: '14px 16px', color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center' }}>
         {new Date(member.created_at).toLocaleDateString()}
       </td>
@@ -425,6 +525,9 @@ const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayL
                   setName(member.name);
                   setPin(member.pin_code);
                   setRole(member.role || 'general');
+                  setProvince(member.address_province || '');
+                  setCity(member.address_city || '');
+                  setDetail(member.address_detail || '');
                   setIsEditing(false);
                 }}
                 style={{
@@ -489,6 +592,9 @@ const MemberRow = memo(function MemberRow({ member, onUpdate, onDelete, displayL
     prevProps.member.phone_number === nextProps.member.phone_number &&
     prevProps.member.pin_code === nextProps.member.pin_code &&
     prevProps.member.role === nextProps.member.role &&
+    prevProps.member.address_province === nextProps.member.address_province &&
+    prevProps.member.address_city === nextProps.member.address_city &&
+    prevProps.member.address_detail === nextProps.member.address_detail &&
     prevProps.member.created_at === nextProps.member.created_at &&
     prevProps.displayLang === nextProps.displayLang
   );
@@ -1196,12 +1302,28 @@ export default function AdminDashboard() {
     );
   }, [members, memberSearchQuery]);
 
-  const handleUpdateMember = async (id: string, name: string, pin: string, role: string) => {
+  const handleUpdateMember = async (
+    id: string, 
+    name: string, 
+    pin: string, 
+    role: string, 
+    address_province?: string, 
+    address_city?: string, 
+    address_detail?: string
+  ) => {
     try {
       const res = await fetch('/api/members', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, name, pin_code: pin, role })
+        body: JSON.stringify({ 
+          id, 
+          name, 
+          pin_code: pin, 
+          role, 
+          address_province, 
+          address_city, 
+          address_detail 
+        })
       });
       const data = await res.json();
       if (data.success) {
@@ -2508,31 +2630,39 @@ export default function AdminDashboard() {
           gap: '12px'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-            <span 
-              onClick={handleEditExchangeRate}
-              style={{
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                color: 'var(--success-color)',
-                padding: '4px 12px',
-                borderRadius: '12px',
-                fontWeight: 'bold',
-                border: '1px solid rgba(16, 185, 129, 0.2)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                cursor: 'pointer'
-              }}
-              title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
-            >
-              <Coins size={14} /> 
-              {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율 / 汇率'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
-              <span style={{ fontSize: '10px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
-                {displayLang === 'zh' ? '修改' : '수정'}
+            {(userRole === 'admin' || userRole === 'manager') ? (
+              <>
+                <span 
+                  onClick={handleEditExchangeRate}
+                  style={{
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    color: 'var(--success-color)',
+                    padding: '4px 12px',
+                    borderRadius: '12px',
+                    fontWeight: 'bold',
+                    border: '1px solid rgba(16, 185, 129, 0.2)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    cursor: 'pointer'
+                  }}
+                  title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
+                >
+                  <Coins size={14} /> 
+                  {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율 / 汇率'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
+                  <span style={{ fontSize: '10px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
+                    {displayLang === 'zh' ? '修改' : '수정'}
+                  </span>
+                </span>
+                <span style={{ color: 'var(--text-secondary)' }}>
+                  * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (HKD HK$ → KRW ₩)
+                </span>
+              </>
+            ) : (
+              <span style={{ color: 'var(--text-secondary)' }}>
+                {displayLang === 'zh' ? '欢迎访问后台管理系统' : '관리 대시보드에 오신 것을 환영합니다.'}
               </span>
-            </span>
-            <span style={{ color: 'var(--text-secondary)' }}>
-              * 마진 계산 시 본 환율 기준으로 원화(KRW)로 자동 환산됩니다. (HKD HK$ → KRW ₩)
-            </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {/* 한국, 중국 언어 전환 토글 */}
@@ -3377,24 +3507,26 @@ export default function AdminDashboard() {
             {/* 재고 통계 및 선택 정보 바 */}
             <div className={styles.statsInfoBar}>
               <div style={{ display: 'flex', gap: '16px', color: 'var(--text-secondary)', flexWrap: 'wrap', alignItems: 'center' }}>
-                <span 
-                  onClick={handleEditExchangeRate}
-                  style={{
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                    color: 'var(--success-color)',
-                    padding: '3px 10px',
-                    borderRadius: '12px',
-                    fontWeight: 'bold',
-                    border: '1px solid rgba(16, 185, 129, 0.2)',
-                    cursor: 'pointer'
-                  }}
-                  title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
-                >
-                  {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
-                  <span style={{ fontSize: '9px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
-                    {displayLang === 'zh' ? '修改' : '수정'}
+                {(userRole === 'admin' || userRole === 'manager') && (
+                  <span 
+                    onClick={handleEditExchangeRate}
+                    style={{
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      color: 'var(--success-color)',
+                      padding: '3px 10px',
+                      borderRadius: '12px',
+                      fontWeight: 'bold',
+                      border: '1px solid rgba(16, 185, 129, 0.2)',
+                      cursor: 'pointer'
+                    }}
+                    title={displayLang === 'zh' ? '点击修改汇率 / Click to edit exchange rate' : '클릭하여 환율 수정 / Click to edit exchange rate'}
+                  >
+                    {displayLang === 'zh' ? '港币汇率 / 汇率' : '홍콩달러 환율'} ({isManualRate ? (displayLang === 'zh' ? '手动' : '수동') : 'Naver'}): ₩{cnyRate.toFixed(2)}
+                    <span style={{ fontSize: '9px', marginLeft: '4px', textDecoration: 'underline', opacity: 0.8 }}>
+                      {displayLang === 'zh' ? '修改' : '수정'}
+                    </span>
                   </span>
-                </span>
+                )}
                 <span style={{ borderLeft: '1px solid var(--border-color)', paddingLeft: '16px' }}>
                   {displayLang === 'zh' ? '总设备' : '전체 입고 기기'}: <strong style={{ color: '#fff' }}>{hongkongInventory.length}</strong>{displayLang === 'zh' ? '台' : '대'}
                 </span>
@@ -4838,6 +4970,7 @@ export default function AdminDashboard() {
                       <th style={{ padding: '14px 16px' }}>전화번호 / 电话</th>
                       <th style={{ textAlign: 'center', padding: '14px 16px' }}>PIN / 密码</th>
                       <th style={{ textAlign: 'center', padding: '14px 16px' }}>등급 / 角色</th>
+                      <th style={{ padding: '14px 16px' }}>주소 / 地址</th>
                       <th style={{ textAlign: 'center', padding: '14px 16px' }}>가입일 / 注册日期</th>
                       <th style={{ textAlign: 'center', padding: '14px 16px' }}>작업 / 操作</th>
                     </tr>
@@ -4855,7 +4988,7 @@ export default function AdminDashboard() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+                        <td colSpan={7} style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
                           {displayLang === 'zh' ? '没有找到匹配的会员。' : '검색 조건에 일치하는 회원이 없습니다.'}
                         </td>
                       </tr>

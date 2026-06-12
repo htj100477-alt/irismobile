@@ -4,7 +4,7 @@ import { getMemberByPhone, createMember } from '@/lib/db';
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { action, phone_number, pin_code, name } = body;
+    const { action, phone_number, pin_code, name, address_province, address_city, address_detail } = body;
 
     if (!phone_number) {
       return NextResponse.json({ error: '휴대폰 번호가 누락되었습니다.' }, { status: 400 });
@@ -43,7 +43,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: '이미 가입된 휴대폰 번호입니다.' }, { status: 400 });
       }
 
-      const member = await createMember(cleanPhone, pin_code, name);
+      const member = await createMember(cleanPhone, pin_code, name, address_province, address_city, address_detail);
       return NextResponse.json({ success: true, member });
     }
 

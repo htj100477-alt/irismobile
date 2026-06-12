@@ -294,6 +294,11 @@ export default function MyPage() {
               <p style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                 {user.phone_number.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}
               </p>
+              {user.address_province && (
+                <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  📍 {user.address_province} {user.address_city} {user.address_detail}
+                </p>
+              )}
             </div>
           </div>
           
