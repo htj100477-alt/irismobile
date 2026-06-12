@@ -1063,7 +1063,7 @@ export default function AdminDashboard() {
     const token = sessionStorage.getItem('admin_token');
     const role = sessionStorage.getItem('admin_role') as any;
     if (!token) {
-      router.push('/admin/login');
+      router.push('/auth?redirect=/admin/dashboard');
     } else if (role === 'general') {
       router.push('/mypage');
     } else {
@@ -1648,7 +1648,10 @@ export default function AdminDashboard() {
   // 관리자 로그아웃
   const handleLogout = () => {
     sessionStorage.removeItem('admin_token');
-    router.push('/admin/login');
+    sessionStorage.removeItem('admin_role');
+    sessionStorage.removeItem('admin_role_name');
+    localStorage.removeItem('user');
+    router.push('/auth');
   };
 
   // ==========================================
