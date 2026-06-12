@@ -294,6 +294,7 @@ interface MockDB {
   categories?: any[];
   hongkong_inventory?: any[];
   model_pet_names?: any[];
+  admin_menu_permissions?: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
