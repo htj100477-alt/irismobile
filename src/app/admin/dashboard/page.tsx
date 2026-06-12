@@ -8713,12 +8713,20 @@ export default function AdminDashboard() {
               {/* 제외된 기기 상세 리스트 및 제외 해제 */}
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', display: 'block', marginBottom: '8px' }}>
-                  제외된 기기 목록 / 已排除的设备 列表 ({hongkongInventory.filter(x => 
-                    x.model_name === cardBulkSaleModel && 
-                    !x.is_sold &&
-                    (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란'))) &&
-                    excludedDeviceIds.has(x.id)
-                  ).length}대)
+                  제외된 기기 목록 / 已排除的设备 列表 ({(() => {
+                    const availableHKDevices = hongkongInventory.filter(x => {
+                      const model = x.model_name || 'UNKNOWN';
+                      const cleanModel = model.trim().toUpperCase();
+                      const foundPet = petNameMap.get(cleanModel);
+                      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                      return (
+                        groupKey === cardBulkSaleModel && 
+                        !x.is_sold &&
+                        (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+                      );
+                    });
+                    return availableHKDevices.filter(x => excludedDeviceIds.has(x.id)).length;
+                  })()}대)
                 </span>
                 <div style={{
                   maxHeight: '150px',
@@ -8732,11 +8740,17 @@ export default function AdminDashboard() {
                   gap: '6px'
                 }}>
                   {(() => {
-                    const availableHKDevices = hongkongInventory.filter(x => 
-                      x.model_name === cardBulkSaleModel && 
-                      !x.is_sold &&
-                      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
-                    );
+                    const availableHKDevices = hongkongInventory.filter(x => {
+                      const model = x.model_name || 'UNKNOWN';
+                      const cleanModel = model.trim().toUpperCase();
+                      const foundPet = petNameMap.get(cleanModel);
+                      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                      return (
+                        groupKey === cardBulkSaleModel && 
+                        !x.is_sold &&
+                        (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+                      );
+                    });
                     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                     if (excludedDevices.length === 0) {
                       return <span style={{ color: 'var(--text-muted)', fontSize: '11px', textAlign: 'center', padding: '10px 0' }}>제외된 기기가 없습니다.</span>;
