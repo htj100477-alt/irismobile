@@ -1080,8 +1080,28 @@ export default function AdminDashboard() {
 
   // 1. 관리자 토큰 검증
   useEffect(() => {
-    const token = sessionStorage.getItem('admin_token');
-    const role = sessionStorage.getItem('admin_role') as any;
+    let token = sessionStorage.getItem('admin_token');
+    let role = sessionStorage.getItem('admin_role') as any;
+
+    // sessionStorage가 없는 경우 localStorage 유저 정보로 자동 복구
+    if (!token) {
+      const savedUser = localStorage.getItem('user');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (parsed.role === 'admin' || parsed.role === 'manager' || parsed.role === 'staff') {
+            sessionStorage.setItem('admin_token', 'true');
+            sessionStorage.setItem('admin_role', parsed.role);
+            sessionStorage.setItem('admin_role_name', parsed.role === 'admin' ? '어드민' : parsed.role === 'manager' ? '매니저' : '스탭');
+            token = 'true';
+            role = parsed.role;
+          }
+        } catch (e) {
+          console.error('Failed to parse saved user for auto-login:', e);
+        }
+      }
+    }
+
     if (!token) {
       router.push('/auth?redirect=/admin/dashboard');
     } else if (role === 'general') {

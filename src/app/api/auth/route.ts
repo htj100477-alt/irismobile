@@ -22,6 +22,16 @@ export async function POST(request: Request) {
       }
     }
 
+    // 1.5. 최신 프로필 정보 동기화
+    if (action === 'get_profile') {
+      const member = await getMemberByPhone(cleanPhone);
+      if (member) {
+        return NextResponse.json({ success: true, member });
+      } else {
+        return NextResponse.json({ error: '사용자를 찾을 수 없습니다.' }, { status: 404 });
+      }
+    }
+
     // 2. 회원가입
     if (action === 'register') {
       if (!pin_code || !name) {

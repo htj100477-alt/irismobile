@@ -63,8 +63,25 @@ export default function MyPage() {
         return;
       }
 
-      const loggedUser = JSON.parse(savedUser);
+      let loggedUser = JSON.parse(savedUser);
       setUser(loggedUser);
+
+      // 최신 프로필 정보 동기화 (역할/이름 변경 사항 반영)
+      try {
+        const profileRes = await fetch('/api/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'get_profile', phone_number: loggedUser.phone_number }),
+        });
+        const profileData = await profileRes.json();
+        if (profileRes.ok && profileData.success && profileData.member) {
+          loggedUser = profileData.member;
+          localStorage.setItem('user', JSON.stringify(loggedUser));
+          setUser(loggedUser);
+        }
+      } catch (err) {
+        console.error('Failed to sync profile:', err);
+      }
 
       try {
         // 매입 내역 로드
@@ -204,6 +221,51 @@ export default function MyPage() {
     <MobileLayout title="마이페이지" showBack={false}>
       <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         
+        {/* 관리자 등급용 대시보드 바로가기 배너 */}
+        {(user.role === 'admin' || user.role === 'manager' || user.role === 'staff') && (
+          <section style={{
+            background: 'var(--accent-gradient)',
+            borderRadius: 'var(--border-radius-md)',
+            padding: '16px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            boxShadow: '0 4px 20px rgba(95, 93, 236, 0.2)'
+          }}>
+            <div>
+              <h4 style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff' }}>
+                {user.role === 'admin' ? '어드민 권한 접속 중' : user.role === 'manager' ? '매니저 권한 접속 중' : '스탭 권한 접속 중'}
+              </h4>
+              <p style={{ fontSize: '11px', color: 'rgba(255, 255, 255, 0.8)', marginTop: '2px' }}>
+                관리자 대시보드에서 업무를 관리할 수 있습니다.
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                sessionStorage.setItem('admin_token', 'true');
+                sessionStorage.setItem('admin_role', user.role);
+                sessionStorage.setItem('admin_role_name', user.role === 'admin' ? '어드민' : user.role === 'manager' ? '매니저' : '스탭');
+                router.push('/admin/dashboard');
+              }}
+              style={{
+                backgroundColor: '#fff',
+                color: 'var(--accent-color)',
+                border: 'none',
+                borderRadius: '8px',
+                padding: '10px 16px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+            >
+              대시보드 이동 <ArrowRightLeft size={14} />
+            </button>
+          </section>
+        )}
+
         {/* 회원 카드 */}
         <section style={{
           backgroundColor: 'var(--bg-secondary)',
