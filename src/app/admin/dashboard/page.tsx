@@ -959,11 +959,18 @@ export default function AdminDashboard() {
     const cleanVal = val.trim();
     if (!cleanVal) return;
 
-    const availableHKDevices = hongkongInventory.filter(x => 
-      x.model_name === cardBulkSaleModel && 
-      !x.is_sold &&
-      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
-    );
+    const availableHKDevices = hongkongInventory.filter(x => {
+      const model = x.model_name || 'UNKNOWN';
+      const cleanModel = model.trim().toUpperCase();
+      const foundPet = petNameMap.get(cleanModel);
+      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+
+      return (
+        groupKey === cardBulkSaleModel && 
+        !x.is_sold &&
+        (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+      );
+    });
 
     // 1. 아직 제외되지 않은 기기 중에서 매칭 시도 (우선 매칭)
     const match = availableHKDevices.find(d => {
@@ -2708,11 +2715,18 @@ export default function AdminDashboard() {
       return;
     }
 
-    const availableHKDevices = hongkongInventory.filter(x => 
-      x.model_name === cardBulkSaleModel && 
-      !x.is_sold &&
-      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
-    );
+    const availableHKDevices = hongkongInventory.filter(x => {
+      const model = x.model_name || 'UNKNOWN';
+      const cleanModel = model.trim().toUpperCase();
+      const foundPet = petNameMap.get(cleanModel);
+      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+
+      return (
+        groupKey === cardBulkSaleModel && 
+        !x.is_sold &&
+        (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+      );
+    });
     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
     const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
 
