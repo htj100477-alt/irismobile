@@ -909,7 +909,8 @@ export default function AdminDashboard() {
   const [cardBulkSaleDate, setCardBulkSaleDate] = useState('');
   const [lastActionMsg, setLastActionMsg] = useState('');
   const stickerInputRef = useRef<HTMLInputElement>(null);
-  const [cardBulkSaleGrade, setCardBulkSaleGrade] = useState<string | null>(null);
+  const [cardBulkSaleGrades, setCardBulkSaleGrades] = useState<string[] | null>(null);
+  const [modalSelectedGrades, setModalSelectedGrades] = useState<string[]>([]);
   const [cardBulkSaleGradeSelection, setCardBulkSaleGradeSelection] = useState<{
     modelName: string;
     grades: string[];
@@ -2467,9 +2468,15 @@ export default function AdminDashboard() {
   };
 
   // 기종 카드 일괄 판매 모달 오픈
-  const openCardBulkSaleModal = useCallback((modelName: string, grade: string | null = null) => {
+  const openCardBulkSaleModal = useCallback((modelName: string, grade: any = null) => {
     setCardBulkSaleModel(modelName);
-    setCardBulkSaleGrade(grade);
+    if (Array.isArray(grade)) {
+      setCardBulkSaleGrades(grade);
+    } else if (grade) {
+      setCardBulkSaleGrades([grade]);
+    } else {
+      setCardBulkSaleGrades(null);
+    }
     setExcludedDeviceIds(new Set());
     setStickerInput('');
     setCardBulkUnitPrice('');
@@ -2496,7 +2503,7 @@ export default function AdminDashboard() {
     const availableHKDevices = hongkongInventory.filter(x => 
       x.model_name === cardBulkSaleModel && 
       !x.is_sold &&
-      (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
     );
     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
     const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
@@ -2523,10 +2530,10 @@ export default function AdminDashboard() {
         };
       });
 
-    const soldSummary = `${getModelDisplayName(cardBulkSaleModel)}${cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`} ${soldDevices.length}대`;
+    const soldSummary = `${getModelDisplayName(cardBulkSaleModel)}${cardBulkSaleGrades && cardBulkSaleGrades.length > 0 ? ` [${cardBulkSaleGrades.join(', ')}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`} ${soldDevices.length}대`;
 
     let confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
-      `- 등급: ${cardBulkSaleGrade ? cardBulkSaleGrade : (displayLang === 'zh' ? '所有等级 (전체)' : '전체 등급')}\n` +
+      `- 등급: ${cardBulkSaleGrades && cardBulkSaleGrades.length > 0 ? cardBulkSaleGrades.join(', ') : (displayLang === 'zh' ? '所有等级 (전체)' : '전체 등급')}\n` +
       `- 판매 처리: ${soldDevices.length}대\n` +
       `- 판매 단가: HK${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
       `- 제외 기기: ${excludedDevices.length}대\n`;
@@ -2565,7 +2572,7 @@ export default function AdminDashboard() {
       if (data.success) {
         alert(`성공적으로 ${soldDevices.length}대의 판매 처리가 완료되었습니다!`);
         setCardBulkSaleModel(null);
-        setCardBulkSaleGrade(null);
+        setCardBulkSaleGrades(null);
         setBulkSaleDeductionQuantities({});
         loadAllData();
       } else {
@@ -4378,6 +4385,7 @@ export default function AdminDashboard() {
                                 modelName: g.modelName,
                                 grades: availableGrades
                               });
+                              setModalSelectedGrades(availableGrades);
                             } else {
                               openCardBulkSaleModal(g.modelName, availableGrades[0] || null);
                             }
@@ -7590,95 +7598,113 @@ export default function AdminDashboard() {
                 <X size={20} />
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0 0 10px 0', lineHeight: '1.4' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', margin: '0', lineHeight: '1.4' }}>
                 {displayLang === 'zh' 
-                  ? `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 含有多个等级。请选择要整包销售의 等级:` 
+                  ? `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 含有多个等级。请选择要销售의 等级:` 
                   : `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 에 여러 등급이 섞여 있습니다. 판매할 등급을 선택하세요:`}
               </p>
-              {(() => {
-                const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
-                const totalCount = modelGroup ? Object.values(modelGroup.grades || {}).reduce((sum, count) => sum + (Number(count) || 0), 0) : 0;
-                return (
-                  <button
-                    onClick={() => {
-                      const selModel = cardBulkSaleGradeSelection.modelName;
-                      setCardBulkSaleGradeSelection(null);
-                      openCardBulkSaleModal(selModel, null);
-                    }}
-                    style={{
-                      padding: '12px',
-                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                      border: '2px solid var(--primary-color)',
-                      borderRadius: '8px',
-                      color: '#60a5fa',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'all 0.2s',
-                      marginBottom: '6px'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
-                    }}
-                  >
-                    <span>🌟 {displayLang === 'zh' ? '所有等级 (整包)' : '전체 등급 (통으로 판매)'}</span>
-                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>{totalCount}대</span>
-                  </button>
-                );
-              })()}
-              {cardBulkSaleGradeSelection.grades.map(grade => {
-                const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
-                const count = modelGroup?.grades?.[grade] || 0;
-                return (
-                  <button
-                    key={grade}
-                    onClick={() => {
-                      const selModel = cardBulkSaleGradeSelection.modelName;
-                      setCardBulkSaleGradeSelection(null);
-                      openCardBulkSaleModal(selModel, grade);
-                    }}
-                    style={{
-                      padding: '12px',
-                      backgroundColor: 'var(--bg-tertiary)',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '8px',
-                      color: '#fff',
-                      fontSize: '14px',
-                      fontWeight: 'bold',
-                      textAlign: 'left',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      transition: 'all 0.2s'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--accent-light)';
-                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.05)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'var(--border-color)';
-                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                    }}
-                  >
-                    <span>{grade}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--accent-light)' }}>{count}대</span>
-                  </button>
-                );
-              })}
+
+              {/* 전체 선택 토글 */}
+              <label style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                gap: '8px', 
+                padding: '10px 12px', 
+                backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                border: '1px solid var(--border-color)', 
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                color: '#fff',
+                userSelect: 'none'
+              }}>
+                <input
+                  type="checkbox"
+                  checked={modalSelectedGrades.length === cardBulkSaleGradeSelection.grades.length}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setModalSelectedGrades(cardBulkSaleGradeSelection.grades);
+                    } else {
+                      setModalSelectedGrades([]);
+                    }
+                  }}
+                  style={{ cursor: 'pointer' }}
+                />
+                <span style={{ fontWeight: 'bold' }}>
+                  {displayLang === 'zh' ? '全选 (전체 선택)' : '전체 선택'}
+                </span>
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '200px', overflowY: 'auto', paddingRight: '4px' }}>
+                {cardBulkSaleGradeSelection.grades.map(grade => {
+                  const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
+                  const count = modelGroup?.grades?.[grade] || 0;
+                  const isChecked = modalSelectedGrades.includes(grade);
+
+                  return (
+                    <label
+                      key={grade}
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '10px 12px',
+                        backgroundColor: isChecked ? 'rgba(59, 130, 246, 0.05)' : 'var(--bg-tertiary)',
+                        border: isChecked ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '13px',
+                        color: '#fff',
+                        userSelect: 'none',
+                        transition: 'all 0.15s'
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setModalSelectedGrades([...modalSelectedGrades, grade]);
+                            } else {
+                              setModalSelectedGrades(modalSelectedGrades.filter(g => g !== grade));
+                            }
+                          }}
+                          style={{ cursor: 'pointer' }}
+                        />
+                        <span>{grade}</span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--accent-light)' }}>{count}대</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              <button
+                disabled={modalSelectedGrades.length === 0}
+                onClick={() => {
+                  const selModel = cardBulkSaleGradeSelection.modelName;
+                  setCardBulkSaleGradeSelection(null);
+                  openCardBulkSaleModal(selModel, modalSelectedGrades);
+                }}
+                className={styles.btnSave}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  marginTop: '8px',
+                  cursor: modalSelectedGrades.length === 0 ? 'not-allowed' : 'pointer',
+                  opacity: modalSelectedGrades.length === 0 ? 0.5 : 1
+                }}
+              >
+                {displayLang === 'zh' ? '选择销售进行 (판매 진행)' : '선택한 등급으로 판매 진행'}
+              </button>
             </div>
           </div>
         </div>
       )}
-
       {/* 카드 기종 일괄 판매 모달 */}
       {cardBulkSaleModel && (
         <div className={styles.modalOverlay}>
@@ -7686,9 +7712,9 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
               <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
                 {displayLang === 'zh' ? '기종 통으로 판매 (整包销售)' : '기종 통으로 판매'}
-                {cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`}
+                {cardBulkSaleGrades && cardBulkSaleGrades.length > 0 ? ` [${cardBulkSaleGrades.join(', ')}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`}
               </h3>
-              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrade(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrades(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
                 <X size={20} />
               </button>
             </div>
@@ -7758,7 +7784,7 @@ export default function AdminDashboard() {
                         const availableHKDevices = hongkongInventory.filter(x => 
                           x.model_name === cardBulkSaleModel && 
                           !x.is_sold &&
-                          (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                          (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                         );
                         const match = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && !excludedDeviceIds.has(d.id));
                         if (match) {
@@ -7817,7 +7843,7 @@ export default function AdminDashboard() {
                 const availableHKDevices = hongkongInventory.filter(x => 
                   x.model_name === cardBulkSaleModel && 
                   !x.is_sold &&
-                  (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                  (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                 );
                 const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                 const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
@@ -8050,7 +8076,7 @@ export default function AdminDashboard() {
                   제외된 기기 목록 / 已排除的设备 列表 ({hongkongInventory.filter(x => 
                     x.model_name === cardBulkSaleModel && 
                     !x.is_sold &&
-                    (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade) &&
+                    (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란'))) &&
                     excludedDeviceIds.has(x.id)
                   ).length}대)
                 </span>
@@ -8069,7 +8095,7 @@ export default function AdminDashboard() {
                     const availableHKDevices = hongkongInventory.filter(x => 
                       x.model_name === cardBulkSaleModel && 
                       !x.is_sold &&
-                      (!cardBulkSaleGrade || (x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')) === cardBulkSaleGrade)
+                      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                     );
                     const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                     if (excludedDevices.length === 0) {
@@ -8111,7 +8137,7 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '12px' }}>
-              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrade(null); }} className={styles.btnCancel}>취소</button>
+              <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrades(null); }} className={styles.btnCancel}>취소</button>
               <button
                 onClick={executeCardBulkSale}
                 className={styles.btnSave}
