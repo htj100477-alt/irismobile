@@ -173,6 +173,7 @@ interface HKInventoryRowProps {
   onDelete: (id: string) => void;
   displayLang: 'ko' | 'zh';
   onUpdateGrade: (id: string, newGrade: string) => void;
+  onEditClick: (item: any) => void;
 }
 
 const HKInventoryRow = memo(function HKInventoryRow({
@@ -184,7 +185,8 @@ const HKInventoryRow = memo(function HKInventoryRow({
   onCancelSale,
   onDelete,
   displayLang,
-  onUpdateGrade
+  onUpdateGrade,
+  onEditClick
 }: HKInventoryRowProps) {
   return (
     <tr>
@@ -284,6 +286,22 @@ const HKInventoryRow = memo(function HKInventoryRow({
             {displayLang === 'zh' ? '取消销售' : '판매 취소'}
           </button>
         )}
+        {/* 개별 기기 정보 수정 버튼 */}
+        <button
+          onClick={() => onEditClick(item)}
+          className={styles.btnSave}
+          style={{
+            padding: '6px 10px',
+            fontSize: '11px',
+            border: '1px solid var(--accent-light)',
+            color: 'var(--accent-light)',
+            backgroundColor: 'transparent',
+            cursor: 'pointer',
+            marginRight: '8px'
+          }}
+        >
+          {displayLang === 'zh' ? '编辑' : '수정'}
+        </button>
         <button
           onClick={() => onDelete(item.id)}
           className={styles.btnCancel}
@@ -830,6 +848,17 @@ export default function AdminDashboard() {
   const [hkSearchQuery, setHkSearchQuery] = useState('');
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [hkStorageFilter, setHkStorageFilter] = useState('all');
+  const [editDeviceOpen, setEditDeviceOpen] = useState(false);
+  const [editingDevice, setEditingDevice] = useState<any | null>(null);
+  const [editingSticker, setEditingSticker] = useState('');
+  const [editingModelName, setEditingModelName] = useState('');
+  const [editingStorage, setEditingStorage] = useState('');
+  const [editingColor, setEditingColor] = useState('');
+  const [editingBattery, setEditingBattery] = useState('');
+  const [editingCost, setEditingCost] = useState('');
+  const [editingNotes, setEditingNotes] = useState('');
+  const [savingDevice, setSavingDevice] = useState(false);
   const [cnyRate, setCnyRate] = useState<number>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('hkd_krw_exchange_rate');
@@ -1106,8 +1135,8 @@ export default function AdminDashboard() {
     return count;
   }, [selectedHKIds, inventoryMap]);
 
-  // ✅ 성능 최적화: filteredHKItems useMemo 적용
-  const filteredHKItems = useMemo(() => hongkongInventory
+    // ✅ 성능 최적화: 2차 용량 필터를 적용하기 전 1차 필터링된 아이템 리스트
+  const filteredHKItemsWithoutStorage = useMemo(() => hongkongInventory
     .filter(item => {
       if (hkStatusFilter === 'available') return !item.is_sold;
       if (hkStatusFilter === 'sold_pending') return item.is_sold && !item.is_approved;
@@ -1125,6 +1154,28 @@ export default function AdminDashboard() {
       );
     }),
   [hongkongInventory, hkStatusFilter, hkSearchQuery, getModelDisplayName]);
+
+  // ✅ 성능 최적화: 1차 필터링된 기기들로부터 존재하는 고유 용량 리스트 추출 (2차 필터용)
+  const availableStorages = useMemo(() => {
+    const set = new Set<string>();
+    filteredHKItemsWithoutStorage.forEach(item => {
+      if (item.storage) {
+        set.add(item.storage.trim());
+      }
+    });
+    return Array.from(set).sort();
+  }, [filteredHKItemsWithoutStorage]);
+
+  // ✅ 1차 필터(검색 등)가 바뀔 때 용량 필터를 전체('all')로 자동 리셋
+  useEffect(() => {
+    setHkStorageFilter('all');
+  }, [hkSearchQuery, hkStatusFilter]);
+
+  // ✅ 최종 2차 필터(용량)까지 적용된 홍콩 재고 리스트
+  const filteredHKItems = useMemo(() => {
+    if (hkStorageFilter === 'all') return filteredHKItemsWithoutStorage;
+    return filteredHKItemsWithoutStorage.filter(item => (item.storage || '').trim() === hkStorageFilter);
+  }, [filteredHKItemsWithoutStorage, hkStorageFilter]);
 
   // ✅ 성능 최적화: sortedHKItems useMemo 적용
   const sortedHKItems = useMemo(() => [...filteredHKItems].sort((a, b) => {
@@ -2231,6 +2282,7 @@ export default function AdminDashboard() {
     // 기본 헤더 파싱 규칙 (헤더 매칭 성공 시)
     let pgIdx = findIdx(['p/g', 'pg', 'sticker', '일련번호', '스티커', 'pgno'], 0 + offset);
     let modelIdx = findIdx(['모델명', 'model', 'code', '机型', '型号'], 1 + offset);
+    let storageIdx = findIdx(['용량', 'storage', 'capacity', '内存', '规格'], 3 + offset);
     let petIdx = findIdx(['펫네임', 'name', '기종', '名称', '품명'], 2 + offset);
     let imeiIdx = findExactIdx(['imei'], findIdx(['imei', '串号', '일련', 'sn', 'serial'], 4 + offset));
     let colorIdx = findIdx(['색상', 'color', '颜色'], 6 + offset);
@@ -2332,12 +2384,36 @@ export default function AdminDashboard() {
       
       const item: any = {};
       
-      // 1. 모델명만 가져오고 펫네임은 무시 (번역 및 결합 루프를 제외해 병목현상 차단)
-      let mName = '';
+            // 1. 모델명 및 용량 파싱
+      let rawModel = '';
       if (fields.modelName && modelIdx < row.length && row[modelIdx]) {
-        mName = row[modelIdx];
+        rawModel = row[modelIdx].trim();
       }
-      item.model_name = mName.trim() || '기형 미확인 / 未知型号';
+
+      let parsedModel = rawModel;
+      let parsedStorage = '';
+
+      // 용량 컬럼이 따로 있는 경우 우선순위로 가져옴
+      if (storageIdx < row.length && row[storageIdx]) {
+        parsedStorage = row[storageIdx].trim();
+      }
+
+      // 모델명에 용량 패턴(예: _256G, 256GB 등)이 포함된 경우 용량 추출
+      const storageMatch = rawModel.match(/_?(\d+)\s*(GB|G)/i);
+      if (storageMatch) {
+        if (!parsedStorage) {
+          parsedStorage = storageMatch[1] + 'G'; // 256G 형식으로 통일
+        }
+      }
+
+      // 모델명에 SM-[영문1자리][숫자3자리] 패턴이 포함된 경우 모델명 정제 (예: SM-F721N -> F721)
+      const modelMatch = rawModel.match(/SM-([A-Z])(\d{3})/i);
+      if (modelMatch) {
+        parsedModel = modelMatch[1].toUpperCase() + modelMatch[2];
+      }
+
+      item.model_name = parsedModel || '기형 미확인 / 未知型号';
+      item.storage = parsedStorage || '';
 
       // 2. 일련번호 (Sticker) -> P/G No가 Sticker이다!
       item.sticker = fields.pgNo && pgIdx < row.length && row[pgIdx] ? row[pgIdx] : '';
@@ -2380,6 +2456,61 @@ export default function AdminDashboard() {
     const firstRow = lines[0] || [];
     setDetectedHeaders(firstRow);
     recalculateParsedRows(text, importFields);
+  };
+
+  // 개별 기기 정보 수정 핸들러 및 저장 연동
+  const openEditDeviceModal = useCallback((device: any) => {
+    setEditingDevice(device);
+    setEditingSticker(device.sticker || '');
+    setEditingModelName(device.model_name || '');
+    setEditingStorage(device.storage || '');
+    setEditingColor(device.color || '');
+    setEditingBattery(device.battery_pct || '100');
+    setEditingCost(String(device.purchase_cost || '0'));
+    setEditingNotes(device.notes || '');
+    setEditDeviceOpen(true);
+  }, []);
+
+  const handleUpdateDevice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDevice) return;
+    if (!editingModelName.trim()) {
+      alert('모델명을 입력해주세요.');
+      return;
+    }
+
+    setSavingDevice(true);
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_device_info',
+          id: editingDevice.id,
+          sticker: editingSticker.trim(),
+          model_name: editingModelName.trim(),
+          storage: editingStorage.trim(),
+          color: editingColor.trim(),
+          battery_pct: editingBattery.trim(),
+          purchase_cost: Number(editingCost) || 0,
+          notes: editingNotes.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert('기기 정보가 성공적으로 수정되었습니다.');
+        setEditDeviceOpen(false);
+        setEditingDevice(null);
+        loadAllData();
+      } else {
+        alert(data.error || '수정에 실패했습니다.');
+      }
+    } catch (err) {
+      alert('네트워크 오류가 발생했습니다.');
+    } finally {
+      setSavingDevice(false);
+    }
   };
 
   // 대량 입고 데이터 저장 실행
@@ -4666,7 +4797,62 @@ export default function AdminDashboard() {
                 )}
               </div>
             </>
-          ) : (
+                    ) : (
+            <>
+              {/* 2차 용량 필터 탭 바 */}
+              {availableStorages.length > 0 && (
+                <div style={{
+                  display: 'flex',
+                  gap: '8px',
+                  marginBottom: '12px',
+                  flexWrap: 'wrap',
+                  padding: '8px 16px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color)',
+                  alignItems: 'center'
+                }}>
+                  <span style={{ fontSize: '12px', color: 'var(--text-secondary)', marginRight: '8px', fontWeight: 'bold' }}>
+                    {displayLang === 'zh' ? '容量筛选:' : '용량 선택:'}
+                  </span>
+                  <button
+                    onClick={() => setHkStorageFilter('all')}
+                    style={{
+                      padding: '4px 12px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      cursor: 'pointer',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: hkStorageFilter === 'all' ? 'var(--accent-light)' : 'transparent',
+                      color: hkStorageFilter === 'all' ? '#000' : 'var(--text-secondary)',
+                      fontWeight: hkStorageFilter === 'all' ? 'bold' : 'normal',
+                      transition: 'all 0.2s'
+                    }}
+                  >
+                    {displayLang === 'zh' ? '全部' : '전체'}
+                  </button>
+                  {availableStorages.map(storage => (
+                    <button
+                      key={storage}
+                      onClick={() => setHkStorageFilter(storage)}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        border: '1px solid var(--border-color)',
+                        backgroundColor: hkStorageFilter === storage ? 'var(--accent-light)' : 'transparent',
+                        color: hkStorageFilter === storage ? '#000' : 'var(--text-secondary)',
+                        fontWeight: hkStorageFilter === storage ? 'bold' : 'normal',
+                        transition: 'all 0.2s'
+                      }}
+                    >
+                      {storage}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className={styles.tableSection}>
               <div className={styles.tableWrapper}>
                 <table className={styles.adminTable}>
@@ -4695,8 +4881,11 @@ export default function AdminDashboard() {
                       <th onClick={() => handleHKSort('sticker')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '贴纸' : '스티커'} {renderSortIcon('sticker')}
                       </th>
-                      <th onClick={() => handleHKSort('model_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                                            <th onClick={() => handleHKSort('model_name')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '机型' : '모델명'} {renderSortIcon('model_name')}
+                      </th>
+                      <th onClick={() => handleHKSort('storage')} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                        {displayLang === 'zh' ? '容量' : '용량'} {renderSortIcon('storage')}
                       </th>
                       <th onClick={() => handleHKSort('imei')} style={{ cursor: 'pointer', userSelect: 'none' }}>
                         {displayLang === 'zh' ? '串号 (IMEI)' : 'IMEI'} {renderSortIcon('imei')}
@@ -4731,12 +4920,13 @@ export default function AdminDashboard() {
                         onDelete={handleDeleteHK}
                         displayLang={displayLang}
                         onUpdateGrade={handleUpdateGrade}
+                        onEditClick={openEditDeviceModal}
                       />
                     ))}
                     {sortedHKItems.length === 0 && (
                       <tr>
-                        <td colSpan={13} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                          {displayLang === 'zh' ? '没有香港入库的库存数据。请通过批量导入添加库存。' : '홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.'}
+                        <td colSpan={14} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          {displayLang === 'zh' ? '没有香港入库의库存数据。请通过批量导入添加库存。' : '홍콩 입고된 재고 데이터가 없습니다. 대량 입고를 통해 재고를 추가해주세요.'}
                         </td>
                       </tr>
                     )}
@@ -4826,12 +5016,13 @@ export default function AdminDashboard() {
                         }}
                       >
                         {displayLang === 'zh' ? '下一页' : '다음'}
-                      </button>
+                                            </button>
                     </div>
                   )}
                 </div>
               )}
             </div>
+            </>
             )}
           </div>
         )}
@@ -8480,105 +8671,219 @@ export default function AdminDashboard() {
               <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
                 {displayLang === 'zh' ? '修改销售信息 (판매 정보 수정)' : '판매 정보 수정'}
               </h3>
-              <button onClick={() => { setEditSaleModalOpen(false); setEditSaleDevice(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
-                <X size={20} />
-              </button>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#fff' }}>
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>모델명 / 机型</span>
-                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>{getModelDisplayName(editSaleDevice.model_name)}</div>
-              </div>
-              
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>IMEI / 串号</span>
-                <div style={{ fontSize: '13px', fontFamily: 'monospace', marginTop: '2px' }}>
-                  {editSaleDevice.imei?.startsWith('NO_IMEI-') ? '-' : editSaleDevice.imei}
-                </div>
-              </div>
-
-              <div>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>입고원가 / 成本</span>
-                <div style={{ fontSize: '13px', marginTop: '2px' }}>
-                  ₩{Number(editSaleDevice.purchase_cost || 0).toLocaleString()} (HK${Math.round((Number(editSaleDevice.purchase_cost) || 0) / cnyRate).toLocaleString()})
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 일자 / 销售日期</label>
-                <input
-                  type="date"
-                  value={editSaleDate}
-                  onChange={(e) => setEditSaleDate(e.target.value)}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매원 / 销售员</label>
-                <select
-                  value={editSellerName}
-                  onChange={(e) => setEditSellerName(e.target.value)}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', outline: 'none' }}
-                >
-                  <option value="">{displayLang === 'zh' ? '选择销售员' : '판매원 선택'}</option>
-                  {Array.from(new Set(
-                    hongkongInventory
-                      .filter(x => x.seller_name)
-                      .map(x => x.seller_name)
-                  )).map(name => (
-                    <option key={name as string} value={name as string}>{name as string}</option>
-                  ))}
-                  {editSaleDevice.seller_name && !Array.from(new Set(hongkongInventory.filter(x => x.seller_name).map(x => x.seller_name))).includes(editSaleDevice.seller_name) && (
-                    <option value={editSaleDevice.seller_name}>{editSaleDevice.seller_name}</option>
-                  )}
-                </select>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>판매 단가 / 销售单价 (HKD)</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <input
-                    type="number"
-                    value={editSalePrice}
-                    onChange={(e) => setEditSalePrice(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
-                  />
-                  <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
-                </div>
-              </div>
-
-              {/* 실시간 예상 마진 계산 안내 */}
-              {Number(editSalePrice) >= 0 && (
-                <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>예상 매출액:</span>
-                    <strong style={{ color: 'var(--accent-light)' }}>
-                      ₩{Math.round(Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate)).toLocaleString()}
-                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
-                        (HK${Number(editSalePrice).toLocaleString()})
-                      </span>
-                    </strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                    <span>예상 순마진:</span>
-                    <strong style={{ color: (Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate) - Number(editSaleDevice.purchase_cost || 0)) >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
-                      ₩{Math.round(Number(editSalePrice) * (Number(editSaleDevice.sale_rate) || cnyRate) - Number(editSaleDevice.purchase_cost || 0)).toLocaleString()}
-                    </strong>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '16px' }}>
-              <button onClick={() => { setEditSaleModalOpen(false); setEditSaleDevice(null); }} className={styles.btnCancel}>
+                            <button onClick={() => { setEditSaleModalOpen(false); setEditSaleDevice(null); }} className={styles.btnCancel}>
                 {displayLang === 'zh' ? '取消' : '취소'}
               </button>
               <button onClick={executeUpdateSaleInfo} className={styles.btnSave}>
                 {displayLang === 'zh' ? '保存' : '저장'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 기기 개별 정보 수정 모달 */}
+      {editDeviceOpen && editingDevice && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-secondary)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '12px',
+            width: '100%',
+            maxWidth: '500px',
+            padding: '24px',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.5)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#fff', margin: 0 }}>
+                {displayLang === 'zh' ? '修改设备信息' : '기기 정보 수정'}
+              </h3>
+              <button
+                onClick={() => { setEditDeviceOpen(false); setEditingDevice(null); }}
+                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }}
+                aria-label="닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateDevice} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '贴纸 (Sticker)' : '스티커'}
+                </label>
+                <input
+                  type="text"
+                  value={editingSticker}
+                  onChange={(e) => setEditingSticker(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '机型' : '모델명'} *
+                </label>
+                <input
+                  type="text"
+                  value={editingModelName}
+                  onChange={(e) => setEditingModelName(e.target.value)}
+                  required
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '容量' : '용량'}
+                </label>
+                <input
+                  type="text"
+                  value={editingStorage}
+                  onChange={(e) => setEditingStorage(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                  placeholder="예: 256G, 512G"
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '颜色' : '색상'}
+                </label>
+                <input
+                  type="text"
+                  value={editingColor}
+                  onChange={(e) => setEditingColor(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '电池 efficiency (%)' : '배터리 효율 (%)'}
+                </label>
+                <input
+                  type="text"
+                  value={editingBattery}
+                  onChange={(e) => setEditingBattery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '入库原价 (₩)' : '입고 원가 (₩)'}
+                </label>
+                <input
+                  type="number"
+                  value={editingCost}
+                  onChange={(e) => setEditingCost(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {displayLang === 'zh' ? '备注' : '비고'}
+                </label>
+                <input
+                  type="text"
+                  value={editingNotes}
+                  onChange={(e) => setEditingNotes(e.target.value)}
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '8px 12px',
+                    color: '#fff',
+                    outline: 'none'
+                  }}
+                  placeholder="A, B, C, D, LCD 등 등급 정보"
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setEditDeviceOpen(false); setEditingDevice(null); }}
+                  className={styles.btnCancel}
+                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                >
+                  {displayLang === 'zh' ? '取消' : '취소'}
+                </button>
+                <button
+                  type="submit"
+                  className={styles.btnSave}
+                  style={{ padding: '8px 16px', fontSize: '13px' }}
+                  disabled={savingDevice}
+                >
+                  {savingDevice 
+                    ? (displayLang === 'zh' ? '保存中...' : '저장 중...') 
+                    : (displayLang === 'zh' ? '保存' : '저장')}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -11,7 +11,8 @@ import {
   createBulkSaleDeductionLog,
   updateHongKongSaleInfo,
   cancelHongKongApproval,
-  updateBulkSettledPrices
+  updateBulkSettledPrices,
+  updateHongKongInventoryDevice
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -126,6 +127,23 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Missing id parameter' }, { status: 400 });
       }
       await updateHongKongNotes(id, notes);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_device_info') {
+      const { id, sticker, model_name, storage, color, battery_pct, purchase_cost, notes } = body;
+      if (!id) {
+        return NextResponse.json({ success: false, error: 'Missing id parameter' }, { status: 400 });
+      }
+      await updateHongKongInventoryDevice(id, {
+        sticker,
+        model_name,
+        storage,
+        color,
+        battery_pct,
+        purchase_cost,
+        notes
+      });
       return NextResponse.json({ success: true });
     }
 

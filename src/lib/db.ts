@@ -1028,6 +1028,7 @@ export async function importHongKongInventory(records: any[]) {
       sticker: r.sticker || '',
       site_date: r.site_date || new Date().toLocaleDateString('ko-KR').slice(2),
       model_name: r.model_name || '',
+      storage: r.storage || '',
       imei: cleanImei || `NO_IMEI-${r.sticker ? r.sticker + '-' + Math.random().toString(36).substring(2, 6).toUpperCase() : 'TEMP-' + Math.random().toString(36).substring(2, 10).toUpperCase()}`,
       color: r.color || '',
       battery_pct: r.battery_pct ? String(r.battery_pct).replace(/[^0-9]/g, '') : '100',
@@ -1765,5 +1766,49 @@ export async function updateBulkSettledPrices(month: string, modelName: string, 
     });
     writeMockDB(db);
     return true;
+  }
+}
+
+export async function updateHongKongInventoryDevice(id: string, payload: {
+  sticker?: string;
+  model_name?: string;
+  storage?: string;
+  color?: string;
+  battery_pct?: string;
+  purchase_cost?: number;
+  notes?: string;
+}) {
+  const updateData: any = {
+    sticker: payload.sticker || '',
+    model_name: payload.model_name || '',
+    storage: payload.storage || '',
+    color: payload.color || '',
+    battery_pct: payload.battery_pct ? String(payload.battery_pct).replace(/[^0-9]/g, '') : '100',
+    purchase_cost: Number(payload.purchase_cost) || 0,
+    notes: payload.notes || ''
+  };
+
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('hongkong_inventory')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+    const idx = db.hongkong_inventory.findIndex(x => x.id === id);
+    if (idx > -1) {
+      db.hongkong_inventory[idx] = {
+        ...db.hongkong_inventory[idx],
+        ...updateData
+      };
+      writeMockDB(db);
+      return db.hongkong_inventory[idx];
+    }
+    throw new Error('Device not found');
   }
 }
