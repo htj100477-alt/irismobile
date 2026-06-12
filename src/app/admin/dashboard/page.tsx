@@ -8481,11 +8481,17 @@ export default function AdminDashboard() {
 
               {/* 통계 요약 */}
               {(() => {
-                const availableHKDevices = hongkongInventory.filter(x => 
-                  x.model_name === cardBulkSaleModel && 
-                  !x.is_sold &&
-                  (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
-                );
+                const availableHKDevices = hongkongInventory.filter(x => {
+                  const model = x.model_name || 'UNKNOWN';
+                  const cleanModel = model.trim().toUpperCase();
+                  const foundPet = petNameMap.get(cleanModel);
+                  const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                  return (
+                    groupKey === cardBulkSaleModel && 
+                    !x.is_sold &&
+                    (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+                  );
+                });
                 const excludedDevices = availableHKDevices.filter(x => excludedDeviceIds.has(x.id));
                 const soldDevices = availableHKDevices.filter(x => !excludedDeviceIds.has(x.id));
 
