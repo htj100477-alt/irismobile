@@ -961,14 +961,32 @@ export default function AdminDashboard() {
     const cleanVal = val.trim();
     if (!cleanVal) return;
 
+    const targetModelNames = new Set<string>();
+    if (cardBulkSaleModel) {
+      targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+      for (const [modelCode, petInfo] of petNameMap.entries()) {
+        if (
+          petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+          petInfo.zh.trim() === cardBulkSaleModel.trim()
+        ) {
+          targetModelNames.add(modelCode.toUpperCase());
+          if (modelCode.toUpperCase().startsWith('SM-')) {
+            targetModelNames.add(modelCode.toUpperCase().substring(3));
+          } else {
+            targetModelNames.add('SM-' + modelCode.toUpperCase());
+          }
+        }
+      }
+    }
+
     const availableHKDevices = hongkongInventory.filter(x => {
-      const model = x.model_name || 'UNKNOWN';
-      const cleanModel = model.trim().toUpperCase();
-      const foundPet = petNameMap.get(cleanModel);
-      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+      const modelClean = (x.model_name || '').trim().toUpperCase();
+      const isModelMatch = targetModelNames.has(modelClean) || 
+        (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+        (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
 
       return (
-        groupKey === cardBulkSaleModel && 
+        isModelMatch && 
         !x.is_sold &&
         (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
       );
@@ -2741,14 +2759,32 @@ export default function AdminDashboard() {
       return;
     }
 
+    const targetModelNames = new Set<string>();
+    if (cardBulkSaleModel) {
+      targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+      for (const [modelCode, petInfo] of petNameMap.entries()) {
+        if (
+          petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+          petInfo.zh.trim() === cardBulkSaleModel.trim()
+        ) {
+          targetModelNames.add(modelCode.toUpperCase());
+          if (modelCode.toUpperCase().startsWith('SM-')) {
+            targetModelNames.add(modelCode.toUpperCase().substring(3));
+          } else {
+            targetModelNames.add('SM-' + modelCode.toUpperCase());
+          }
+        }
+      }
+    }
+
     const availableHKDevices = hongkongInventory.filter(x => {
-      const model = x.model_name || 'UNKNOWN';
-      const cleanModel = model.trim().toUpperCase();
-      const foundPet = petNameMap.get(cleanModel);
-      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+      const modelClean = (x.model_name || '').trim().toUpperCase();
+      const isModelMatch = targetModelNames.has(modelClean) || 
+        (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+        (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
 
       return (
-        groupKey === cardBulkSaleModel && 
+        isModelMatch && 
         !x.is_sold &&
         (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
       );
@@ -8477,17 +8513,70 @@ export default function AdminDashboard() {
                     ? '* 在右侧键盘 or 条码扫描器中输入5位贴纸号(无需回车即排除) 或 输入/扫描 IMEI 并按回车即可快速排除。'
                     : '* 키패드에서 엔터 없이 5자리 스티커 번호만 입력하여 즉시 제외하거나, 15자리 IMEI를 입력/스캔하여 즉시 제외할 수 있습니다 (엔터키로도 제외 가능).'}
                 </span>
+                {(() => {
+                  const targetModelNames = new Set<string>();
+                  if (cardBulkSaleModel) {
+                    targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+                    for (const [modelCode, petInfo] of petNameMap.entries()) {
+                      if (
+                        petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+                        petInfo.zh.trim() === cardBulkSaleModel.trim()
+                      ) {
+                        targetModelNames.add(modelCode.toUpperCase());
+                        if (modelCode.toUpperCase().startsWith('SM-')) {
+                          targetModelNames.add(modelCode.toUpperCase().substring(3));
+                        } else {
+                          targetModelNames.add('SM-' + modelCode.toUpperCase());
+                        }
+                      }
+                    }
+                  }
+                  const matchedNoGrade = hongkongInventory.filter(x => {
+                    const modelClean = (x.model_name || '').trim().toUpperCase();
+                    const isModelMatch = targetModelNames.has(modelClean) || 
+                      (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+                      (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
+                    return isModelMatch && !x.is_sold;
+                  });
+                  const exampleGrades = matchedNoGrade.slice(0, 5).map(x => `${x.sticker || 'NoSticker'}:${x.notes || 'NoGrade'}`).join(', ');
+                  return (
+                    <div style={{ fontSize: '10px', color: 'rgba(239, 68, 68, 0.8)', marginTop: '8px', backgroundColor: 'rgba(0,0,0,0.3)', padding: '6px', borderRadius: '4px', fontFamily: 'monospace' }}>
+                      [디버그] 모델: {cardBulkSaleModel} | 타겟모델코드Set: {Array.from(targetModelNames).join(',')} | 
+                      기종일치(등급무관) 대수: {matchedNoGrade.length}대 |
+                      실제기기 등급예시: {exampleGrades || '없음'}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* 통계 요약 */}
               {(() => {
+                const targetModelNames = new Set<string>();
+                if (cardBulkSaleModel) {
+                  targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+                  for (const [modelCode, petInfo] of petNameMap.entries()) {
+                    if (
+                      petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+                      petInfo.zh.trim() === cardBulkSaleModel.trim()
+                    ) {
+                      targetModelNames.add(modelCode.toUpperCase());
+                      if (modelCode.toUpperCase().startsWith('SM-')) {
+                        targetModelNames.add(modelCode.toUpperCase().substring(3));
+                      } else {
+                        targetModelNames.add('SM-' + modelCode.toUpperCase());
+                      }
+                    }
+                  }
+                }
+
                 const availableHKDevices = hongkongInventory.filter(x => {
-                  const model = x.model_name || 'UNKNOWN';
-                  const cleanModel = model.trim().toUpperCase();
-                  const foundPet = petNameMap.get(cleanModel);
-                  const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                  const modelClean = (x.model_name || '').trim().toUpperCase();
+                  const isModelMatch = targetModelNames.has(modelClean) || 
+                    (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+                    (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
+
                   return (
-                    groupKey === cardBulkSaleModel && 
+                    isModelMatch && 
                     !x.is_sold &&
                     (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                   );
@@ -8713,14 +8802,31 @@ export default function AdminDashboard() {
               {/* 제외된 기기 상세 리스트 및 제외 해제 */}
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', display: 'block', marginBottom: '8px' }}>
-                  제외된 기기 목록 / 已排除的设备 列表 ({(() => {
+                  제외된 기기 목록 / 已排除의设备 列表 ({(() => {
+                    const targetModelNames = new Set<string>();
+                    if (cardBulkSaleModel) {
+                      targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+                      for (const [modelCode, petInfo] of petNameMap.entries()) {
+                        if (
+                          petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+                          petInfo.zh.trim() === cardBulkSaleModel.trim()
+                        ) {
+                          targetModelNames.add(modelCode.toUpperCase());
+                          if (modelCode.toUpperCase().startsWith('SM-')) {
+                            targetModelNames.add(modelCode.toUpperCase().substring(3));
+                          } else {
+                            targetModelNames.add('SM-' + modelCode.toUpperCase());
+                          }
+                        }
+                      }
+                    }
                     const availableHKDevices = hongkongInventory.filter(x => {
-                      const model = x.model_name || 'UNKNOWN';
-                      const cleanModel = model.trim().toUpperCase();
-                      const foundPet = petNameMap.get(cleanModel);
-                      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                      const modelClean = (x.model_name || '').trim().toUpperCase();
+                      const isModelMatch = targetModelNames.has(modelClean) || 
+                        (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+                        (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
                       return (
-                        groupKey === cardBulkSaleModel && 
+                        isModelMatch && 
                         !x.is_sold &&
                         (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                       );
@@ -8740,13 +8846,30 @@ export default function AdminDashboard() {
                   gap: '6px'
                 }}>
                   {(() => {
+                    const targetModelNames = new Set<string>();
+                    if (cardBulkSaleModel) {
+                      targetModelNames.add(cardBulkSaleModel.trim().toUpperCase());
+                      for (const [modelCode, petInfo] of petNameMap.entries()) {
+                        if (
+                          petInfo.ko.trim() === cardBulkSaleModel.trim() ||
+                          petInfo.zh.trim() === cardBulkSaleModel.trim()
+                        ) {
+                          targetModelNames.add(modelCode.toUpperCase());
+                          if (modelCode.toUpperCase().startsWith('SM-')) {
+                            targetModelNames.add(modelCode.toUpperCase().substring(3));
+                          } else {
+                            targetModelNames.add('SM-' + modelCode.toUpperCase());
+                          }
+                        }
+                      }
+                    }
                     const availableHKDevices = hongkongInventory.filter(x => {
-                      const model = x.model_name || 'UNKNOWN';
-                      const cleanModel = model.trim().toUpperCase();
-                      const foundPet = petNameMap.get(cleanModel);
-                      const groupKey = foundPet ? (displayLang === 'zh' ? foundPet.zh : foundPet.ko) : model;
+                      const modelClean = (x.model_name || '').trim().toUpperCase();
+                      const isModelMatch = targetModelNames.has(modelClean) || 
+                        (modelClean.startsWith('SM-') && targetModelNames.has(modelClean.substring(3))) ||
+                        (!modelClean.startsWith('SM-') && targetModelNames.has('SM-' + modelClean));
                       return (
-                        groupKey === cardBulkSaleModel && 
+                        isModelMatch && 
                         !x.is_sold &&
                         (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
                       );
