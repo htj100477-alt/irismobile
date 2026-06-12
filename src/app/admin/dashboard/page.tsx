@@ -849,6 +849,8 @@ export default function AdminDashboard() {
   const [hkSortColumn, setHkSortColumn] = useState<string | null>(null);
   const [hkSortDirection, setHkSortDirection] = useState<'asc' | 'desc'>('asc');
   const [hkStorageFilter, setHkStorageFilter] = useState('all');
+  const [settleSortColumn, setSettleSortColumn] = useState<string | null>(null);
+  const [settleSortDirection, setSettleSortDirection] = useState<'asc' | 'desc'>('asc');
   const [editDeviceOpen, setEditDeviceOpen] = useState(false);
   const [editingDevice, setEditingDevice] = useState<any | null>(null);
   const [editingSticker, setEditingSticker] = useState('');
@@ -1113,6 +1115,30 @@ export default function AdminDashboard() {
     return hkSortDirection === 'asc' 
       ? <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px' }}>▲</span> 
       : <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px' }}>▼</span>;
+  };
+
+  // 마진 정산 정렬 핸들러
+  const handleSettleSort = (column: string) => {
+    if (settleSortColumn === column) {
+      if (settleSortDirection === 'asc') {
+        setSettleSortDirection('desc');
+      } else {
+        setSettleSortColumn(null);
+      }
+    } else {
+      setSettleSortColumn(column);
+      setSettleSortDirection('asc');
+    }
+  };
+
+  // 마진 정산 정렬 아이콘 렌더링
+  const renderSettleSortIcon = (column: string) => {
+    if (settleSortColumn !== column) {
+      return <span style={{ opacity: 0.3, marginLeft: '4px', fontSize: '10px', cursor: 'pointer' }}>↕</span>;
+    }
+    return settleSortDirection === 'asc' 
+      ? <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px', cursor: 'pointer' }}>▲</span> 
+      : <span style={{ color: 'var(--accent-light)', marginLeft: '4px', fontSize: '10px', cursor: 'pointer' }}>▼</span>;
   };
 
   // ✅ 성능 최적화: 선택된 ID Set (O(1) 조회)
@@ -5391,6 +5417,74 @@ export default function AdminDashboard() {
             return true;
           });
 
+          const sortedSettledDevices = [...settledDevices].sort((a, b) => {
+            if (!settleSortColumn) return 0;
+            
+            let valA: any = '';
+            let valB: any = '';
+            
+            switch (settleSortColumn) {
+              case 'sale_date':
+                valA = a.sale_date || '';
+                valB = b.sale_date || '';
+                break;
+              case 'seller_name':
+                valA = a.seller_name || '';
+                valB = b.seller_name || '';
+                break;
+              case 'model_name':
+                valA = getModelDisplayName(a.model_name) || '';
+                valB = getModelDisplayName(b.model_name) || '';
+                break;
+              case 'imei':
+                valA = a.imei || '';
+                valB = b.imei || '';
+                break;
+              case 'purchase_cost':
+                valA = Number(a.purchase_cost) || 0;
+                valB = Number(b.purchase_cost) || 0;
+                break;
+              case 'selling_price':
+                valA = Number(a.selling_price) || 0;
+                valB = Number(b.selling_price) || 0;
+                break;
+              case 'margin': {
+                const revA = (Number(a.selling_price) || 0) * (Number(a.sale_rate) || cnyRate);
+                const marginA = revA - (Number(a.purchase_cost) || 0);
+                const revB = (Number(b.selling_price) || 0) * (Number(b.sale_rate) || cnyRate);
+                const marginB = revB - (Number(b.purchase_cost) || 0);
+                valA = marginA;
+                valB = marginB;
+                break;
+              }
+              case 'margin_rate': {
+                const revA = (Number(a.selling_price) || 0) * (Number(a.sale_rate) || cnyRate);
+                const marginA = revA - (Number(a.purchase_cost) || 0);
+                const rateA = revA > 0 ? (marginA / revA) * 100 : 0;
+                
+                const revB = (Number(b.selling_price) || 0) * (Number(b.sale_rate) || cnyRate);
+                const marginB = revB - (Number(b.purchase_cost) || 0);
+                const rateB = revB > 0 ? (marginB / revB) * 100 : 0;
+                
+                valA = rateA;
+                valB = rateB;
+                break;
+              }
+              default:
+                break;
+            }
+            
+            if (typeof valA === 'string' && typeof valB === 'string') {
+              return settleSortDirection === 'asc' 
+                ? valA.localeCompare(valB) 
+                : valB.localeCompare(valA);
+            } else {
+              return settleSortDirection === 'asc' 
+                ? (valA > valB ? 1 : valA < valB ? -1 : 0) 
+                : (valB > valA ? 1 : valB < valA ? -1 : 0);
+            }
+          });
+
           // 차감 항목 필터링 및 집계
           const filteredDeductions = bulkSaleDeductions.filter(log => {
             if (settlementSeller !== 'All' && log.seller_name !== settlementSeller) return false;
@@ -5976,20 +6070,36 @@ export default function AdminDashboard() {
                     <table className={styles.adminTable}>
                       <thead>
                         <tr>
-                          <th>정산일자 / 结算日期</th>
-                          <th>판매원 / 销售员</th>
-                          <th>모델명 / 机型</th>
-                          <th>IMEI / 串号</th>
-                          <th>입고원가 / 成本</th>
-                          <th>판매가 / 售价</th>
-                          <th>순마진 / 利润</th>
-                          <th>마진율 / 利润率</th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('sale_date')}>
+                            정산일자 / 结算日期 {renderSettleSortIcon('sale_date')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('seller_name')}>
+                            판매원 / 销售员 {renderSettleSortIcon('seller_name')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('model_name')}>
+                            모델명 / 机型 {renderSettleSortIcon('model_name')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('imei')}>
+                            IMEI / 串号 {renderSettleSortIcon('imei')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('purchase_cost')}>
+                            입고원가 / 成本 {renderSettleSortIcon('purchase_cost')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('selling_price')}>
+                            판매가 / 售价 {renderSettleSortIcon('selling_price')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('margin')}>
+                            순마진 / 利润 {renderSettleSortIcon('margin')}
+                          </th>
+                          <th style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => handleSettleSort('margin_rate')}>
+                            마진율 / 利润率 {renderSettleSortIcon('margin_rate')}
+                          </th>
                           <th>상태</th>
                           <th>작업 / 操作</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {settledDevices.map(item => {
+                        {sortedSettledDevices.map(item => {
                           const revenueKRW = (Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate);
                           const margin = revenueKRW - (Number(item.purchase_cost) || 0);
                           const rate = revenueKRW > 0 ? (margin / revenueKRW) * 100 : 0;
@@ -6058,7 +6168,7 @@ export default function AdminDashboard() {
                             </tr>
                           );
                         })}
-                        {settledDevices.length === 0 && (
+                        {sortedSettledDevices.length === 0 && (
                           <tr>
                             <td colSpan={10} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                               정산 조건에 맞는 판매 내역이 없습니다.
