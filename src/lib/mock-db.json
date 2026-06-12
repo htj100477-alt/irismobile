@@ -259,7 +259,7 @@
       "category": "스마트폰",
       "series": "15 시리즈",
       "model_name": "아이폰 15 프로",
-      "base_price": 1150000,
+      "base_price": 1151000,
       "storage_128g_deduct": 80000,
       "storage_512g_add": 120000,
       "screen_scratch_deduct": 70000,
@@ -268,7 +268,7 @@
       "body_broken_deduct": 120000,
       "camera_error_deduct": 100000,
       "screen_burn_deduct": 80000,
-      "updated_at": "2026-06-11T01:55:14.757Z"
+      "updated_at": "2026-06-12T07:39:09.574Z"
     },
     {
       "id": "price-2",
@@ -568,6 +568,36 @@
       "id": "cat-5",
       "name": "무선이어폰",
       "image": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?w=150"
+    },
+    {
+      "id": "cat-sub-1",
+      "name": "Apple",
+      "parent_id": "cat-1"
+    },
+    {
+      "id": "cat-sub-2",
+      "name": "Samsung",
+      "parent_id": "cat-1"
+    },
+    {
+      "id": "cat-sub-sub-1",
+      "name": "iPhone 15 시리즈",
+      "parent_id": "cat-sub-1"
+    },
+    {
+      "id": "cat-sub-sub-2",
+      "name": "iPhone 14 시리즈",
+      "parent_id": "cat-sub-1"
+    },
+    {
+      "id": "cat-sub-sub-3",
+      "name": "Galaxy S24 시리즈",
+      "parent_id": "cat-sub-2"
+    },
+    {
+      "id": "cat-sub-sub-4",
+      "name": "Galaxy S23 시리즈",
+      "parent_id": "cat-sub-2"
     }
   ],
   "hongkong_inventory": [

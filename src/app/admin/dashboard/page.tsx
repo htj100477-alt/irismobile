@@ -1136,6 +1136,8 @@ export default function AdminDashboard() {
   const [catLevel, setCatLevel] = useState<'large' | 'middle' | 'small'>('large');
   const [catParentLargeId, setCatParentLargeId] = useState<string>('');
   const [catParentMiddleId, setCatParentMiddleId] = useState<string>('');
+  const [catParentLargeName, setCatParentLargeName] = useState<string>('');
+  const [catParentMiddleName, setCatParentMiddleName] = useState<string>('');
 
   // 모달 제어 상태
   const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false);
@@ -1856,20 +1858,29 @@ export default function AdminDashboard() {
         setCatLevel('large');
         setCatParentLargeId('');
         setCatParentMiddleId('');
+        setCatParentLargeName('');
+        setCatParentMiddleName('');
       } else {
         const parent = categories.find(c => c.id === cat.parent_id);
         if (parent && !parent.parent_id) {
           setCatLevel('middle');
           setCatParentLargeId(parent.id);
+          setCatParentLargeName(parent.name);
           setCatParentMiddleId('');
+          setCatParentMiddleName('');
         } else if (parent && parent.parent_id) {
           setCatLevel('small');
           setCatParentLargeId(parent.parent_id);
+          const largeObj = categories.find(c => c.id === parent.parent_id);
+          setCatParentLargeName(largeObj ? largeObj.name : '');
           setCatParentMiddleId(parent.id);
+          setCatParentMiddleName(parent.name);
         } else {
           setCatLevel('large');
           setCatParentLargeId('');
           setCatParentMiddleId('');
+          setCatParentLargeName('');
+          setCatParentMiddleName('');
         }
       }
     } else {
@@ -1878,6 +1889,37 @@ export default function AdminDashboard() {
       setCatLevel('large');
       setCatParentLargeId('');
       setCatParentMiddleId('');
+      setCatParentLargeName('');
+      setCatParentMiddleName('');
+    }
+    setIsCategoryModalOpen(true);
+  };
+
+  const openCategoryModalForAdd = (level: 'large' | 'middle' | 'small', parentId: string, parentName: string) => {
+    setSelectedCategory(null);
+    setCatName('');
+    setCatImage('');
+    setCatLevel(level);
+    
+    if (level === 'large') {
+      setCatParentLargeId('');
+      setCatParentLargeName('');
+      setCatParentMiddleId('');
+      setCatParentMiddleName('');
+    } else if (level === 'middle') {
+      setCatParentLargeId(parentId);
+      setCatParentLargeName(parentName);
+      setCatParentMiddleId('');
+      setCatParentMiddleName('');
+    } else if (level === 'small') {
+      const middleObj = categories.find(c => c.id === parentId);
+      if (middleObj) {
+        setCatParentLargeId(middleObj.parent_id || '');
+        const largeObj = categories.find(c => c.id === middleObj.parent_id);
+        setCatParentLargeName(largeObj ? largeObj.name : '');
+        setCatParentMiddleId(middleObj.id);
+        setCatParentMiddleName(middleObj.name);
+      }
     }
     setIsCategoryModalOpen(true);
   };
@@ -3418,101 +3460,204 @@ export default function AdminDashboard() {
         {activeTab === 'categories' && (
           <div className="animate-fade-in">
             <div className={styles.headerRow}>
-              <h2 className={styles.pageTitle}>카테고리(기종) 관리</h2>
-              <button onClick={() => openCategoryModal(null)} className={styles.btnSave} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <Plus size={16} /> 신규 카테고리 추가
+              <div>
+                <h2 className={styles.pageTitle}>카테고리(기종) 관리</h2>
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                  대분류 ➡️ 제조사(중분류) ➡️ 시리즈(소분류)로 연결되는 계단식 구조를 직관적으로 관리할 수 있습니다.
+                </p>
+              </div>
+              <button 
+                onClick={() => openCategoryModalForAdd('large', '', '')} 
+                className={styles.btnSave} 
+                style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
+              >
+                <Plus size={16} /> 새 대분류 추가
               </button>
             </div>
 
-            <div className={styles.tableSection}>
-              <div className={styles.tableWrapper}>
-                <table className={styles.adminTable}>
-                  <thead>
-                    <tr>
-                      <th>분류 단계</th>
-                      <th>대표 이미지</th>
-                      <th>카테고리 경로</th>
-                      <th>등록일</th>
-                      <th>작업</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(() => {
-                      const getCategoryLevelBadgeColor = (lvl: string) => {
-                        if (lvl === '대분류') return { bg: '#1e3a8a', fg: '#93c5fd' };
-                        if (lvl === '중분류') return { bg: '#78350f', fg: '#fde68a' };
-                        return { bg: '#064e3b', fg: '#6ee7b7' };
-                      };
-                      
-                      const sortedCats = [...categories].sort((a, b) => {
-                        const pathA = getCategoryPath(a);
-                        const pathB = getCategoryPath(b);
-                        return pathA.localeCompare(pathB);
-                      });
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '20px' }}>
+              {(() => {
+                const largeCategories = categories.filter(c => !c.parent_id);
+                
+                if (categories.length === 0) {
+                  return (
+                    <div style={{ 
+                      textAlign: 'center', 
+                      color: 'var(--text-muted)', 
+                      padding: '80px 40px',
+                      backgroundColor: 'var(--bg-secondary)',
+                      borderRadius: '12px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      등록된 카테고리가 없습니다. [새 대분류 추가]를 눌러 첫 카테고리를 등록해보세요.
+                    </div>
+                  );
+                }
 
-                      return sortedCats.map(cat => {
-                        const levelText = getCategoryLevelText(cat);
-                        const colors = getCategoryLevelBadgeColor(levelText);
-                        return (
-                          <tr key={cat.id}>
-                            <td>
-                              <span style={{ 
-                                display: 'inline-block',
-                                padding: '4px 8px', 
-                                borderRadius: '4px', 
-                                fontSize: '11px', 
-                                fontWeight: '600',
-                                backgroundColor: colors.bg,
-                                color: colors.fg
+                return largeCategories.map(large => {
+                  const middles = categories.filter(c => c.parent_id === large.id);
+                  return (
+                    <div key={large.id} style={{
+                      backgroundColor: 'var(--bg-secondary)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '12px',
+                      overflow: 'hidden',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}>
+                      {/* Large Category Row */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: '16px 20px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                        borderBottom: '1px solid var(--border-color)'
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                          {large.image ? (
+                            <img 
+                              src={large.image} 
+                              alt={large.name} 
+                              style={{ width: '48px', height: '48px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border-color)' }}
+                            />
+                          ) : (
+                            <div style={{ width: '48px', height: '48px', borderRadius: '8px', backgroundColor: 'var(--bg-tertiary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                              <Layers size={20} />
+                            </div>
+                          )}
+                          <div>
+                            <span style={{ fontSize: '11px', fontWeight: 'bold', color: '#60a5fa', backgroundColor: 'rgba(96, 165, 250, 0.1)', padding: '2px 6px', borderRadius: '4px' }}>대분류</span>
+                            <h3 style={{ fontSize: '16px', fontWeight: 'bold', color: '#fff', margin: '4px 0 0 0' }}>{large.name}</h3>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <button 
+                            onClick={() => openCategoryModalForAdd('middle', large.id, large.name)}
+                            className={styles.btnSave}
+                            style={{ padding: '6px 12px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#1e3a8a', color: '#93c5fd', cursor: 'pointer' }}
+                          >
+                            <Plus size={14} /> 중분류(제조사) 추가
+                          </button>
+                          <button 
+                            onClick={() => openCategoryModal(large)}
+                            className={styles.btnCancel}
+                            style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                          >
+                            수정
+                          </button>
+                          <button 
+                            onClick={() => deleteCat(large.id)}
+                            className={styles.btnCancel}
+                            style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Middles List */}
+                      <div style={{ display: 'flex', flexDirection: 'column', padding: '12px 20px', gap: '12px', backgroundColor: 'rgba(0,0,0,0.1)' }}>
+                        {middles.map(middle => {
+                          const smalls = categories.filter(c => c.parent_id === middle.id);
+                          return (
+                            <div key={middle.id} style={{
+                              borderLeft: '2px solid rgba(255, 255, 255, 0.08)',
+                              paddingLeft: '16px',
+                              marginTop: '4px',
+                              marginBottom: '8px'
+                            }}>
+                              {/* Middle Category Row */}
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                padding: '6px 0'
                               }}>
-                                {levelText}
-                              </span>
-                            </td>
-                            <td>
-                              {cat.image ? (
-                                <img 
-                                  src={cat.image} 
-                                  alt={cat.name}
-                                  style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }}
-                                />
-                              ) : (
-                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>-</span>
-                              )}
-                            </td>
-                            <td style={{ fontWeight: 'bold', color: '#fff' }}>{getCategoryPath(cat)}</td>
-                            <td>{cat.created_at ? new Date(cat.created_at).toLocaleDateString() : '기본 데이터'}</td>
-                            <td>
-                              <div style={{ display: 'flex', gap: '8px' }}>
-                                <button 
-                                  onClick={() => openCategoryModal(cat)} 
-                                  className={styles.btnCancel} 
-                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}
-                                >
-                                  수정
-                                </button>
-                                <button 
-                                  onClick={() => deleteCat(cat.id)} 
-                                  className={styles.btnCancel} 
-                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent' }}
-                                >
-                                  삭제
-                                </button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                  <span style={{ color: 'var(--text-muted)' }}>└</span>
+                                  <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#fde68a', backgroundColor: '#78350f', padding: '2px 6px', borderRadius: '4px' }}>중분류</span>
+                                  <strong style={{ fontSize: '14px', color: '#f8fafc' }}>{middle.name}</strong>
+                                </div>
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                  <button 
+                                    onClick={() => openCategoryModalForAdd('small', middle.id, `${large.name} > ${middle.name}`)}
+                                    className={styles.btnSave}
+                                    style={{ padding: '4px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px', backgroundColor: '#78350f', color: '#fde68a', cursor: 'pointer' }}
+                                  >
+                                    <Plus size={12} /> 소분류(시리즈) 추가
+                                  </button>
+                                  <button 
+                                    onClick={() => openCategoryModal(middle)}
+                                    className={styles.btnCancel}
+                                    style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                                  >
+                                    수정
+                                  </button>
+                                  <button 
+                                    onClick={() => deleteCat(middle.id)}
+                                    className={styles.btnCancel}
+                                    style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent', cursor: 'pointer' }}
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
                               </div>
-                            </td>
-                          </tr>
-                        );
-                      });
-                    })()}
-                    {categories.length === 0 && (
-                      <tr>
-                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
-                          등록된 카테고리가 없습니다. [신규 카테고리 추가]를 눌러 첫 카테고리를 등록해보세요.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
+
+                              {/* Smalls List */}
+                              <div style={{
+                                display: 'flex',
+                                flexWrap: 'wrap',
+                                gap: '8px',
+                                paddingLeft: '24px',
+                                marginTop: '8px'
+                              }}>
+                                {smalls.map(small => (
+                                  <div key={small.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    backgroundColor: 'var(--bg-tertiary)',
+                                    border: '1px solid var(--border-color)',
+                                    borderRadius: '6px',
+                                    padding: '6px 12px'
+                                  }}>
+                                    <span style={{ fontSize: '10px', fontWeight: 'bold', color: '#6ee7b7', backgroundColor: '#064e3b', padding: '1px 4px', borderRadius: '4px' }}>소분류</span>
+                                    <span style={{ fontSize: '13px', color: '#cbd5e1' }}>{small.name}</span>
+                                    <div style={{ display: 'flex', gap: '6px', marginLeft: '6px', borderLeft: '1px solid rgba(255,255,255,0.1)', paddingLeft: '8px' }}>
+                                      <button 
+                                        onClick={() => openCategoryModal(small)}
+                                        style={{ border: 'none', background: 'none', color: 'var(--accent-light)', fontSize: '11px', cursor: 'pointer', padding: '2px' }}
+                                      >
+                                        수정
+                                      </button>
+                                      <button 
+                                        onClick={() => deleteCat(small.id)}
+                                        style={{ border: 'none', background: 'none', color: 'var(--danger-color)', fontSize: '11px', cursor: 'pointer', padding: '2px' }}
+                                      >
+                                        삭제
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
+                                {smalls.length === 0 && (
+                                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', opacity: 0.5, fontStyle: 'italic', padding: '4px 0' }}>
+                                    등록된 소분류가 없습니다.
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        {middles.length === 0 && (
+                          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', opacity: 0.5, fontStyle: 'italic', padding: '4px 0' }}>
+                            등록된 중분류가 없습니다. 우측 상단의 [중분류 추가] 버튼을 클릭해 하위 브랜드를 먼저 등록해보세요.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                });
+              })()}
             </div>
           </div>
         )}
@@ -5807,72 +5952,43 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid} style={{ marginTop: '16px' }}>
+              {/* 분류 단계 */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                <label htmlFor="catLevelSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>분류 단계</label>
-                <select
-                  id="catLevelSelect"
-                  value={catLevel}
-                  onChange={(e) => setCatLevel(e.target.value as any)}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                >
-                  <option value="large">대분류 (스마트폰, 태블릿 등)</option>
-                  <option value="middle">중분류 (Apple, Samsung 등)</option>
-                  <option value="small">소분류 (아이폰 15 시리즈 등)</option>
-                </select>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>분류 단계</label>
+                <div style={{ 
+                  backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                  border: '1px solid var(--border-color)', 
+                  borderRadius: '6px', 
+                  padding: '10px', 
+                  color: '#fff',
+                  fontSize: '13px',
+                  fontWeight: 'bold'
+                }}>
+                  {catLevel === 'large' && '대분류 (스마트폰, 태블릿 등)'}
+                  {catLevel === 'middle' && '중분류 (제조사)'}
+                  {catLevel === 'small' && '소분류 (시리즈)'}
+                </div>
               </div>
 
-              {catLevel === 'middle' && (
+              {/* 상위 경로 표시 */}
+              {(catLevel === 'middle' || catLevel === 'small') && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                  <label htmlFor="catParentLargeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 대분류 선택</label>
-                  <select
-                    id="catParentLargeSelect"
-                    value={catParentLargeId}
-                    onChange={(e) => setCatParentLargeId(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    <option value="">-- 대분류 선택 --</option>
-                    {categories.filter(c => !c.parent_id).map(c => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 카테고리 경로</label>
+                  <div style={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.02)', 
+                    border: '1px solid var(--border-color)', 
+                    borderRadius: '6px', 
+                    padding: '10px', 
+                    color: 'var(--accent-light)',
+                    fontSize: '13px',
+                    fontWeight: '600'
+                  }}>
+                    {catLevel === 'middle' 
+                      ? (catParentLargeName || '지정되지 않음')
+                      : `${catParentLargeName || '지정되지 않음'} > ${catParentMiddleName || '지정되지 않음'}`
+                    }
+                  </div>
                 </div>
-              )}
-
-              {catLevel === 'small' && (
-                <>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                    <label htmlFor="catParentLargeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 대분류 선택</label>
-                    <select
-                      id="catParentLargeSelect"
-                      value={catParentLargeId}
-                      onChange={(e) => {
-                        setCatParentLargeId(e.target.value);
-                        setCatParentMiddleId('');
-                      }}
-                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    >
-                      <option value="">-- 대분류 선택 --</option>
-                      {categories.filter(c => !c.parent_id).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
-                    <label htmlFor="catParentMiddleSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 중분류 선택</label>
-                    <select
-                      id="catParentMiddleSelect"
-                      value={catParentMiddleId}
-                      onChange={(e) => setCatParentMiddleId(e.target.value)}
-                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    >
-                      <option value="">-- 중분류 선택 --</option>
-                      {categories.filter(c => c.parent_id === catParentLargeId).map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
-                      ))}
-                    </select>
-                  </div>
-                </>
               )}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
