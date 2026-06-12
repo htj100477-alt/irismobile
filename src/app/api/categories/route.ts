@@ -16,13 +16,17 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, image } = body;
+    const { name, image, parent_id } = body;
 
-    if (!name || !image) {
-      return NextResponse.json({ error: '카테고리 이름과 이미지 URL이 필요합니다.' }, { status: 400 });
+    if (!name) {
+      return NextResponse.json({ error: '카테고리 이름이 필요합니다.' }, { status: 400 });
     }
 
-    const newCategory = await createCategory({ name, image });
+    const newCategory = await createCategory({ 
+      name, 
+      image: image || null, 
+      parent_id: parent_id || null 
+    });
     return NextResponse.json({ success: true, data: newCategory });
   } catch (error: any) {
     console.error('Categories POST Error:', error);
@@ -33,13 +37,17 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
   try {
     const body = await request.json();
-    const { id, name, image } = body;
+    const { id, name, image, parent_id } = body;
 
-    if (!id || !name || !image) {
-      return NextResponse.json({ error: '필수 필드(id, name, image)가 누락되었습니다.' }, { status: 400 });
+    if (!id || !name) {
+      return NextResponse.json({ error: '필수 필드(id, name)가 누락되었습니다.' }, { status: 400 });
     }
 
-    const updated = await updateCategory(id, { name, image });
+    const updated = await updateCategory(id, { 
+      name, 
+      image: image || null, 
+      parent_id: parent_id || null 
+    });
     return NextResponse.json({ success: true, data: updated });
   } catch (error: any) {
     console.error('Categories PUT Error:', error);
