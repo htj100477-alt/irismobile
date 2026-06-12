@@ -7300,47 +7300,176 @@ export default function AdminDashboard() {
                     deductionRules.map(rule => {
                       const qty = bulkSaleDeductionQuantities[rule.id] || 0;
                       return (
-                        <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                          <span style={{ color: '#fff' }}>
-                            {displayLang === 'zh' ? rule.name_zh : rule.name_ko} ({formatCurrency(rule.amount_hkd * cnyRate, 'KRW')})
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                              {displayLang === 'zh' ? '数量:' : '수량:'}
+                        <div key={rule.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                            <span style={{ color: '#fff', fontWeight: qty > 0 ? 'bold' : 'normal' }}>
+                              {displayLang === 'zh' ? rule.name_zh : rule.name_ko} <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(HK$ {rule.amount_hkd.toLocaleString()} / ₩{Math.round(rule.amount_hkd * cnyRate).toLocaleString()})</span>
                             </span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={qty || ''}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value, 10) || 0;
-                                setBulkSaleDeductionQuantities({
-                                  ...bulkSaleDeductionQuantities,
-                                  [rule.id]: v
-                                });
-                              }}
-                              style={{
-                                backgroundColor: 'var(--bg-tertiary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '4px',
-                                padding: '4px 8px',
-                                color: '#fff',
-                                fontSize: '12px',
-                                width: '60px',
-                                textAlign: 'center',
-                                outline: 'none'
-                              }}
-                            />
-                            <span style={{ color: 'var(--text-secondary)' }}>
-                              {displayLang === 'zh' ? '个' : '개'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                {displayLang === 'zh' ? '数量:' : '수량:'}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={qty || ''}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10) || 0;
+                                  setBulkSaleDeductionQuantities({
+                                    ...bulkSaleDeductionQuantities,
+                                    [rule.id]: v
+                                  });
+                                }}
+                                style={{
+                                  backgroundColor: 'var(--bg-tertiary)',
+                                  border: qty > 0 ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  color: '#fff',
+                                  fontSize: '12px',
+                                  width: '60px',
+                                  textAlign: 'center',
+                                  outline: 'none'
+                                }}
+                              />
+                              <span style={{ color: 'var(--text-secondary)' }}>
+                                {displayLang === 'zh' ? '个' : '개'}
+                              </span>
+                            </div>
                           </div>
+                          {qty > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', fontSize: '11px', color: 'var(--danger-color)', paddingLeft: '8px' }}>
+                              <span>
+                                ↳ {displayLang === 'zh' ? '总计扣除:' : '총 차감액:'} -HK$ {(qty * rule.amount_hkd).toLocaleString()} (-₩{Math.round(qty * rule.amount_hkd * cnyRate).toLocaleString()})
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })
                   )}
                 </div>
               </div>
+
+              {/* 실시간 정산 및 차감 계산 요약 (테이블 뷰) */}
+              {(() => {
+                const availableHKDevices = isSellSelectedOnly
+                  ? hongkongInventory.filter(x => !x.is_sold && selectedHKIds.includes(x.id))
+                  : hongkongInventory.filter(x => !x.is_sold);
+                const candidateDevices = availableHKDevices.filter(x => selectedBulkModels.includes(x.model_name));
+                const soldDevices = candidateDevices.filter(x => !unsoldBulkDeviceIds.includes(x.id));
+
+                if (soldDevices.length === 0) return null;
+
+                const totalCostKRW = soldDevices.reduce((sum, d) => sum + (Number(d.purchase_cost) || 0), 0);
+                const totalSellingPriceHKD = soldDevices.reduce((sum, d) => {
+                  const unitPrice = Number(bulkSellingPrices[d.model_name]) || 0;
+                  return sum + unitPrice;
+                }, 0);
+                const totalSellingPriceKRW = totalSellingPriceHKD * cnyRate;
+                const totalMarginKRW = totalSellingPriceKRW - totalCostKRW;
+                
+                const totalDeductionsHKD = deductionRules.reduce((sum, rule) => {
+                  const qty = bulkSaleDeductionQuantities[rule.id] || 0;
+                  return sum + (qty * rule.amount_hkd);
+                }, 0);
+                const totalDeductionsKRW = totalDeductionsHKD * cnyRate;
+                const netMarginKRW = totalMarginKRW - totalDeductionsKRW;
+                const avgMarginKRW = soldDevices.length > 0 ? totalMarginKRW / soldDevices.length : 0;
+                const avgNetMarginKRW = soldDevices.length > 0 ? netMarginKRW / soldDevices.length : 0;
+
+                return (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.25)',
+                    borderRadius: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px',
+                    fontSize: '12px',
+                    marginTop: '16px'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>{displayLang === 'zh' ? '所选设备:' : '선택된 기기:'}</span>
+                      <strong style={{ color: '#fff' }}>{soldDevices.length}대</strong>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>{displayLang === 'zh' ? '总成本 (KRW):' : '총 원가 / 总成本 (KRW):'}</span>
+                      <span style={{ color: '#fff', fontWeight: '500' }}>₩{totalCostKRW.toLocaleString()}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
+                      <span>{displayLang === 'zh' ? '总售价 (HKD):' : '총 판매가 / 총 판매 (HKD):'}</span>
+                      <span style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
+                        HK${totalSellingPriceHKD.toLocaleString()}
+                        <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                          (₩{Math.round(totalSellingPriceKRW).toLocaleString()})
+                        </span>
+                      </span>
+                    </div>
+                    {totalDeductionsHKD > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger-color)' }}>
+                        <span>{displayLang === 'zh' ? '总扣除 (HKD):' : '총 차감액 / 총 차감 (HKD):'}</span>
+                        <span style={{ fontWeight: 'bold' }}>
+                          -HK${totalDeductionsHKD.toLocaleString()}
+                          <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                            (-₩{Math.round(totalDeductionsKRW).toLocaleString()})
+                          </span>
+                        </span>
+                      </div>
+                    )}
+                    <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
+                    
+                    {totalDeductionsHKD > 0 ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '扣除后净利润:' : '차감 후 순마진 / 扣除后净利润:'}</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: netMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {netMarginKRW >= 0 ? '+' : ''}₩{Math.round(netMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '单台平均净利润:' : '대당 평균 순마진 / 단태평균정이윤:'}</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: avgNetMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {avgNetMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgNetMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '预估总利润:' : '예상 총 마진 / 预估总利润:'}</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '单台平均利润:' : '대당 평균 마진 / 단태평균이윤:'}</span>
+                          <span style={{ 
+                            fontSize: '14px', 
+                            fontWeight: 'bold', 
+                            color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                          }}>
+                            {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
+                          </span>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div className={styles.btnGroup}>
@@ -7663,19 +7792,27 @@ export default function AdminDashboard() {
                 const totalMarginKRW = totalSellingPriceKRW - totalCostKRW;
                 const avgMarginKRW = soldDevices.length > 0 ? totalMarginKRW / soldDevices.length : 0;
 
+                const totalDeductionsHKD = deductionRules.reduce((sum, rule) => {
+                  const qty = bulkSaleDeductionQuantities[rule.id] || 0;
+                  return sum + (qty * rule.amount_hkd);
+                }, 0);
+                const totalDeductionsKRW = totalDeductionsHKD * cnyRate;
+                const netMarginKRW = totalMarginKRW - totalDeductionsKRW;
+                const avgNetMarginKRW = soldDevices.length > 0 ? netMarginKRW / soldDevices.length : 0;
+
                 return (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', textAlign: 'center', fontSize: '12px' }}>
                       <div style={{ padding: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                        <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>대상 기기</span>
+                        <span style={{ color: 'var(--text-secondary)', display: 'block', marginBottom: '2px' }}>{displayLang === 'zh' ? '目标设备' : '대상 기기'}</span>
                         <strong style={{ fontSize: '14px', color: '#fff' }}>{availableHKDevices.length}대</strong>
                       </div>
                       <div style={{ padding: '8px', backgroundColor: 'rgba(16, 185, 129, 0.05)', borderRadius: '6px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
-                        <span style={{ color: 'var(--success-color)', display: 'block', marginBottom: '2px' }}>판매 완료 처리</span>
+                        <span style={{ color: 'var(--success-color)', display: 'block', marginBottom: '2px' }}>{displayLang === 'zh' ? '确认销售' : '판매 완료 처리'}</span>
                         <strong style={{ fontSize: '14px', color: 'var(--success-color)' }}>{soldDevices.length}대</strong>
                       </div>
                       <div style={{ padding: '8px', backgroundColor: 'rgba(245, 158, 11, 0.05)', borderRadius: '6px', border: '1px solid rgba(245, 158, 11, 0.1)' }}>
-                        <span style={{ color: 'var(--warning-color)', display: 'block', marginBottom: '2px' }}>제외됨 (재고 유지)</span>
+                        <span style={{ color: 'var(--warning-color)', display: 'block', marginBottom: '2px' }}>{displayLang === 'zh' ? '排除(保留库存)' : '제외됨 (재고 유지)'}</span>
                         <strong style={{ fontSize: '14px', color: 'var(--warning-color)' }}>{excludedDevices.length}대</strong>
                       </div>
                     </div>
@@ -7717,11 +7854,11 @@ export default function AdminDashboard() {
                         fontSize: '12px'
                       }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                          <span>총 원가 / 总成本 (KRW):</span>
+                          <span>{displayLang === 'zh' ? '总成本 (KRW):' : '총 원가 / 总成本 (KRW):'}</span>
                           <span style={{ color: '#fff', fontWeight: '500' }}>₩{totalCostKRW.toLocaleString()}</span>
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-secondary)' }}>
-                          <span>총 판매가 / 总售价 (HKD):</span>
+                          <span>{displayLang === 'zh' ? '总售价 (HKD):' : '총 판매가 / 总售价 (HKD):'}</span>
                           <span style={{ color: 'var(--accent-light)', fontWeight: 'bold' }}>
                             HK${totalSellingPriceHKD.toLocaleString()} 
                             <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
@@ -7729,27 +7866,65 @@ export default function AdminDashboard() {
                             </span>
                           </span>
                         </div>
+                        {totalDeductionsHKD > 0 && (
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--danger-color)' }}>
+                            <span>{displayLang === 'zh' ? '总扣除 (HKD):' : '총 차감액 / 총 차감 (HKD):'}</span>
+                            <span style={{ fontWeight: 'bold' }}>
+                              -HK${totalDeductionsHKD.toLocaleString()}
+                              <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)', marginLeft: '4px' }}>
+                                (-₩{Math.round(totalDeductionsKRW).toLocaleString()})
+                              </span>
+                            </span>
+                          </div>
+                        )}
                         <div style={{ height: '1px', backgroundColor: 'rgba(255,255,255,0.05)', margin: '4px 0' }} />
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 'bold', color: '#fff' }}>예상 총 마진 / 预估总利润:</span>
-                          <span style={{ 
-                            fontSize: '14px', 
-                            fontWeight: 'bold', 
-                            color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
-                          }}>
-                            {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 'bold', color: '#fff' }}>대당 평균 마진 / 单台平均利润:</span>
-                          <span style={{ 
-                            fontSize: '14px', 
-                            fontWeight: 'bold', 
-                            color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
-                          }}>
-                            {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
-                          </span>
-                        </div>
+                        {totalDeductionsHKD > 0 ? (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '扣除后净利润:' : '차감 후 순마진 / 扣除后净利润:'}</span>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: 'bold', 
+                                color: netMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                              }}>
+                                {netMarginKRW >= 0 ? '+' : ''}₩{Math.round(netMarginKRW).toLocaleString()}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '单台平均净利润:' : '대당 평균 순마진 / 单台平均净利润:'}</span>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: 'bold', 
+                                color: avgNetMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                              }}>
+                                {avgNetMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgNetMarginKRW).toLocaleString()}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '预估总利润:' : '예상 총 마진 / 预估总利润:'}</span>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: 'bold', 
+                                color: totalMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                              }}>
+                                {totalMarginKRW >= 0 ? '+' : ''}₩{Math.round(totalMarginKRW).toLocaleString()}
+                              </span>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <span style={{ fontWeight: 'bold', color: '#fff' }}>{displayLang === 'zh' ? '单台平均利润:' : '대당 평균 마진 / 단태평균이윤:'}</span>
+                              <span style={{ 
+                                fontSize: '14px', 
+                                fontWeight: 'bold', 
+                                color: avgMarginKRW >= 0 ? 'var(--success-color)' : 'var(--danger-color)' 
+                              }}>
+                                {avgMarginKRW >= 0 ? '+' : ''}₩{Math.round(avgMarginKRW).toLocaleString()}
+                              </span>
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -7780,41 +7955,50 @@ export default function AdminDashboard() {
                     deductionRules.map(rule => {
                       const qty = bulkSaleDeductionQuantities[rule.id] || 0;
                       return (
-                        <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                          <span style={{ color: '#fff' }}>
-                            {displayLang === 'zh' ? rule.name_zh : rule.name_ko} ({formatCurrency(rule.amount_hkd * cnyRate, 'KRW')})
-                          </span>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                              {displayLang === 'zh' ? '数量:' : '수량:'}
+                        <div key={rule.id} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '4px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                            <span style={{ color: '#fff', fontWeight: qty > 0 ? 'bold' : 'normal' }}>
+                              {displayLang === 'zh' ? rule.name_zh : rule.name_ko} <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>(HK$ {rule.amount_hkd.toLocaleString()} / ₩{Math.round(rule.amount_hkd * cnyRate).toLocaleString()})</span>
                             </span>
-                            <input
-                              type="number"
-                              min="0"
-                              value={qty || ''}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value, 10) || 0;
-                                setBulkSaleDeductionQuantities({
-                                  ...bulkSaleDeductionQuantities,
-                                  [rule.id]: v
-                                });
-                              }}
-                              style={{
-                                backgroundColor: 'var(--bg-tertiary)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '4px',
-                                padding: '4px 8px',
-                                color: '#fff',
-                                fontSize: '12px',
-                                width: '60px',
-                                textAlign: 'center',
-                                outline: 'none'
-                              }}
-                            />
-                            <span style={{ color: 'var(--text-secondary)' }}>
-                              {displayLang === 'zh' ? '个' : '개'}
-                            </span>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                                {displayLang === 'zh' ? '数量:' : '수량:'}
+                              </span>
+                              <input
+                                type="number"
+                                min="0"
+                                value={qty || ''}
+                                onChange={(e) => {
+                                  const v = parseInt(e.target.value, 10) || 0;
+                                  setBulkSaleDeductionQuantities({
+                                    ...bulkSaleDeductionQuantities,
+                                    [rule.id]: v
+                                  });
+                                }}
+                                style={{
+                                  backgroundColor: 'var(--bg-tertiary)',
+                                  border: qty > 0 ? '1px solid var(--primary-color)' : '1px solid var(--border-color)',
+                                  borderRadius: '4px',
+                                  padding: '4px 8px',
+                                  color: '#fff',
+                                  fontSize: '12px',
+                                  width: '60px',
+                                  textAlign: 'center',
+                                  outline: 'none'
+                                }}
+                              />
+                              <span style={{ color: 'var(--text-secondary)' }}>
+                                {displayLang === 'zh' ? '个' : '개'}
+                              </span>
+                            </div>
                           </div>
+                          {qty > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'flex-start', fontSize: '11px', color: 'var(--danger-color)', paddingLeft: '8px' }}>
+                              <span>
+                                ↳ {displayLang === 'zh' ? '总计扣除:' : '총 차감액:'} -HK$ {(qty * rule.amount_hkd).toLocaleString()} (-₩{Math.round(qty * rule.amount_hkd * cnyRate).toLocaleString()})
+                              </span>
+                            </div>
+                          )}
                         </div>
                       );
                     })
