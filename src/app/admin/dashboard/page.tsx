@@ -2523,10 +2523,10 @@ export default function AdminDashboard() {
         };
       });
 
-    const soldSummary = `${getModelDisplayName(cardBulkSaleModel)}${cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ''} ${soldDevices.length}대`;
+    const soldSummary = `${getModelDisplayName(cardBulkSaleModel)}${cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`} ${soldDevices.length}대`;
 
     let confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
-      (cardBulkSaleGrade ? `- 등급: ${cardBulkSaleGrade}\n` : '') +
+      `- 등급: ${cardBulkSaleGrade ? cardBulkSaleGrade : (displayLang === 'zh' ? '所有等级 (전체)' : '전체 등급')}\n` +
       `- 판매 처리: ${soldDevices.length}대\n` +
       `- 판매 단가: HK${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
       `- 제외 기기: ${excludedDevices.length}대\n`;
@@ -7596,6 +7596,44 @@ export default function AdminDashboard() {
                   ? `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 含有多个等级。请选择要整包销售의 等级:` 
                   : `"${getModelDisplayName(cardBulkSaleGradeSelection.modelName)}" 에 여러 등급이 섞여 있습니다. 판매할 등급을 선택하세요:`}
               </p>
+              {(() => {
+                const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
+                const totalCount = modelGroup ? Object.values(modelGroup.grades || {}).reduce((sum, count) => sum + (Number(count) || 0), 0) : 0;
+                return (
+                  <button
+                    onClick={() => {
+                      const selModel = cardBulkSaleGradeSelection.modelName;
+                      setCardBulkSaleGradeSelection(null);
+                      openCardBulkSaleModal(selModel, null);
+                    }}
+                    style={{
+                      padding: '12px',
+                      backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                      border: '2px solid var(--primary-color)',
+                      borderRadius: '8px',
+                      color: '#60a5fa',
+                      fontSize: '14px',
+                      fontWeight: 'bold',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      transition: 'all 0.2s',
+                      marginBottom: '6px'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.1)';
+                    }}
+                  >
+                    <span>🌟 {displayLang === 'zh' ? '所有等级 (整包)' : '전체 등급 (통으로 판매)'}</span>
+                    <span style={{ fontSize: '12px', color: '#93c5fd' }}>{totalCount}대</span>
+                  </button>
+                );
+              })()}
               {cardBulkSaleGradeSelection.grades.map(grade => {
                 const modelGroup = groupedHKModels.find(gm => gm.modelName === cardBulkSaleGradeSelection.modelName);
                 const count = modelGroup?.grades?.[grade] || 0;
@@ -7648,7 +7686,7 @@ export default function AdminDashboard() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
               <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
                 {displayLang === 'zh' ? '기종 통으로 판매 (整包销售)' : '기종 통으로 판매'}
-                {cardBulkSaleGrade && ` [${cardBulkSaleGrade}]`}
+                {cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ` [${displayLang === 'zh' ? '所有等级' : '전체 등급'}]`}
               </h3>
               <button onClick={() => { setCardBulkSaleModel(null); setCardBulkSaleGrade(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
                 <X size={20} />
