@@ -910,6 +910,64 @@ export default function AdminDashboard() {
   const [lastActionMsg, setLastActionMsg] = useState('');
   const stickerInputRef = useRef<HTMLInputElement>(null);
   const [cardBulkSaleGrades, setCardBulkSaleGrades] = useState<string[] | null>(null);
+  const stickerTimeoutRef = useRef<any>(null);
+
+  const processExclusion = useCallback((val: string) => {
+    if (!val) return;
+    const cleanVal = val.trim();
+    if (!cleanVal) return;
+
+    const availableHKDevices = hongkongInventory.filter(x => 
+      x.model_name === cardBulkSaleModel && 
+      !x.is_sold &&
+      (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
+    );
+
+    // Try to find a match:
+    // 1. Exact IMEI
+    // 2. Exact sticker
+    // 3. IMEI suffix (if val length >= 4)
+    // 4. Sticker suffix
+    const match = availableHKDevices.find(d => {
+      const imeiClean = d.imei ? d.imei.trim() : '';
+      const stickerClean = d.sticker ? d.sticker.trim() : '';
+
+      if (imeiClean && imeiClean === cleanVal) return true;
+      if (stickerClean && stickerClean === cleanVal) return true;
+      if (imeiClean && cleanVal.length >= 4 && imeiClean.endsWith(cleanVal)) return true;
+      if (stickerClean && stickerClean.endsWith(cleanVal)) return true;
+      return false;
+    });
+
+    if (match) {
+      setExcludedDeviceIds(prev => {
+        const next = new Set(prev);
+        next.add(match.id);
+        return next;
+      });
+      const desc = match.sticker ? `스티커 ${match.sticker}` : `IMEI ${match.imei}`;
+      setLastActionMsg(`제외 완료: ${desc}`);
+    } else {
+      const alreadyExcluded = availableHKDevices.find(d => {
+        const imeiClean = d.imei ? d.imei.trim() : '';
+        const stickerClean = d.sticker ? d.sticker.trim() : '';
+
+        if (imeiClean && imeiClean === cleanVal) return true;
+        if (stickerClean && stickerClean === cleanVal) return true;
+        if (imeiClean && cleanVal.length >= 4 && imeiClean.endsWith(cleanVal)) return true;
+        if (stickerClean && stickerClean.endsWith(cleanVal)) return true;
+        return false;
+      });
+
+      if (alreadyExcluded) {
+        const desc = alreadyExcluded.sticker ? `스티커 ${alreadyExcluded.sticker}` : `IMEI ${alreadyExcluded.imei}`;
+        setLastActionMsg(`이미 제외됨: ${desc}`);
+      } else {
+        setLastActionMsg(`찾을 수 없음: ${cleanVal}`);
+      }
+    }
+    setStickerInput('');
+  }, [hongkongInventory, cardBulkSaleModel, cardBulkSaleGrades, displayLang]);
   const [modalSelectedGrades, setModalSelectedGrades] = useState<string[]>([]);
   const [cardBulkSaleGradeSelection, setCardBulkSaleGradeSelection] = useState<{
     modelName: string;
@@ -7768,41 +7826,42 @@ export default function AdminDashboard() {
                 style={{ cursor: 'text', padding: '16px', backgroundColor: 'rgba(59, 130, 246, 0.05)', borderRadius: '8px', border: '1px solid rgba(59, 130, 246, 0.2)', display: 'flex', flexDirection: 'column', gap: '10px' }}
               >
                 <label style={{ fontSize: '12px', fontWeight: 'bold', color: '#60a5fa' }}>
-                  {displayLang === 'zh' ? '输入贴纸号排除 (5位数字)' : '제외할 스티커 번호 입력 (5자리 입력 시 즉시 제외)'}
+                  {displayLang === 'zh' ? '输入贴纸号(5位)或 IMEI 排除' : '제외할 스티커 번호(5자리) 또는 IMEI 입력'}
                 </label>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <input
                     ref={stickerInputRef}
                     type="text"
-                    placeholder="스티커 5자리 입력 (예: 01234)"
+                    placeholder={displayLang === 'zh' ? '贴纸号(5位)或 IMEI' : '스티커(5자리) 또는 IMEI'}
                     value={stickerInput}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (stickerTimeoutRef.current) {
+                          clearTimeout(stickerTimeoutRef.current);
+                        }
+                        processExclusion(stickerInput);
+                      }
+                    }}
                     onChange={(e) => {
                       const val = e.target.value.trim();
                       setStickerInput(val);
                       
+                      if (stickerTimeoutRef.current) {
+                        clearTimeout(stickerTimeoutRef.current);
+                      }
+
+                      // 15자리 IMEI는 즉시 처리
+                      if (val.length === 15) {
+                        processExclusion(val);
+                        return;
+                      }
+                      
+                      // 5자리 스티커 번호는 바코드 스캐너의 연속 입력을 방해하지 않기 위해 50ms 대기 후 처리
                       if (val.length === 5) {
-                        const availableHKDevices = hongkongInventory.filter(x => 
-                          x.model_name === cardBulkSaleModel && 
-                          !x.is_sold &&
-                          (!cardBulkSaleGrades || cardBulkSaleGrades.length === 0 || cardBulkSaleGrades.includes(x.notes?.trim() || (displayLang === 'zh' ? '无' : '공란')))
-                        );
-                        const match = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && !excludedDeviceIds.has(d.id));
-                        if (match) {
-                          setExcludedDeviceIds(prev => {
-                            const next = new Set(prev);
-                            next.add(match.id);
-                            return next;
-                          });
-                          setLastActionMsg(`제외 완료: 스티커 ${match.sticker || val}`);
-                        } else {
-                          const alreadyExcluded = availableHKDevices.find(d => d.sticker && d.sticker.endsWith(val) && excludedDeviceIds.has(d.id));
-                          if (alreadyExcluded) {
-                            setLastActionMsg(`이미 제외됨: 스티커 ${alreadyExcluded.sticker || val}`);
-                          } else {
-                            setLastActionMsg(`찾을 수 없음: 스티커 ${val}`);
-                          }
-                        }
-                        setStickerInput('');
+                        stickerTimeoutRef.current = setTimeout(() => {
+                          processExclusion(val);
+                        }, 50);
                       }
                     }}
                     autoFocus
@@ -7812,11 +7871,10 @@ export default function AdminDashboard() {
                       borderRadius: '6px',
                       padding: '12px',
                       color: '#fff',
-                      fontSize: '18px',
+                      fontSize: '16px',
                       fontWeight: 'bold',
-                      letterSpacing: '3px',
                       textAlign: 'center',
-                      width: '200px',
+                      width: '260px',
                       outline: 'none'
                     }}
                   />
@@ -7834,7 +7892,9 @@ export default function AdminDashboard() {
                   )}
                 </div>
                 <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
-                  * 오른쪽 키패드나 바코드 스캐너에서 엔터 없이 5자리 숫자만 빠르게 연달아 입력하여 고속으로 기기를 제외할 수 있습니다.
+                  {displayLang === 'zh'
+                    ? '* 在右侧键盘 or 条码扫描器中输入5位贴纸号(无需回车即排除) 或 输入/扫描 IMEI 并按回车即可快速排除。'
+                    : '* 키패드에서 엔터 없이 5자리 스티커 번호만 입력하여 즉시 제외하거나, 15자리 IMEI를 입력/스캔하여 즉시 제외할 수 있습니다 (엔터키로도 제외 가능).'}
                 </span>
               </div>
 
