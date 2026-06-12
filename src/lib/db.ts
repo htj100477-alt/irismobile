@@ -1278,3 +1278,50 @@ export async function deleteMember(id: string) {
     return true;
   }
 }
+
+// ==========================================
+// 9. 메뉴 권한 관리 (Menu Permissions) 데이터 액션
+// ==========================================
+export async function getMenuPermissions() {
+  if (supabase) {
+    try {
+      const { data, error } = await supabase
+        .from('admin_menu_permissions')
+        .select('*');
+      if (error) {
+        console.warn('admin_menu_permissions table not found or error occurred, using defaults', error);
+        return null;
+      }
+      return data;
+    } catch (e) {
+      console.warn('Error fetching admin_menu_permissions:', e);
+      return null;
+    }
+  } else {
+    const db = readMockDB();
+    return db.admin_menu_permissions || null;
+  }
+}
+
+export async function saveMenuPermissions(role: string, permissions: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('admin_menu_permissions')
+      .upsert({ role, permissions, updated_at: new Date().toISOString() })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.admin_menu_permissions) db.admin_menu_permissions = [];
+    const idx = db.admin_menu_permissions.findIndex(x => x.role === role);
+    if (idx > -1) {
+      db.admin_menu_permissions[idx].permissions = permissions;
+    } else {
+      db.admin_menu_permissions.push({ role, permissions });
+    }
+    writeMockDB(db);
+    return { role, permissions };
+  }
+}
