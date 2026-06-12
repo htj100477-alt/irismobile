@@ -903,6 +903,11 @@ export default function AdminDashboard() {
   const [editDeductionQty, setEditDeductionQty] = useState('');
   const [editDeductionAmountHkd, setEditDeductionAmountHkd] = useState('');
 
+  // 기종 카드 일괄 가격 수정 모달 상태
+  const [bulkEditModalOpen, setBulkEditModalOpen] = useState(false);
+  const [bulkEditCard, setBulkEditCard] = useState<any | null>(null);
+  const [bulkEditPrice, setBulkEditPrice] = useState('');
+
   // 검색/필터 변경 시 페이지 1로 리셋
   useEffect(() => {
     setHkPage(1);
@@ -2874,6 +2879,48 @@ export default function AdminDashboard() {
         loadAllData();
       } else {
         alert(data.error || '삭제 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    }
+  };
+
+  // 기종 카드 일괄 가격 수정 모달 오픈
+  const openBulkEditModal = (card: any) => {
+    setBulkEditCard(card);
+    // 평균 판매 가격(총 매출액 / 대수)을 구해서 초기값으로 제공
+    const avgPriceHkd = card.count > 0 ? Math.round((card.totalRevenue / cnyRate) / card.count) : 0;
+    setBulkEditPrice(avgPriceHkd.toString());
+    setBulkEditModalOpen(true);
+  };
+
+  // 기종 카드 일괄 가격 수정 실행
+  const executeBulkPriceUpdate = async () => {
+    if (!bulkEditCard) return;
+    if (!bulkEditPrice || isNaN(Number(bulkEditPrice)) || Number(bulkEditPrice) < 0) {
+      alert('올바른 판매 단가를 입력해주세요.');
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/hongkong-inventory', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_bulk_settled_prices',
+          month: bulkEditCard.month,
+          modelName: bulkEditCard.modelName,
+          sellingPrice: Number(bulkEditPrice)
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('해당 기종의 판매 가격이 일괄 수정되었습니다! / 批量修改成功！');
+        setBulkEditModalOpen(false);
+        setBulkEditCard(null);
+        loadAllData();
+      } else {
+        alert(data.error || '일괄 수정 실패');
       }
     } catch (e) {
       alert('오류가 발생했습니다.');
@@ -5612,8 +5659,7 @@ export default function AdminDashboard() {
                       <div
                         key={g.key}
                         onClick={() => {
-                          setSettlementSearch(g.modelName);
-                          setSettlementViewMode('list');
+                          openBulkEditModal(g);
                         }}
                         style={{
                           backgroundColor: '#1e293b',
@@ -8616,6 +8662,82 @@ export default function AdminDashboard() {
                 {displayLang === 'zh' ? '取消' : '취소'}
               </button>
               <button onClick={executeUpdateDeduction} className={styles.btnSave}>
+                {displayLang === 'zh' ? '保存' : '저장'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 기종 카드 일괄 가격 수정 모달 */}
+      {bulkEditModalOpen && bulkEditCard && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '450px', width: '90%', backgroundColor: '#1e293b', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '20px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px', marginBottom: '16px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {displayLang === 'zh' ? '批量修改销售价格 (일괄 판매가 수정)' : '기종 일괄 판매가 수정'}
+              </h3>
+              <button onClick={() => { setBulkEditModalOpen(false); setBulkEditCard(null); }} style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} aria-label="닫기">
+                <X size={20} />
+              </button>
+            </div>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', color: '#fff' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>정산 월 / 结算月份</span>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>{bulkEditCard.month}</div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>모델명 / 机型</span>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', marginTop: '2px' }}>{getModelDisplayName(bulkEditCard.modelName)}</div>
+              </div>
+
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>대상 기기 수량 / 设备数量</span>
+                <div style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)', marginTop: '2px' }}>{bulkEditCard.count}대 / 台</div>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>새로운 판매 단가 / 销售单价 (HKD)</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={bulkEditPrice}
+                    onChange={(e) => setBulkEditPrice(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
+                </div>
+              </div>
+
+              {/* 실시간 일괄 시뮬레이션 안내 */}
+              {Number(bulkEditPrice) >= 0 && (
+                <div style={{ padding: '10px', backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: '6px', fontSize: '12px', border: '1px solid rgba(255,255,255,0.05)', marginTop: '4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <span>일괄 매출액 합계:</span>
+                    <strong style={{ color: 'var(--accent-light)' }}>
+                      ₩{Math.round(Number(bulkEditPrice) * bulkEditCard.count * cnyRate).toLocaleString()}
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+                        (HK${(Number(bulkEditPrice) * bulkEditCard.count).toLocaleString()})
+                      </span>
+                    </strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>일괄 순마진 합계:</span>
+                    <strong style={{ color: (Number(bulkEditPrice) * bulkEditCard.count * cnyRate - bulkEditCard.totalCost) >= 0 ? 'var(--success-color)' : 'var(--danger-color)' }}>
+                      ₩{Math.round(Number(bulkEditPrice) * bulkEditCard.count * cnyRate - bulkEditCard.totalCost).toLocaleString()}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className={styles.btnGroup} style={{ borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '16px' }}>
+              <button onClick={() => { setBulkEditModalOpen(false); setBulkEditCard(null); }} className={styles.btnCancel}>
+                {displayLang === 'zh' ? '取消' : '취소'}
+              </button>
+              <button onClick={executeBulkPriceUpdate} className={styles.btnSave}>
                 {displayLang === 'zh' ? '保存' : '저장'}
               </button>
             </div>

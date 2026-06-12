@@ -1694,3 +1694,39 @@ export async function deleteBulkSaleDeductionLog(id: string) {
     return true;
   }
 }
+
+export async function updateBulkSettledPrices(month: string, modelName: string, sellingPrice: number) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('hongkong_inventory')
+      .update({
+        selling_price: sellingPrice
+      })
+      .eq('model_name', modelName)
+      .eq('is_sold', true)
+      .eq('is_approved', true)
+      .like('sale_date', `${month}%`);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.hongkong_inventory) db.hongkong_inventory = [];
+    db.hongkong_inventory = db.hongkong_inventory.map(d => {
+      if (
+        d.model_name === modelName &&
+        d.is_sold &&
+        d.is_approved &&
+        d.sale_date &&
+        d.sale_date.startsWith(month)
+      ) {
+        return {
+          ...d,
+          selling_price: sellingPrice
+        };
+      }
+      return d;
+    });
+    writeMockDB(db);
+    return true;
+  }
+}

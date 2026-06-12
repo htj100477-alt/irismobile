@@ -10,7 +10,8 @@ import {
   updateHongKongNotes,
   createBulkSaleDeductionLog,
   updateHongKongSaleInfo,
-  cancelHongKongApproval
+  cancelHongKongApproval,
+  updateBulkSettledPrices
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -107,6 +108,15 @@ export async function PUT(request: Request) {
         return NextResponse.json({ success: false, error: 'Missing deviceIds for cancellation of approval' }, { status: 400 });
       }
       await cancelHongKongApproval(deviceIds);
+      return NextResponse.json({ success: true });
+    }
+
+    if (action === 'update_bulk_settled_prices') {
+      const { month, modelName, sellingPrice } = body;
+      if (!month || !modelName || sellingPrice === undefined) {
+        return NextResponse.json({ success: false, error: 'Missing required parameters' }, { status: 400 });
+      }
+      await updateBulkSettledPrices(month, modelName, Number(sellingPrice) || 0);
       return NextResponse.json({ success: true });
     }
 
