@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users } from 'lucide-react';
+import { BarChart3, Smartphone, ShoppingBag, ClipboardList, LogOut, CheckCircle2, AlertCircle, Plus, Edit, Trash2, X, Coins, Settings, Layers, Menu, Users, MinusCircle } from 'lucide-react';
 import styles from '@/styles/admin.module.css';
 
 // 대한민국 행정구역 데이터 (도/시 및 시/군/구 매핑)
@@ -202,14 +202,22 @@ const HKInventoryRow = memo(function HKInventoryRow({
       <td style={{ fontFamily: 'monospace' }}>{item.imei?.startsWith('NO_IMEI-') ? '-' : item.imei}</td>
       <td>{item.color || '-'}</td>
       <td style={{ color: 'var(--text-secondary)' }}>
-        ₩{Number(item.purchase_cost || 0).toLocaleString()}
+        {displayLang === 'zh'
+          ? `HK${Math.round((Number(item.purchase_cost) || 0) / cnyRate).toLocaleString()}`
+          : `₩${Number(item.purchase_cost || 0).toLocaleString()}`}
       </td>
       <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
-        HK${Number(item.selling_price || 0).toLocaleString()}
-        {item.is_sold && (
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>
-            (₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()})
-          </div>
+        {displayLang === 'zh' ? (
+          `HK${Number(item.selling_price || 0).toLocaleString()}`
+        ) : (
+          <>
+            ₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()}
+            {item.is_sold && (
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
+                (HK${Number(item.selling_price || 0).toLocaleString()})
+              </span>
+            )}
+          </>
         )}
       </td>
       <td>{item.stock_location || '-'}</td>
@@ -674,6 +682,7 @@ const MENU_KEYS = [
   { key: 'completed-sales', label: '판매 승인 / 销售审批' },
   { key: 'margin-settlement', label: '마진 및 정산 / 利润结算' },
   { key: 'model-pet-names', label: '기종 펫네임 관리 / 型号别称' },
+  { key: 'deductions', label: '차감 항목 관리 / 扣除项管理' },
   { key: 'members', label: '회원 등급 관리 / 会员管理' },
   { key: 'scanner', label: '바코드 스캐너 / 扫码销售' },
   { key: 'permissions', label: '메뉴 권한 설정 / 权限管理' }
@@ -681,7 +690,7 @@ const MENU_KEYS = [
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names' | 'permissions' | 'members'>('home');
+  const [activeTab, setActiveTab] = useState<'home' | 'trade-ins' | 'products' | 'orders' | 'prices' | 'categories' | 'hongkong-inventory' | 'completed-sales' | 'margin-settlement' | 'model-pet-names' | 'permissions' | 'members' | 'deduction-rules'>('home');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   
   const [userRole, setUserRole] = useState<'admin' | 'manager' | 'staff' | 'general'>('admin');
@@ -803,7 +812,7 @@ export default function AdminDashboard() {
     }
     return modelName;
   }, [petNameMap, displayLang]);
-  
+
   // 일괄 판매 처리 상태
   const [bulkSaleDate, setBulkSaleDate] = useState('');
   const [bulkSellerName, setBulkSellerName] = useState('레이');
@@ -831,6 +840,45 @@ export default function AdminDashboard() {
     return 175;
   }); // 추가: 홍콩달러 환율
 
+  const formatCurrency = useCallback((value: number, from: 'KRW' | 'HKD' = 'KRW') => {
+    if (from === 'KRW') {
+      if (displayLang === 'zh') {
+        const hkd = value / cnyRate;
+        return `HK${Math.round(hkd).toLocaleString()}`;
+      }
+      return `₩${Math.round(value).toLocaleString()}`;
+    } else {
+      if (displayLang === 'zh') {
+        return `HK${Math.round(value).toLocaleString()}`;
+      }
+      const krw = value * cnyRate;
+      return `₩${Math.round(krw).toLocaleString()}`;
+    }
+  }, [displayLang, cnyRate]);
+
+  const getDayFromDateStr = useCallback((dateStr: string) => {
+    if (!dateStr) return null;
+    const clean = dateStr.replace(/\s+/g, '').replace(/\./g, '-');
+    const parts = clean.split('-').filter(Boolean);
+    if (parts.length >= 3) {
+      const day = parseInt(parts[2], 10);
+      if (!isNaN(day)) return day;
+    }
+    return null;
+  }, []);
+
+  const getDaysInMonth = useCallback((monthStr: string) => {
+    if (!monthStr || monthStr === 'All') return 31;
+    const parts = monthStr.split('-');
+    if (parts.length === 2) {
+      const year = parseInt(parts[0], 10);
+      const month = parseInt(parts[1], 10);
+      return new Date(year, month, 0).getDate();
+    }
+    return 31;
+  }, []);
+  
+
   // 홍콩 재고 페이지네이션 상태
   const [hkPage, setHkPage] = useState(1);
   const [hkPageSize, setHkPageSize] = useState<number | 'all'>(50);
@@ -843,6 +891,7 @@ export default function AdminDashboard() {
     setHkPage(1);
   }, [hkStatusFilter, hkSearchQuery, hkSortColumn, hkSortDirection, hkPageSize, hkViewMode]);
 
+  // 정산 월 변경 시 정산 일 필터 초기화
   // 기종 카드 일괄 판매 상태
   const [cardBulkSaleModel, setCardBulkSaleModel] = useState<string | null>(null);
   const [excludedDeviceIds, setExcludedDeviceIds] = useState<Set<string>>(new Set());
@@ -858,6 +907,23 @@ export default function AdminDashboard() {
   } | null>(null);
 
   const [completedSalesSearch, setCompletedSalesSearch] = useState('');
+
+  // 차감 항목 관련 상태
+  const [deductionRules, setDeductionRules] = useState<any[]>([]);
+  const [bulkSaleDeductions, setBulkSaleDeductions] = useState<any[]>([]);
+  const [isDeductionModalOpen, setIsDeductionModalOpen] = useState(false);
+  const [selectedDeductionRule, setSelectedDeductionRule] = useState<any | null>(null);
+  const [deductionNameKo, setDeductionNameKo] = useState('');
+  const [deductionNameZh, setDeductionNameZh] = useState('');
+  const [deductionAmountHkd, setDeductionAmountHkd] = useState('');
+  const [savingDeductionRule, setSavingDeductionRule] = useState(false);
+  const [bulkSaleDeductionQuantities, setBulkSaleDeductionQuantities] = useState<Record<string, number>>({});
+
+  // 정산 일자 다중 선택 상태
+  const [selectedSettlementDays, setSelectedSettlementDays] = useState<number[]>([]);
+
+  // 선택 기기 판매 모달 트리거 상태
+  const [isSellSelectedOnly, setIsSellSelectedOnly] = useState(false);
   const [selectedPendingIds, setSelectedPendingIds] = useState<string[]>([]);
   const [isInventoryStatsModalOpen, setIsInventoryStatsModalOpen] = useState(false);
   const [inventoryStatsBasis, setInventoryStatsBasis] = useState<'all' | 'available'>('all');
@@ -1116,6 +1182,11 @@ export default function AdminDashboard() {
   const [settlementMonth, setSettlementMonth] = useState('All');
   const [settlementSearch, setSettlementSearch] = useState('');
 
+  useEffect(() => {
+    setSelectedSettlementDays([]);
+  }, [settlementMonth]);
+
+
   // 고정 엑셀 양식 열 선택 상태 (체크 시 반영, 해제 시 공란)
   const [importFields, setImportFields] = useState<Record<string, boolean>>({
     pgNo: true,
@@ -1236,7 +1307,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
-      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes, memberRes, permRes] = await Promise.all([
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes, memberRes, permRes, deductRulesRes, deductLogsRes] = await Promise.all([
         fetch('/api/trade-ins'),
         fetch('/api/products'),
         fetch('/api/orders'),
@@ -1246,11 +1317,13 @@ export default function AdminDashboard() {
         fetch('/api/exchange-rate'),
         fetch('/api/model-pet-names'),
         fetch('/api/members'),
-        fetch('/api/permissions', { cache: 'no-store' })
+        fetch('/api/permissions', { cache: 'no-store' }),
+        fetch('/api/deduction-rules'),
+        fetch('/api/bulk-sale-deductions')
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
-      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData, memberData, permData] = await Promise.all([
+      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData, memberData, permData, deductRulesData, deductLogsData] = await Promise.all([
         tradeRes.json(),
         prodRes.json(),
         orderRes.json(),
@@ -1260,7 +1333,9 @@ export default function AdminDashboard() {
         rateRes.json(),
         petRes.json(),
         memberRes.json(),
-        permRes.json()
+        permRes.json(),
+        deductRulesRes.json(),
+        deductLogsRes.json()
       ]);
 
       if (tradeData.success) setTradeIns(tradeData.data);
@@ -1277,6 +1352,8 @@ export default function AdminDashboard() {
       }
       if (petData.success) setModelPetNames(petData.data);
       if (memberData.success) setMembers(memberData.data);
+      if (deductRulesData.success) setDeductionRules(deductRulesData.data || []);
+      if (deductLogsData.success) setBulkSaleDeductions(deductLogsData.data || []);
 
       if (permData?.success && permData.data && permData.data.length > 0) {
         const permRecord: Record<string, Record<string, boolean>> = {};
@@ -2282,7 +2359,9 @@ export default function AdminDashboard() {
       modelPrices[modelName] = Number(priceStr);
     }
 
-    const availableHKDevices = hongkongInventory.filter(x => !x.is_sold);
+    const availableHKDevices = isSellSelectedOnly
+      ? hongkongInventory.filter(x => !x.is_sold && selectedHKIds.includes(x.id))
+      : hongkongInventory.filter(x => !x.is_sold);
     const candidateDevices = availableHKDevices.filter(x => selectedBulkModels.includes(x.model_name));
     const soldDevices = candidateDevices.filter(x => !unsoldBulkDeviceIds.includes(x.id));
     const unsoldDevices = candidateDevices.filter(x => unsoldBulkDeviceIds.includes(x.id));
@@ -2292,13 +2371,43 @@ export default function AdminDashboard() {
       return;
     }
 
-    const priceDetails = selectedBulkModels.map(m => `- ${m}: HK$${Number(bulkSellingPrices[m]).toLocaleString()} (HKD)`).join('\n');
+    // 차감 내역 계산
+    const appliedDeductions = deductionRules
+      .filter(rule => (bulkSaleDeductionQuantities[rule.id] || 0) > 0)
+      .map(rule => {
+        const qty = bulkSaleDeductionQuantities[rule.id];
+        const totHkd = qty * rule.amount_hkd;
+        const totKrw = totHkd * cnyRate;
+        return {
+          name_ko: rule.name_ko,
+          name_zh: rule.name_zh,
+          quantity: qty,
+          amount_hkd: rule.amount_hkd,
+          total_hkd: totHkd,
+          total_krw: totKrw
+        };
+      });
 
-    const confirmMsg = `선택하신 기종 총 ${candidateDevices.length}대 중\n` +
+    // 판매 요약 텍스트
+    const soldSummaryList = selectedBulkModels.map(m => {
+      const devices = soldDevices.filter(d => d.model_name === m);
+      if (devices.length === 0) return null;
+      return `${getModelDisplayName(m)} ${devices.length}대`;
+    }).filter(Boolean);
+    const soldSummary = soldSummaryList.join(', ');
+
+    const priceDetails = selectedBulkModels.map(m => `- ${m}: HK${Number(bulkSellingPrices[m]).toLocaleString()} (HKD)`).join('\n');
+
+    let confirmMsg = `선택하신 기종 총 ${candidateDevices.length}대 중\n` +
       `- 판매 완료 처리: ${soldDevices.length}대\n` +
       `- 기종별 판매 단가:\n${priceDetails}\n` +
-      `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n\n` +
-      `정말로 판매 완료 처리를 실행하시겠습니까?`;
+      `- 미판매 제외(재고 보존): ${unsoldDevices.length}대\n`;
+
+    if (appliedDeductions.length > 0) {
+      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK${d.total_hkd.toLocaleString()})`).join('\n') + `\n`;
+    }
+
+    confirmMsg += `\n정말로 판매 완료 처리를 실행하시겠습니까?`;
 
     if (!confirm(confirmMsg)) return;
 
@@ -2318,7 +2427,9 @@ export default function AdminDashboard() {
           modelPrices,
           soldIds,
           remainingIdentifiers,
-          exchangeRate: cnyRate
+          exchangeRate: cnyRate,
+          deductions: appliedDeductions,
+          soldSummary
         })
       });
       const data = await res.json();
@@ -2333,6 +2444,8 @@ export default function AdminDashboard() {
         setBulkSaleDate('');
         setBulkSellingPrice('');
         setBulkSellingPrices({});
+        setBulkSaleDeductionQuantities({});
+        setSelectedHKIds([]);
         loadAllData();
       } else {
         alert(data.error || '판매 완료 처리 실패');
@@ -2384,12 +2497,36 @@ export default function AdminDashboard() {
       return;
     }
 
-    const confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
+    // 차감 내역 계산
+    const appliedDeductions = deductionRules
+      .filter(rule => (bulkSaleDeductionQuantities[rule.id] || 0) > 0)
+      .map(rule => {
+        const qty = bulkSaleDeductionQuantities[rule.id];
+        const totHkd = qty * rule.amount_hkd;
+        const totKrw = totHkd * cnyRate;
+        return {
+          name_ko: rule.name_ko,
+          name_zh: rule.name_zh,
+          quantity: qty,
+          amount_hkd: rule.amount_hkd,
+          total_hkd: totHkd,
+          total_krw: totKrw
+        };
+      });
+
+    const soldSummary = `${getModelDisplayName(cardBulkSaleModel)}${cardBulkSaleGrade ? ` [${cardBulkSaleGrade}]` : ''} ${soldDevices.length}대`;
+
+    let confirmMsg = `기종: ${getModelDisplayName(cardBulkSaleModel)}\n` +
       (cardBulkSaleGrade ? `- 등급: ${cardBulkSaleGrade}\n` : '') +
       `- 판매 처리: ${soldDevices.length}대\n` +
-      `- 판매 단가: HK$${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
-      `- 제외 기기: ${excludedDevices.length}대\n\n` +
-      `정말로 판매 처리를 실행하시겠습니까?\n确认执行批量销售吗？`;
+      `- 판매 단가: HK${Number(cardBulkUnitPrice).toLocaleString()} (HKD)\n` +
+      `- 제외 기기: ${excludedDevices.length}대\n`;
+
+    if (appliedDeductions.length > 0) {
+      confirmMsg += `\n- 차감 내역 적용:\n` + appliedDeductions.map(d => `  * ${d.name_ko}: ${d.quantity}대 차감 (총 HK${d.total_hkd.toLocaleString()})`).join('\n') + `\n`;
+    }
+
+    confirmMsg += `\n정말로 판매 처리를 실행하시겠습니까?\n确认执行批量销售吗？`;
 
     if (!confirm(confirmMsg)) return;
 
@@ -2410,7 +2547,9 @@ export default function AdminDashboard() {
           modelPrices,
           soldIds,
           remainingIdentifiers,
-          exchangeRate: cnyRate
+          exchangeRate: cnyRate,
+          deductions: appliedDeductions,
+          soldSummary
         })
       });
       const data = await res.json();
@@ -2418,6 +2557,7 @@ export default function AdminDashboard() {
         alert(`성공적으로 ${soldDevices.length}대의 판매 처리가 완료되었습니다!`);
         setCardBulkSaleModel(null);
         setCardBulkSaleGrade(null);
+        setBulkSaleDeductionQuantities({});
         loadAllData();
       } else {
         alert(data.error || '판매 처리 실패');
@@ -2470,6 +2610,77 @@ export default function AdminDashboard() {
       alert('삭제 중 오류가 발생했습니다.');
     }
   }, [loadAllData]);
+
+  const loadDeductionRules = useCallback(async () => {
+    try {
+      const res = await fetch('/api/deduction-rules');
+      const data = await res.json();
+      if (data.success) {
+        setDeductionRules(data.data || []);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const handleSaveDeductionRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!deductionNameKo.trim() || !deductionNameZh.trim() || !deductionAmountHkd) {
+      alert('모든 필드를 입력해주세요. / 请输入所有必填项。');
+      return;
+    }
+    setSavingDeductionRule(true);
+    try {
+      const payload = {
+        name_ko: deductionNameKo.trim(),
+        name_zh: deductionNameZh.trim(),
+        amount_hkd: Number(deductionAmountHkd)
+      };
+      
+      let res;
+      if (selectedDeductionRule) {
+        res = await fetch('/api/deduction-rules', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: selectedDeductionRule.id, ...payload })
+        });
+      } else {
+        res = await fetch('/api/deduction-rules', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+      }
+      
+      const data = await res.json();
+      if (data.success) {
+        alert(selectedDeductionRule ? '차감 항목이 수정되었습니다.' : '차감 항목이 등록되었습니다.');
+        setIsDeductionModalOpen(false);
+        loadAllData();
+      } else {
+        alert(data.error || '저장 실패');
+      }
+    } catch (e) {
+      alert('오류가 발생했습니다.');
+    } finally {
+      setSavingDeductionRule(false);
+    }
+  };
+
+  const handleDeleteDeductionRule = async (id: string) => {
+    if (!confirm('정말로 이 차감 항목을 삭제하시겠습니까? / 确定要删除该扣除项吗？')) return;
+    try {
+      const res = await fetch(`/api/deduction-rules?id=${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.success) {
+        loadAllData();
+      } else {
+        alert(data.error || '삭제 실패');
+      }
+    } catch (e) {
+      alert('삭제 중 오류가 발생했습니다.');
+    }
+  };
 
   // 홍콩 재고 선택 항목 일괄 삭제
   const executeDeleteHKBatch = useCallback(async (ids: string[]) => {
@@ -2750,6 +2961,18 @@ export default function AdminDashboard() {
             </button>
           )}
 
+          {permissions[userRole]?.['deductions'] && (
+            <button 
+              onClick={() => {
+                setActiveTab('deduction-rules');
+                setIsMobileSidebarOpen(false);
+              }}
+              className={`${styles.menuItem} ${activeTab === 'deduction-rules' ? styles.menuItemActive : ''}`}
+            >
+              <Settings size={18} style={{ color: 'var(--danger-color)' }} /> {displayLang === 'zh' ? '扣除项管理' : '차감 항목 관리'}
+            </button>
+          )}
+
           {permissions[userRole]?.['members'] && (
             <button 
               onClick={() => {
@@ -2966,7 +3189,7 @@ export default function AdminDashboard() {
                         <tr key={t.id}>
                           <td>{t.members?.name || '가입탈퇴'}</td>
                           <td>{t.brand} {t.model_name} ({t.storage})</td>
-                          <td>{t.estimated_price.toLocaleString()}원</td>
+                          <td>{formatCurrency(t.estimated_price, 'KRW')}</td>
                           <td>{t.status}</td>
                         </tr>
                       ))}
@@ -2992,7 +3215,7 @@ export default function AdminDashboard() {
                       {orders.slice(0, 5).map(o => (
                         <tr key={o.id}>
                           <td>{o.shipping_name}</td>
-                          <td>{o.price.toLocaleString()}원</td>
+                          <td>{formatCurrency(o.price, 'KRW')}</td>
                           <td>{o.status}</td>
                         </tr>
                       ))}
@@ -3039,10 +3262,10 @@ export default function AdminDashboard() {
                         </td>
                         <td>{t.brand} {t.model_name}</td>
                         <td>{t.storage} / {t.color || '기본'}</td>
-                        <td>{t.estimated_price.toLocaleString()}원</td>
+                        <td>{formatCurrency(t.estimated_price, 'KRW')}</td>
                         <td>
                           {t.final_price !== null ? (
-                            <span style={{ fontWeight: 'bold', color: 'var(--warning-color)' }}>{t.final_price.toLocaleString()}원</span>
+                            <span style={{ fontWeight: 'bold', color: 'var(--warning-color)' }}>{formatCurrency(t.final_price, 'KRW')}</span>
                           ) : (
                             <span style={{ color: 'var(--text-muted)' }}>-</span>
                           )}
@@ -3130,7 +3353,7 @@ export default function AdminDashboard() {
                             {p.grade}급
                           </span>
                         </td>
-                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{p.price.toLocaleString()}원</td>
+                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{formatCurrency(p.price, 'KRW')}</td>
                         <td>
                           <span style={{
                             fontSize: '12px',
@@ -3201,7 +3424,7 @@ export default function AdminDashboard() {
                         <td style={{ fontWeight: 'bold' }}>{o.shipping_name}</td>
                         <td>{o.shipping_phone.replace(/(\d{3})(\d{4})(\d{4})/, '$1-$2-$3')}</td>
                         <td>{o.shipping_address}</td>
-                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{o.price.toLocaleString()}원</td>
+                        <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{formatCurrency(o.price, 'KRW')}</td>
                         <td>
                           <select 
                             value={o.status}
@@ -3416,19 +3639,19 @@ export default function AdminDashboard() {
                         <tr key={r.id}>
                           <td style={{ fontWeight: 'bold' }}>{r.brand}</td>
                           <td style={{ fontWeight: 'bold', color: '#fff' }}>{r.model_name}</td>
-                          <td style={{ color: 'var(--success-color)', fontWeight: '600' }}>{r.base_price.toLocaleString()}원</td>
-                          <td style={{ color: 'var(--danger-color)' }}>-{r.storage_128g_deduct.toLocaleString()}원</td>
-                          <td style={{ color: 'var(--accent-light)' }}>+{r.storage_512g_add.toLocaleString()}원</td>
+                          <td style={{ color: 'var(--success-color)', fontWeight: '600' }}>{formatCurrency(r.base_price, 'KRW')}</td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{formatCurrency(r.storage_128g_deduct, 'KRW')}</td>
+                          <td style={{ color: 'var(--accent-light)' }}>+{formatCurrency(r.storage_512g_add, 'KRW')}</td>
                           <td>
-                            <span style={{ color: 'var(--danger-color)' }}>-{r.screen_scratch_deduct.toLocaleString()}</span> / 
-                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.screen_broken_deduct.toLocaleString()}</span>
+                            <span style={{ color: 'var(--danger-color)' }}>-{formatCurrency(r.screen_scratch_deduct, 'KRW')}</span> / 
+                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{formatCurrency(r.screen_broken_deduct, 'KRW')}</span>
                           </td>
                           <td>
-                            <span style={{ color: 'var(--danger-color)' }}>-{r.body_scratch_deduct.toLocaleString()}</span> / 
-                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{r.body_broken_deduct.toLocaleString()}</span>
+                            <span style={{ color: 'var(--danger-color)' }}>-{formatCurrency(r.body_scratch_deduct, 'KRW')}</span> / 
+                            <span style={{ color: 'var(--danger-color)', fontWeight: '600' }}> -{formatCurrency(r.body_broken_deduct, 'KRW')}</span>
                           </td>
-                          <td style={{ color: 'var(--danger-color)' }}>-{r.camera_error_deduct.toLocaleString()}원</td>
-                          <td style={{ color: 'var(--danger-color)' }}>-{r.screen_burn_deduct.toLocaleString()}원</td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{formatCurrency(r.camera_error_deduct, 'KRW')}</td>
+                          <td style={{ color: 'var(--danger-color)' }}>-{formatCurrency(r.screen_burn_deduct, 'KRW')}</td>
                           <td style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
                             {new Date(r.updated_at).toLocaleDateString()}
                           </td>
@@ -3710,7 +3933,16 @@ export default function AdminDashboard() {
                   <BarChart3 size={16} /> {displayLang === 'zh' ? '库存统计' : '재고 통계'}
                 </button>
                 <button
-                  onClick={() => setIsBulkSaleModalOpen(true)}
+                  onClick={() => {
+                    setIsSellSelectedOnly(false);
+                    setSelectedBulkModels([]);
+                    setUnsoldBulkDeviceIds([]);
+                    setBulkSaleDate(new Date().toISOString().split('T')[0]);
+                    setBulkSellerName('레이');
+                    setBulkSellingPrices({});
+                    setBulkSaleDeductionQuantities({});
+                    setIsBulkSaleModalOpen(true);
+                  }}
                   className={styles.btnCancel}
                   style={{
                     display: 'flex',
@@ -3725,6 +3957,53 @@ export default function AdminDashboard() {
                 >
                   <CheckCircle2 size={16} /> {displayLang === 'zh' ? '批量销售' : '일괄 판매 처리'}
                 </button>
+                {selectedHKIds.length > 0 && selectedHKIds.filter(id => {
+                  const item = inventoryMap.get(id);
+                  return item && !item.is_sold;
+                }).length > 0 && (
+                  <button
+                    onClick={() => {
+                      const unsoldSelected = selectedHKIds.filter(id => {
+                        const item = inventoryMap.get(id);
+                        return item && !item.is_sold;
+                      });
+                      if (unsoldSelected.length === 0) return;
+                      
+                      // Group models to auto-fill selected models
+                      const models = Array.from(new Set(unsoldSelected.map(id => {
+                        const item = inventoryMap.get(id);
+                        return item?.model_name;
+                      }).filter(Boolean)));
+                      
+                      setIsSellSelectedOnly(true);
+                      setSelectedBulkModels(models);
+                      setUnsoldBulkDeviceIds([]); // by default all selected are sold
+                      setBulkSaleDate(new Date().toISOString().split('T')[0]);
+                      setBulkSellerName('레이');
+                      setBulkSellingPrices({});
+                      setBulkSaleDeductionQuantities({});
+                      setIsBulkSaleModalOpen(true);
+                    }}
+                    className={styles.btnSave}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      backgroundColor: 'var(--success-color)',
+                      border: 'none',
+                      color: '#fff',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <CheckCircle2 size={16} /> {displayLang === 'zh' ? `选定设备批量销售 (${selectedHKIds.filter(id => {
+                      const item = inventoryMap.get(id);
+                      return item && !item.is_sold;
+                    }).length}台)` : `선택 기기 일괄 판매 (${selectedHKIds.filter(id => {
+                      const item = inventoryMap.get(id);
+                      return item && !item.is_sold;
+                    }).length}대)`}
+                  </button>
+                )}
                 {selectedHKIds.length > 0 && selectedHKSoldDevicesCount > 0 && (
                   <button
                     onClick={() => executeCancelSales(selectedHKIds.filter(id => {
@@ -4576,12 +4855,34 @@ export default function AdminDashboard() {
 
           const settledDevices = baseSettledDevices.filter(item => {
             if (settlementMonth !== 'All' && getYearMonth(item.sale_date || '') !== settlementMonth) return false;
+            if (settlementMonth !== 'All' && selectedSettlementDays.length > 0) {
+              const day = getDayFromDateStr(item.sale_date || '');
+              if (day === null || !selectedSettlementDays.includes(day)) return false;
+            }
             return true;
           });
+
+          // 차감 항목 필터링 및 집계
+          const filteredDeductions = bulkSaleDeductions.filter(log => {
+            if (settlementSeller !== 'All' && log.seller_name !== settlementSeller) return false;
+            if (settlementMonth !== 'All' && getYearMonth(log.sale_date || '') !== settlementMonth) return false;
+            if (settlementMonth !== 'All' && selectedSettlementDays.length > 0) {
+              const day = getDayFromDateStr(log.sale_date || '');
+              if (day === null || !selectedSettlementDays.includes(day)) return false;
+            }
+            return true;
+          });
+
+          const totalDeductionsKRW = filteredDeductions.reduce((sum, log) => sum + (Number(log.total_krw) || 0), 0);
+          const totalDeductionsHKD = filteredDeductions.reduce((sum, log) => sum + (Number(log.total_hkd) || 0), 0);
 
           const totalRevenue = settledDevices.reduce((sum, item) => sum + ((Number(item.selling_price) || 0) * (Number(item.sale_rate) || cnyRate)), 0);
           const totalCost = settledDevices.reduce((sum, item) => sum + (Number(item.purchase_cost) || 0), 0);
           const totalMargin = totalRevenue - totalCost;
+          
+          // 실질 마진 및 실질 마진율 계산 (차감 반영)
+          const netTotalMarginKRW = totalMargin - totalDeductionsKRW;
+          const netAverageMarginRate = totalRevenue > 0 ? (netTotalMarginKRW / totalRevenue) * 100 : 0;
           const averageMarginRate = totalRevenue > 0 ? (totalMargin / totalRevenue) * 100 : 0;
 
           // 판매완료 기종 카드 뷰용 그룹화 데이터
@@ -4667,7 +4968,7 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>총 매출액 / 占销售额</span>
-                    <span className={styles.metricVal}>₩{totalRevenue.toLocaleString()}</span>
+                    <span className={styles.metricVal}>{formatCurrency(totalRevenue, 'KRW')}</span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(16, 185, 129, 0.1)', color: 'var(--success-color)' }}>
                     <Coins size={22} />
@@ -4677,7 +4978,7 @@ export default function AdminDashboard() {
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
                     <span className={styles.metricLabel}>총 원가 / 总成本</span>
-                    <span className={styles.metricVal}>₩{totalCost.toLocaleString()}</span>
+                    <span className={styles.metricVal}>{formatCurrency(totalCost, 'KRW')}</span>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', color: 'var(--danger-color)' }}>
                     <Coins size={22} />
@@ -4686,10 +4987,33 @@ export default function AdminDashboard() {
 
                 <div className={styles.metricCard}>
                   <div className={styles.metricInfo}>
-                    <span className={styles.metricLabel}>총 마진 및 평균 마진율 / 利润 & 利润率</span>
-                    <span className={styles.metricVal}>
-                      ₩{totalMargin.toLocaleString()} ({averageMarginRate.toFixed(1)}%)
+                    <span className={styles.metricLabel}>
+                      {displayLang === 'zh' ? '总利润 & 利润率 (已扣除)' : '총 마진 및 평균 마진율 (차감 반영)'}
                     </span>
+                    <span className={styles.metricVal}>
+                      {displayLang === 'zh' ? (
+                        <>
+                          HK${Math.round((totalRevenue - totalCost) / cnyRate - totalDeductionsHKD).toLocaleString()}
+                          <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                            ({netAverageMarginRate.toFixed(1)}%)
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          ₩{Math.round(netTotalMarginKRW).toLocaleString()}
+                          <span style={{ fontSize: '12px', fontWeight: 'normal', color: 'var(--text-secondary)', marginLeft: '8px' }}>
+                            ({netAverageMarginRate.toFixed(1)}%)
+                          </span>
+                        </>
+                      )}
+                    </span>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>
+                      {displayLang === 'zh' ? (
+                        `毛利润: HK${Math.round((totalRevenue - totalCost) / cnyRate).toLocaleString()} | 扣除项: HK${Math.round(totalDeductionsHKD).toLocaleString()}`
+                      ) : (
+                        `기기 마진: ₩${Math.round(totalMargin).toLocaleString()} | 총 차감액: ₩${Math.round(totalDeductionsKRW).toLocaleString()}`
+                      )}
+                    </div>
                   </div>
                   <div className={styles.metricIcon} style={{ backgroundColor: 'rgba(245, 158, 11, 0.1)', color: 'var(--warning-color)' }}>
                     <CheckCircle2 size={22} />
@@ -4807,6 +5131,69 @@ export default function AdminDashboard() {
                       ))}
                     </select>
                   </div>
+                  
+                  {settlementMonth !== 'All' && (
+                    <div style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                      width: '100%',
+                      marginTop: '8px',
+                      padding: '12px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.02)',
+                      borderRadius: '8px',
+                      border: '1px solid var(--border-color)'
+                    }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                        {displayLang === 'zh' ? '选择日期 (多选):' : '일자 필터 (다중 선택 가능):'}
+                      </span>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {Array.from({ length: getDaysInMonth(settlementMonth) }, (_, i) => i + 1).map(day => {
+                          const isSelected = selectedSettlementDays.includes(day);
+                          return (
+                            <button
+                              key={day}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSelectedSettlementDays(selectedSettlementDays.filter(d => d !== day));
+                                } else {
+                                  setSelectedSettlementDays([...selectedSettlementDays, day]);
+                                }
+                              }}
+                              style={{
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                border: isSelected ? '1px solid var(--accent-light)' : '1px solid var(--border-color)',
+                                backgroundColor: isSelected ? 'var(--accent-light)' : 'var(--bg-secondary)',
+                                color: isSelected ? '#fff' : 'var(--text-secondary)',
+                                cursor: 'pointer',
+                                transition: 'all 0.1s'
+                              }}
+                            >
+                              {day}{displayLang === 'zh' ? '日' : '일'}
+                            </button>
+                          );
+                        })}
+                        {selectedSettlementDays.length > 0 && (
+                          <button
+                            onClick={() => setSelectedSettlementDays([])}
+                            style={{
+                              padding: '4px 10px',
+                              fontSize: '11px',
+                              borderRadius: '4px',
+                              border: 'none',
+                              backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                              color: 'var(--danger-color)',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {displayLang === 'zh' ? '重置' : '초기화'}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
@@ -5032,9 +5419,181 @@ export default function AdminDashboard() {
                   </div>
                 </div>
               )}
+
+              {/* 차감 내역 테이블 */}
+              <div style={{
+                background: '#1e293b',
+                borderRadius: '12px',
+                border: '1px solid var(--border-color)',
+                padding: '16px',
+                marginTop: '20px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#fff', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <MinusCircle size={16} style={{ color: 'var(--danger-color)' }} />
+                  {displayLang === 'zh' ? '批量销售 扣除明细' : '일괄 판매 차감 적용 내역'}
+                </h3>
+                <div className={styles.tableWrapper}>
+                  <table className={styles.adminTable}>
+                    <thead>
+                      <tr>
+                        <th>{displayLang === 'zh' ? '销售日期' : '판매 일자'}</th>
+                        <th>{displayLang === 'zh' ? '销售员' : '판매원'}</th>
+                        <th>{displayLang === 'zh' ? '销售明细' : '판매 내역'}</th>
+                        <th>{displayLang === 'zh' ? '扣除原因' : '차감 항목'}</th>
+                        <th style={{ textAlign: 'center' }}>{displayLang === 'zh' ? '数量' : '수량'}</th>
+                        <th style={{ textAlign: 'right' }}>{displayLang === 'zh' ? '单价' : '차감 단가'}</th>
+                        <th style={{ textAlign: 'right' }}>{displayLang === 'zh' ? '总计' : '총 차감액'}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredDeductions.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
+                            {displayLang === 'zh' ? '在此筛选条件下无扣除记录。' : '해당 필터 조건 하에 차감 내역이 없습니다.'}
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredDeductions.map(log => {
+                          const unitPriceDisp = displayLang === 'zh'
+                            ? `HK${Number(log.amount_hkd).toLocaleString()}`
+                            : `₩${Math.round(Number(log.amount_hkd) * (Number(log.exchange_rate) || cnyRate)).toLocaleString()}`;
+                          const totalDisp = displayLang === 'zh'
+                            ? `HK${Number(log.total_hkd).toLocaleString()}`
+                            : `₩${Number(log.total_krw).toLocaleString()}`;
+                          
+                          return (
+                            <tr key={log.id}>
+                              <td>{log.sale_date}</td>
+                              <td style={{ fontWeight: 'bold' }}>{log.seller_name || '-'}</td>
+                              <td style={{ color: 'var(--text-secondary)', maxWidth: '250px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.sold_summary}>
+                                {log.sold_summary || '-'}
+                              </td>
+                              <td style={{ fontWeight: 'bold', color: 'var(--warning-color)' }}>
+                                {displayLang === 'zh' ? log.name_zh : log.name_ko}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>{log.quantity}대 / 台</td>
+                              <td style={{ textAlign: 'right', color: 'var(--text-secondary)' }}>{unitPriceDisp}</td>
+                              <td style={{ textAlign: 'right', fontWeight: 'bold', color: 'var(--danger-color)' }}>-{totalDisp}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           );
         })()}
+
+        {/* 차감 항목 관리 탭 */}
+        {activeTab === 'deduction-rules' && (
+          <div className="animate-fade-in">
+            <div className={styles.headerRow}>
+              <div>
+                <h2 className={styles.pageTitle}>{displayLang === 'zh' ? '扣除项管理' : '차감 항목 관리'}</h2>
+                <span style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
+                  {displayLang === 'zh' ? '管理批量销售时应用的基本扣除项和 HKD 扣除金额。' : '통판매(일괄 판매) 시 적용될 기본 차감 항목 및 HKD 차감 금액을 관리합니다.'}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedDeductionRule(null);
+                  setDeductionNameKo('');
+                  setDeductionNameZh('');
+                  setDeductionAmountHkd('');
+                  setIsDeductionModalOpen(true);
+                }}
+                className={styles.btnSave}
+                style={{ display: 'flex', alignItems: 'center', gap: '6px' }}
+              >
+                <Plus size={16} /> {displayLang === 'zh' ? '新增项目' : '항목 등록'}
+              </button>
+            </div>
+
+            {/* 테이블 목록 */}
+            <div className={styles.tableSection} style={{ marginTop: '16px' }}>
+              <div className={styles.tableWrapper}>
+                <table className={styles.adminTable}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '80px', textAlign: 'center' }}>No</th>
+                      <th>{displayLang === 'zh' ? '韩文名称' : '한국어 항목명'}</th>
+                      <th>{displayLang === 'zh' ? '中文名称' : '중국어 항목명'}</th>
+                      <th>{displayLang === 'zh' ? '扣除金额 (HKD)' : '홍콩달러 차감액'}</th>
+                      <th>{displayLang === 'zh' ? '韩元等值 (参考)' : '한국원화 기준액 (참고용)'}</th>
+                      <th style={{ width: '150px', textAlign: 'center' }}>{displayLang === 'zh' ? '操作' : '작업'}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deductionRules.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                          {displayLang === 'zh' ? '没有已登记的扣除项。' : '등록된 차감 항목 데이터가 없습니다.'}
+                        </td>
+                      </tr>
+                    ) : (
+                      deductionRules.map((item, idx) => (
+                        <tr key={item.id}>
+                          <td style={{ textAlign: 'center', color: 'var(--text-secondary)' }}>{idx + 1}</td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>{item.name_ko}</td>
+                          <td>{item.name_zh}</td>
+                          <td style={{ fontWeight: 'bold', color: 'var(--danger-color)' }}>
+                            HK${Number(item.amount_hkd).toLocaleString()}
+                          </td>
+                          <td style={{ color: 'var(--text-secondary)' }}>
+                            ₩{Math.round(Number(item.amount_hkd) * cnyRate).toLocaleString()}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                              <button
+                                onClick={() => {
+                                  setSelectedDeductionRule(item);
+                                  setDeductionNameKo(item.name_ko);
+                                  setDeductionNameZh(item.name_zh);
+                                  setDeductionAmountHkd(String(item.amount_hkd));
+                                  setIsDeductionModalOpen(true);
+                                }}
+                                className={styles.btnSave}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                  color: '#3b82f6',
+                                  border: '1px solid rgba(59, 130, 246, 0.2)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Edit size={12} style={{ marginRight: '4px' }} /> {displayLang === 'zh' ? '编辑' : '수정'}
+                              </button>
+                              <button
+                                onClick={() => handleDeleteDeductionRule(item.id)}
+                                className={styles.btnCancel}
+                                style={{
+                                  padding: '4px 8px',
+                                  fontSize: '11px',
+                                  backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                  color: '#ef4444',
+                                  border: '1px solid rgba(239, 68, 68, 0.2)',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                <Trash2 size={12} style={{ marginRight: '4px' }} /> {displayLang === 'zh' ? '删除' : '삭제'}
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* 기종 펫네임 관리 탭 */}
         {activeTab === 'model-pet-names' && (
@@ -5374,7 +5933,7 @@ export default function AdminDashboard() {
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>고객 자가진단 예상가</span>
-                <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)' }}>{selectedTradeIn.estimated_price.toLocaleString()}원</span>
+                <span style={{ fontSize: '14px', fontWeight: 'bold', color: 'var(--accent-light)' }}>{formatCurrency(selectedTradeIn.estimated_price, 'KRW')}</span>
               </div>
 
               {/* 매입 진행 상태 드롭다운 */}
@@ -6525,7 +7084,9 @@ export default function AdminDashboard() {
                   gap: '12px'
                 }}>
                   {(() => {
-                    const availableHKDevices = hongkongInventory.filter(x => !x.is_sold);
+                    const availableHKDevices = isSellSelectedOnly 
+                      ? hongkongInventory.filter(x => !x.is_sold && selectedHKIds.includes(x.id))
+                      : hongkongInventory.filter(x => !x.is_sold);
                     const groupedHKDevices: Record<string, typeof availableHKDevices> = {};
                     availableHKDevices.forEach(item => {
                       if (!groupedHKDevices[item.model_name]) {
@@ -6622,39 +7183,69 @@ export default function AdminDashboard() {
                                     key={dev.id}
                                     style={{
                                       display: 'flex',
-                                      justifyContent: 'space-between',
-                                      alignItems: 'center',
+                                      flexDirection: 'column',
+                                      gap: '4px',
                                       fontSize: '11px',
-                                      padding: '6px 10px',
-                                      backgroundColor: isUnsold ? 'rgba(245, 158, 11, 0.05)' : 'rgba(255,255,255,0.01)',
-                                      borderRadius: '4px',
-                                      border: isUnsold ? '1px solid rgba(245, 158, 11, 0.2)' : '1px solid transparent',
+                                      padding: '8px 12px',
+                                      backgroundColor: isUnsold ? 'rgba(245, 158, 11, 0.08)' : 'rgba(30, 41, 59, 0.4)',
+                                      borderRadius: '8px',
+                                      border: isUnsold ? '1px solid rgba(245, 158, 11, 0.3)' : '1px solid var(--border-color)',
                                       opacity: isModelSelected ? 1 : 0.5,
                                       cursor: isModelSelected ? 'pointer' : 'default',
-                                      userSelect: 'none'
+                                      userSelect: 'none',
+                                      width: '100%',
+                                      transition: 'all 0.2s'
                                     }}
                                   >
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                      <input
-                                        type="checkbox"
-                                        disabled={!isModelSelected}
-                                        checked={isUnsold}
-                                        onChange={(e) => {
-                                          if (e.target.checked) {
-                                            setUnsoldBulkDeviceIds([...unsoldBulkDeviceIds, dev.id]);
-                                          } else {
-                                            setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => id !== dev.id));
-                                          }
-                                        }}
-                                        style={{ cursor: isModelSelected ? 'pointer' : 'default' }}
-                                      />
-                                      <span style={{ color: isUnsold ? 'var(--warning-color)' : '#fff', fontWeight: isUnsold ? 'bold' : 'normal' }}>
-                                        {isUnsold ? '★ 미판매 제외 / 排除未售' : '판매 완료 / 确认销售'}
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                        <input
+                                          type="checkbox"
+                                          disabled={!isModelSelected}
+                                          checked={isUnsold}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setUnsoldBulkDeviceIds([...unsoldBulkDeviceIds, dev.id]);
+                                            } else {
+                                              setUnsoldBulkDeviceIds(unsoldBulkDeviceIds.filter(id => id !== dev.id));
+                                            }
+                                          }}
+                                          style={{ cursor: isModelSelected ? 'pointer' : 'default' }}
+                                        />
+                                        <span style={{ color: isUnsold ? 'var(--warning-color)' : 'var(--success-color)', fontWeight: 'bold', fontSize: '11px' }}>
+                                          {isUnsold ? (displayLang === 'zh' ? '排除未售' : '★ 미판매 제외') : (displayLang === 'zh' ? '确认销售' : '판매 완료')}
+                                        </span>
+                                      </div>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                                        padding: '2px 6px',
+                                        borderRadius: '4px',
+                                        color: '#fff',
+                                        fontWeight: 'bold'
+                                      }}>
+                                        {dev.notes || (displayLang === 'zh' ? '无等级' : '등급 없음')}
                                       </span>
                                     </div>
-                                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'monospace' }}>
-                                      {dev.color ? `${dev.color} | ` : ''}Sticker: {dev.sticker || '-'} | IMEI: {dev.imei?.startsWith('NO_IMEI-') ? '-' : dev.imei}
-                                    </span>
+                                    
+                                    <div style={{ height: '1px', background: 'rgba(255,255,255,0.03)', margin: '2px 0' }} />
+                                    
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                                      <div>
+                                        <span style={{ color: 'var(--text-muted)' }}>Sticker:</span> <strong style={{ color: '#fff' }}>{dev.sticker || '-'}</strong>
+                                      </div>
+                                      <div>
+                                        <span style={{ color: 'var(--text-muted)' }}>Color:</span> <strong style={{ color: '#fff' }}>{dev.color || '-'}</strong>
+                                      </div>
+                                      <div style={{ gridColumn: 'span 2' }}>
+                                        <span style={{ color: 'var(--text-muted)' }}>IMEI:</span> <strong style={{ color: '#fff', fontFamily: 'monospace' }}>{dev.imei?.startsWith('NO_IMEI-') ? '-' : dev.imei}</strong>
+                                      </div>
+                                    </div>
+                                    
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: 'var(--text-muted)' }}>
+                                      <span>Battery: {dev.battery_pct}%</span>
+                                      <span>{formatCurrency(dev.purchase_cost, 'KRW')}</span>
+                                    </div>
                                   </label>
                                 );
                               })}
@@ -6664,6 +7255,72 @@ export default function AdminDashboard() {
                       );
                     });
                   })()}
+                </div>
+              </div>
+
+              {/* 차감 항목 적용 입력부 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '16px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  {displayLang === 'zh' ? '应用扣除项 / Apply Deductions' : '차감 항목 적용:'}
+                </span>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  background: 'rgba(255,255,255,0.02)',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)'
+                }}>
+                  {deductionRules.length === 0 ? (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0' }}>
+                      {displayLang === 'zh' ? '无已登记의 扣除项' : '등록된 차감 항목이 없습니다.'}
+                    </span>
+                  ) : (
+                    deductionRules.map(rule => {
+                      const qty = bulkSaleDeductionQuantities[rule.id] || 0;
+                      return (
+                        <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                          <span style={{ color: '#fff' }}>
+                            {displayLang === 'zh' ? rule.name_zh : rule.name_ko} ({formatCurrency(rule.amount_hkd * cnyRate, 'KRW')})
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              {displayLang === 'zh' ? '数量:' : '수량:'}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={qty || ''}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10) || 0;
+                                setBulkSaleDeductionQuantities({
+                                  ...bulkSaleDeductionQuantities,
+                                  [rule.id]: v
+                                });
+                              }}
+                              style={{
+                                backgroundColor: 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                color: '#fff',
+                                fontSize: '12px',
+                                width: '60px',
+                                textAlign: 'center',
+                                outline: 'none'
+                              }}
+                            />
+                            <span style={{ color: 'var(--text-secondary)' }}>
+                              {displayLang === 'zh' ? '个' : '개'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
@@ -7081,6 +7738,72 @@ export default function AdminDashboard() {
                 );
               })()}
 
+              {/* 차감 항목 적용 입력부 */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  {displayLang === 'zh' ? '应用扣除项 / Apply Deductions' : '차감 항목 적용:'}
+                </span>
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '8px',
+                  maxHeight: '150px',
+                  overflowY: 'auto',
+                  background: 'rgba(255,255,255,0.02)',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--border-color)'
+                }}>
+                  {deductionRules.length === 0 ? (
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', textAlign: 'center', padding: '10px 0' }}>
+                      {displayLang === 'zh' ? '无已登记의 扣除项' : '등록된 차감 항목이 없습니다.'}
+                    </span>
+                  ) : (
+                    deductionRules.map(rule => {
+                      const qty = bulkSaleDeductionQuantities[rule.id] || 0;
+                      return (
+                        <div key={rule.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                          <span style={{ color: '#fff' }}>
+                            {displayLang === 'zh' ? rule.name_zh : rule.name_ko} ({formatCurrency(rule.amount_hkd * cnyRate, 'KRW')})
+                          </span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              {displayLang === 'zh' ? '数量:' : '수량:'}
+                            </span>
+                            <input
+                              type="number"
+                              min="0"
+                              value={qty || ''}
+                              onChange={(e) => {
+                                const v = parseInt(e.target.value, 10) || 0;
+                                setBulkSaleDeductionQuantities({
+                                  ...bulkSaleDeductionQuantities,
+                                  [rule.id]: v
+                                });
+                              }}
+                              style={{
+                                backgroundColor: 'var(--bg-tertiary)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '4px',
+                                padding: '4px 8px',
+                                color: '#fff',
+                                fontSize: '12px',
+                                width: '60px',
+                                textAlign: 'center',
+                                outline: 'none'
+                              }}
+                            />
+                            <span style={{ color: 'var(--text-secondary)' }}>
+                              {displayLang === 'zh' ? '个' : '개'}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
               {/* 제외된 기기 상세 리스트 및 제외 해제 */}
               <div>
                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#fff', display: 'block', marginBottom: '8px' }}>
@@ -7158,6 +7881,84 @@ export default function AdminDashboard() {
                 {processingBulkSale ? '판매 처리 중...' : '판매 처리 실행 / 确认销售'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 차감 항목 추가/수정 모달 */}
+      {isDeductionModalOpen && (
+        <div className={styles.modalOverlay}>
+          <div className={styles.modalContent} style={{ maxWidth: '500px', width: '90%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-color)', paddingBottom: '12px' }}>
+              <h3 className={styles.modalTitle} style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                {selectedDeductionRule ? (displayLang === 'zh' ? '编辑扣除项' : '차감 항목 수정') : (displayLang === 'zh' ? '新增扣除项' : '차감 항목 등록')}
+              </h3>
+              <button 
+                onClick={() => setIsDeductionModalOpen(false)} 
+                style={{ color: 'var(--text-secondary)', background: 'none', border: 'none', cursor: 'pointer' }} 
+                aria-label="닫기"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveDeductionRule} className={styles.formGrid} style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  {displayLang === 'zh' ? '韩文名称' : '한국어 항목명'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 펜 차감"
+                  value={deductionNameKo}
+                  onChange={(e) => setDeductionNameKo(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  {displayLang === 'zh' ? '中文名称' : '중국어 항목명'}
+                </label>
+                <input
+                  type="text"
+                  placeholder="예: 笔扣除"
+                  value={deductionNameZh}
+                  onChange={(e) => setDeductionNameZh(e.target.value)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>
+                  {displayLang === 'zh' ? '扣除金额 (HKD)' : '차감 홍콩달러 금액'}
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="number"
+                    placeholder="예: 100"
+                    value={deductionAmountHkd}
+                    onChange={(e) => setDeductionAmountHkd(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff', flex: 1 }}
+                    required
+                  />
+                  <span style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>HK$</span>
+                </div>
+              </div>
+
+              <div className={styles.btnGroup} style={{ marginTop: '20px' }}>
+                <button type="button" onClick={() => setIsDeductionModalOpen(false)} className={styles.btnCancel}>취소</button>
+                <button
+                  type="submit"
+                  className={styles.btnSave}
+                  disabled={savingDeductionRule}
+                >
+                  {savingDeductionRule ? '저장 중...' : '저장 / 保存'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -299,6 +299,8 @@ interface MockDB {
   hongkong_inventory?: any[];
   model_pet_names?: any[];
   admin_menu_permissions?: any[];
+  deduction_rules?: any[];
+  bulk_sale_deductions?: any[];
 }
 
 // Mock DB 초기화 및 로드 함수
@@ -313,7 +315,9 @@ function readMockDB(): MockDB {
         trade_in_prices: DEFAULT_PRICES,
         categories: DEFAULT_CATEGORIES,
         hongkong_inventory: [],
-        model_pet_names: DEFAULT_MODEL_PET_NAMES
+        model_pet_names: DEFAULT_MODEL_PET_NAMES,
+        deduction_rules: [],
+        bulk_sale_deductions: []
       };
       fs.writeFileSync(MOCK_DB_PATH, JSON.stringify(initialDB, null, 2), 'utf-8');
       return initialDB;
@@ -339,12 +343,20 @@ function readMockDB(): MockDB {
       parsed.model_pet_names = DEFAULT_MODEL_PET_NAMES;
       needsWrite = true;
     }
+    if (!parsed.deduction_rules) {
+      parsed.deduction_rules = [];
+      needsWrite = true;
+    }
+    if (!parsed.bulk_sale_deductions) {
+      parsed.bulk_sale_deductions = [];
+      needsWrite = true;
+    }
     if (!parsed.admin_menu_permissions) {
       parsed.admin_menu_permissions = [
-        { role: 'admin', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: true, categories: true, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: true, members: true } },
-        { role: 'manager', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: false, members: false } },
-        { role: 'staff', permissions: { home: true, 'trade-ins': true, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } },
-        { role: 'general', permissions: { home: true, 'trade-ins': false, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': false, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } }
+        { role: 'admin', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: true, categories: true, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: true, members: true, 'deductions': true } },
+        { role: 'manager', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: false, members: false, 'deductions': true } },
+        { role: 'staff', permissions: { home: true, 'trade-ins': true, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false, 'deductions': false } },
+        { role: 'general', permissions: { home: true, 'trade-ins': false, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': false, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false, 'deductions': false } }
       ];
       needsWrite = true;
     }
@@ -382,7 +394,18 @@ function readMockDB(): MockDB {
     return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);
-    return { members: [], trade_ins: [], products: [], orders: [], trade_in_prices: [], categories: [], hongkong_inventory: [], model_pet_names: [] };
+    return { 
+      members: [], 
+      trade_ins: [], 
+      products: [], 
+      orders: [], 
+      trade_in_prices: [], 
+      categories: [], 
+      hongkong_inventory: [], 
+      model_pet_names: [], 
+      deduction_rules: [], 
+      bulk_sale_deductions: [] 
+    };
   }
 }
 
@@ -1440,5 +1463,127 @@ export async function saveMenuPermissions(role: string, permissions: any) {
     }
     writeMockDB(db);
     return { role, permissions };
+  }
+}
+
+// ==========================================
+// 10. 차감 항목 기준 관리 (Deduction Rules) 데이터 액션
+// ==========================================
+export async function getDeductionRules() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('deduction_rules')
+      .select('*')
+      .order('created_at', { ascending: true });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    return db.deduction_rules || [];
+  }
+}
+
+export async function createDeductionRule(ruleData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('deduction_rules')
+      .insert([ruleData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const newRule = {
+      id: `rule-${Date.now()}`,
+      ...ruleData,
+      created_at: new Date().toISOString()
+    };
+    if (!db.deduction_rules) db.deduction_rules = [];
+    db.deduction_rules.push(newRule);
+    writeMockDB(db);
+    return newRule;
+  }
+}
+
+export async function updateDeductionRule(id: string, ruleData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('deduction_rules')
+      .update(ruleData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    if (!db.deduction_rules) db.deduction_rules = [];
+    const index = db.deduction_rules.findIndex(r => r.id === id);
+    if (index === -1) throw new Error("Deduction rule not found");
+    db.deduction_rules[index] = {
+      ...db.deduction_rules[index],
+      ...ruleData
+    };
+    writeMockDB(db);
+    return db.deduction_rules[index];
+  }
+}
+
+export async function deleteDeductionRule(id: string) {
+  if (supabase) {
+    const { error } = await supabase
+      .from('deduction_rules')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.deduction_rules) db.deduction_rules = [];
+    db.deduction_rules = db.deduction_rules.filter(r => r.id !== id);
+    writeMockDB(db);
+    return true;
+  }
+}
+
+// ==========================================
+// 11. 판매 차감 내역 관리 (Bulk Sale Deductions Log) 데이터 액션
+// ==========================================
+export async function getBulkSaleDeductions() {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('bulk_sale_deductions')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const list = db.bulk_sale_deductions || [];
+    return [...list].sort((a, b) => b.created_at.localeCompare(a.created_at));
+  }
+}
+
+export async function createBulkSaleDeductionLog(logData: any) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from('bulk_sale_deductions')
+      .insert([logData])
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
+  } else {
+    const db = readMockDB();
+    const newLog = {
+      id: `log-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      ...logData,
+      created_at: new Date().toISOString()
+    };
+    if (!db.bulk_sale_deductions) db.bulk_sale_deductions = [];
+    db.bulk_sale_deductions.push(newLog);
+    writeMockDB(db);
+    return newLog;
   }
 }

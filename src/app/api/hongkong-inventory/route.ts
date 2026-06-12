@@ -7,7 +7,8 @@ import {
   cancelHongKongSales,
   deleteHongKongInventory,
   deleteHongKongInventoryBatch,
-  updateHongKongNotes
+  updateHongKongNotes,
+  createBulkSaleDeductionLog
 } from '@/lib/db';
 
 export const dynamic = 'force-dynamic';
@@ -43,12 +44,31 @@ export async function PUT(request: Request) {
     const { action } = body;
 
     if (action === 'sell') {
-      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers, modelPrices, exchangeRate } = body;
+      const { saleDate, sellerName, sellingPrice, soldIds, remainingIdentifiers, modelPrices, exchangeRate, deductions, soldSummary } = body;
       if (!saleDate || !sellerName || !Array.isArray(soldIds) || !Array.isArray(remainingIdentifiers)) {
         return NextResponse.json({ success: false, error: 'Missing required sell fields' }, { status: 400 });
       }
       const sPrice = Number(sellingPrice) || 0;
       const result = await processHongKongBulkSale(saleDate, sellerName, sPrice, soldIds, remainingIdentifiers, modelPrices, exchangeRate);
+      
+      // 차감 항목이 있으면 로그 기록
+      if (Array.isArray(deductions) && deductions.length > 0) {
+        for (const d of deductions) {
+          await createBulkSaleDeductionLog({
+            sale_date: saleDate,
+            name_ko: d.name_ko,
+            name_zh: d.name_zh,
+            quantity: Number(d.quantity) || 0,
+            amount_hkd: Number(d.amount_hkd) || 0,
+            total_hkd: Number(d.total_hkd) || 0,
+            total_krw: Number(d.total_krw) || 0,
+            exchange_rate: Number(exchangeRate) || 0,
+            seller_name: sellerName,
+            sold_summary: soldSummary || ''
+          });
+        }
+      }
+      
       return NextResponse.json({ success: true, count: result.count });
     } 
     
