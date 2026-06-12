@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getOrders, getOrdersByMember, createOrder, updateOrderStatus } from '@/lib/db';
+import { getOrders, getOrdersByMember, createOrder, updateOrderStatus, deleteOrder } from '@/lib/db';
 
 export async function GET(request: Request) {
   try {
@@ -59,5 +59,29 @@ export async function PUT(request: Request) {
   } catch (error: any) {
     console.error('Orders PUT Error:', error);
     return NextResponse.json({ error: error.message || '서버 오류가 warning.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+
+    if (!id) {
+      try {
+        const body = await request.json();
+        id = body.id;
+      } catch (e) {}
+    }
+
+    if (!id) {
+      return NextResponse.json({ error: '주문 ID가 필요합니다.' }, { status: 400 });
+    }
+
+    await deleteOrder(id);
+    return NextResponse.json({ success: true });
+  } catch (error: any) {
+    console.error('Orders DELETE Error:', error);
+    return NextResponse.json({ error: error.message || '서버 오류가 발생했습니다.' }, { status: 500 });
   }
 }

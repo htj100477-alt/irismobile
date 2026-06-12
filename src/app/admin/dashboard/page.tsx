@@ -1133,6 +1133,9 @@ export default function AdminDashboard() {
   const [catName, setCatName] = useState('');
   const [catImage, setCatImage] = useState('');
   const [uploadingCatImage, setUploadingCatImage] = useState(false);
+  const [catLevel, setCatLevel] = useState<'large' | 'middle' | 'small'>('large');
+  const [catParentLargeId, setCatParentLargeId] = useState<string>('');
+  const [catParentMiddleId, setCatParentMiddleId] = useState<string>('');
 
   // 모달 제어 상태
   const [isTradeInModalOpen, setIsTradeInModalOpen] = useState(false);
@@ -1155,6 +1158,7 @@ export default function AdminDashboard() {
   const [prodSeries, setProdSeries] = useState('');
   const [prodBattery, setProdBattery] = useState('95%');
   const [prodCarrier, setProdCarrier] = useState('3사 공용 (알뜰폰/자급제 가능)');
+  const [prodStatus, setProdStatus] = useState<string>('available');
 
   // 매입 시세 설정 모달 상태
   const [isPriceModalOpen, setIsPriceModalOpen] = useState(false);
@@ -1561,6 +1565,7 @@ export default function AdminDashboard() {
       setProdSeries(prod.series || '');
       setProdBattery(prod.battery_efficiency || '95%');
       setProdCarrier(prod.carrier_info || '3사 공용 (알뜰폰/자급제 가능)');
+      setProdStatus(prod.status || 'available');
     } else {
       // 신규 등록 모드
       setProdBrand('Apple');
@@ -1571,12 +1576,33 @@ export default function AdminDashboard() {
       setProdGrade('A');
       setProdImage('');
       setProdDescription('');
-      setProdCategory(categories[0]?.name || '스마트폰');
+      setProdCategory(categories.filter(c => !c.parent_id)[0]?.name || '스마트폰');
       setProdSeries('');
       setProdBattery('95%');
       setProdCarrier('3사 공용 (알뜰폰/자급제 가능)');
+      setProdStatus('available');
     }
     setIsProductModalOpen(true);
+  };
+
+  const handleProdCategoryChange = (catNameVal: string) => {
+    setProdCategory(catNameVal);
+    const largeObj = categories.find(c => c.name === catNameVal && !c.parent_id);
+    const middleList = largeObj ? categories.filter(c => c.parent_id === largeObj.id) : [];
+    const defaultBrand = middleList[0]?.name || '기타';
+    setProdBrand(defaultBrand);
+    
+    const middleObj = middleList[0];
+    const smallList = middleObj ? categories.filter(c => c.parent_id === middleObj.id) : [];
+    setProdSeries(smallList[0]?.name || '기타');
+  };
+
+  const handleProdBrandChange = (brandNameVal: string) => {
+    setProdBrand(brandNameVal);
+    const largeObj = categories.find(c => c.name === prodCategory && !c.parent_id);
+    const middleObj = largeObj ? categories.find(c => c.name === brandNameVal && c.parent_id === largeObj.id) : null;
+    const smallList = middleObj ? categories.filter(c => c.parent_id === middleObj.id) : [];
+    setProdSeries(smallList[0]?.name || '기타');
   };
 
   const saveProduct = async () => {
@@ -1598,6 +1624,7 @@ export default function AdminDashboard() {
       series: prodSeries,
       battery_efficiency: prodBattery,
       carrier_info: prodCarrier,
+      status: prodStatus
     };
 
     try {
@@ -1663,6 +1690,45 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleDeleteOrder = async (id: string) => {
+    if (!confirm('정말로 이 주문을 삭제하시겠습니까? 관련 상품의 판매 상태가 자동으로 복구되지 않을 수 있으니 판매 상품 관리에서 직접 확인해 주세요.')) {
+      return;
+    }
+    try {
+      const res = await fetch(`/api/orders?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        loadAllData();
+      } else {
+        const data = await res.json();
+        alert(data.error || '주문 삭제 실패');
+      }
+    } catch (err) {
+      alert('서버 처리 오류');
+    }
+  };
+
+  const handleRuleCategoryChange = (catNameVal: string) => {
+    setRuleCategory(catNameVal);
+    const largeObj = categories.find(c => c.name === catNameVal && !c.parent_id);
+    const middleList = largeObj ? categories.filter(c => c.parent_id === largeObj.id) : [];
+    const defaultBrand = middleList[0]?.name || '기타';
+    setRuleBrand(defaultBrand);
+    
+    const middleObj = middleList[0];
+    const smallList = middleObj ? categories.filter(c => c.parent_id === middleObj.id) : [];
+    setRuleSeries(smallList[0]?.name || '기타');
+  };
+
+  const handleRuleBrandChange = (brandNameVal: string) => {
+    setRuleBrand(brandNameVal);
+    const largeObj = categories.find(c => c.name === ruleCategory && !c.parent_id);
+    const middleObj = largeObj ? categories.find(c => c.name === brandNameVal && c.parent_id === largeObj.id) : null;
+    const smallList = middleObj ? categories.filter(c => c.parent_id === middleObj.id) : [];
+    setRuleSeries(smallList[0]?.name || '기타');
+  };
+
   // 5. 매입 시세 관리 액션
   const openPriceModal = (rule: any | null = null) => {
     setSelectedPriceRule(rule);
@@ -1683,7 +1749,7 @@ export default function AdminDashboard() {
       setRuleSeries(rule.series || '');
     } else {
       // 신규 등록 모드
-      setRuleBrand('Apple');
+      const defaultLarge = categories.filter(c => !c.parent_id)[0]?.name || '스마트폰';
       setRuleModelName('');
       setRuleBasePrice(1000000);
       setRuleStorage128gDeduct(80000);
@@ -1694,8 +1760,16 @@ export default function AdminDashboard() {
       setRuleBodyBrokenDeduct(120000);
       setRuleCameraErrorDeduct(100000);
       setRuleScreenBurnDeduct(80000);
-      setRuleCategory(categories[0]?.name || '스마트폰');
-      setRuleSeries('');
+      
+      setRuleCategory(defaultLarge);
+      const largeObj = categories.find(c => c.name === defaultLarge && !c.parent_id);
+      const middleList = largeObj ? categories.filter(c => c.parent_id === largeObj.id) : [];
+      const defaultBrand = middleList[0]?.name || 'Apple';
+      setRuleBrand(defaultBrand);
+      
+      const middleObj = middleList[0];
+      const smallList = middleObj ? categories.filter(c => c.parent_id === middleObj.id) : [];
+      setRuleSeries(smallList[0]?.name || '');
     }
     setIsPriceModalOpen(true);
   };
@@ -1752,28 +1826,93 @@ export default function AdminDashboard() {
     }
   };
 
+  const getCategoryPath = (cat: any) => {
+    if (!cat) return '';
+    if (!cat.parent_id) return cat.name;
+    const parent = categories.find(c => c.id === cat.parent_id);
+    if (!parent) return cat.name;
+    if (!parent.parent_id) return `${parent.name} > ${cat.name}`;
+    const grandParent = categories.find(c => c.id === parent.parent_id);
+    if (!grandParent) return `${parent.name} > ${cat.name}`;
+    return `${grandParent.name} > ${parent.name} > ${cat.name}`;
+  };
+
+  const getCategoryLevelText = (cat: any) => {
+    if (!cat) return '';
+    if (!cat.parent_id) return '대분류';
+    const parent = categories.find(c => c.id === cat.parent_id);
+    if (parent && !parent.parent_id) return '중분류';
+    return '소분류';
+  };
+
   // 6. 카테고리 관리 액션
   const openCategoryModal = (cat: any | null = null) => {
     setSelectedCategory(cat);
     if (cat) {
       setCatName(cat.name);
-      setCatImage(cat.image);
+      setCatImage(cat.image || '');
+      
+      if (!cat.parent_id) {
+        setCatLevel('large');
+        setCatParentLargeId('');
+        setCatParentMiddleId('');
+      } else {
+        const parent = categories.find(c => c.id === cat.parent_id);
+        if (parent && !parent.parent_id) {
+          setCatLevel('middle');
+          setCatParentLargeId(parent.id);
+          setCatParentMiddleId('');
+        } else if (parent && parent.parent_id) {
+          setCatLevel('small');
+          setCatParentLargeId(parent.parent_id);
+          setCatParentMiddleId(parent.id);
+        } else {
+          setCatLevel('large');
+          setCatParentLargeId('');
+          setCatParentMiddleId('');
+        }
+      }
     } else {
       setCatName('');
       setCatImage('');
+      setCatLevel('large');
+      setCatParentLargeId('');
+      setCatParentMiddleId('');
     }
     setIsCategoryModalOpen(true);
   };
 
   const saveCategory = async () => {
-    if (!catName || !catImage) {
-      alert('카테고리명과 대표 이미지를 모두 등록해주세요.');
+    if (!catName) {
+      alert('카테고리명을 입력해주세요.');
       return;
+    }
+
+    let parentId = null;
+    let finalImage = catImage;
+
+    if (catLevel === 'middle') {
+      if (!catParentLargeId) {
+        alert('대분류 카테고리를 선택해주세요.');
+        return;
+      }
+      parentId = catParentLargeId;
+    } else if (catLevel === 'small') {
+      if (!catParentMiddleId) {
+        alert('중분류 카테고리를 선택해주세요.');
+        return;
+      }
+      parentId = catParentMiddleId;
+    } else {
+      if (!catImage) {
+        finalImage = 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=150';
+      }
     }
 
     const payload = {
       name: catName,
-      image: catImage
+      image: finalImage,
+      parent_id: parentId
     };
 
     try {
@@ -2986,6 +3125,7 @@ export default function AdminDashboard() {
                       <th>배송지 주소</th>
                       <th>주문 금액</th>
                       <th>배송 상태 변경</th>
+                      <th>작업</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3020,6 +3160,15 @@ export default function AdminDashboard() {
                             <option value="delivered">배송완료 (delivered)</option>
                             <option value="cancelled">주문취소 (cancelled)</option>
                           </select>
+                        </td>
+                        <td>
+                          <button 
+                            onClick={() => handleDeleteOrder(o.id)}
+                            className={styles.btnCancel}
+                            style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent' }}
+                          >
+                            삭제
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -3280,48 +3429,83 @@ export default function AdminDashboard() {
                 <table className={styles.adminTable}>
                   <thead>
                     <tr>
-                      <th>기종 썸네일</th>
-                      <th>카테고리명</th>
+                      <th>분류 단계</th>
+                      <th>대표 이미지</th>
+                      <th>카테고리 경로</th>
                       <th>등록일</th>
                       <th>작업</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {categories.map(cat => (
-                      <tr key={cat.id}>
-                        <td>
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img 
-                            src={cat.image || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=150'} 
-                            alt={cat.name}
-                            style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }}
-                          />
-                        </td>
-                        <td style={{ fontWeight: 'bold', color: '#fff' }}>{cat.name}</td>
-                        <td>{cat.created_at ? new Date(cat.created_at).toLocaleDateString() : '기본 데이터'}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button 
-                              onClick={() => openCategoryModal(cat)} 
-                              className={styles.btnCancel} 
-                              style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}
-                            >
-                              수정
-                            </button>
-                            <button 
-                              onClick={() => deleteCat(cat.id)} 
-                              className={styles.btnCancel} 
-                              style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent' }}
-                            >
-                              삭제
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    {(() => {
+                      const getCategoryLevelBadgeColor = (lvl: string) => {
+                        if (lvl === '대분류') return { bg: '#1e3a8a', fg: '#93c5fd' };
+                        if (lvl === '중분류') return { bg: '#78350f', fg: '#fde68a' };
+                        return { bg: '#064e3b', fg: '#6ee7b7' };
+                      };
+                      
+                      const sortedCats = [...categories].sort((a, b) => {
+                        const pathA = getCategoryPath(a);
+                        const pathB = getCategoryPath(b);
+                        return pathA.localeCompare(pathB);
+                      });
+
+                      return sortedCats.map(cat => {
+                        const levelText = getCategoryLevelText(cat);
+                        const colors = getCategoryLevelBadgeColor(levelText);
+                        return (
+                          <tr key={cat.id}>
+                            <td>
+                              <span style={{ 
+                                display: 'inline-block',
+                                padding: '4px 8px', 
+                                borderRadius: '4px', 
+                                fontSize: '11px', 
+                                fontWeight: '600',
+                                backgroundColor: colors.bg,
+                                color: colors.fg
+                              }}>
+                                {levelText}
+                              </span>
+                            </td>
+                            <td>
+                              {cat.image ? (
+                                <img 
+                                  src={cat.image} 
+                                  alt={cat.name}
+                                  style={{ width: '40px', height: '40px', objectFit: 'cover', borderRadius: '4px', border: '1px solid var(--border-color)' }}
+                                />
+                              ) : (
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>-</span>
+                              )}
+                            </td>
+                            <td style={{ fontWeight: 'bold', color: '#fff' }}>{getCategoryPath(cat)}</td>
+                            <td>{cat.created_at ? new Date(cat.created_at).toLocaleDateString() : '기본 데이터'}</td>
+                            <td>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button 
+                                  onClick={() => openCategoryModal(cat)} 
+                                  className={styles.btnCancel} 
+                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--accent-light)', color: 'var(--accent-light)', backgroundColor: 'transparent' }}
+                                >
+                                  수정
+                                </button>
+                                <button 
+                                  onClick={() => deleteCat(cat.id)} 
+                                  className={styles.btnCancel} 
+                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid var(--danger-color)', color: 'var(--danger-color)', backgroundColor: 'transparent' }}
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                     {categories.length === 0 && (
                       <tr>
-                        <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                        <td colSpan={5} style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
                           등록된 카테고리가 없습니다. [신규 카테고리 추가]를 눌러 첫 카테고리를 등록해보세요.
                         </td>
                       </tr>
@@ -5127,66 +5311,78 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="prodCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>기종 카테고리</label>
-                  <select 
-                    id="prodCategorySelect"
-                    value={prodCategory} 
-                    onChange={(e) => setProdCategory(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="brandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>제조사</label>
-                  <select 
-                    id="brandSelect"
-                    value={prodBrand} 
-                    onChange={(e) => setProdBrand(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    <option>Apple</option>
-                    <option>Samsung</option>
-                    <option>LG</option>
-                    <option>Lenovo</option>
-                    <option>Google</option>
-                    <option>기타</option>
-                  </select>
-                </div>
-              </div>
+              {(() => {
+                const largeCats = categories.filter(c => !c.parent_id);
+                const selectedLargeObj = categories.find(c => c.name === prodCategory && !c.parent_id);
+                const middleCats = selectedLargeObj ? categories.filter(c => c.parent_id === selectedLargeObj.id) : [];
+                const selectedMiddleObj = selectedLargeObj ? categories.find(c => c.name === prodBrand && c.parent_id === selectedLargeObj.id) : null;
+                const smallCats = selectedMiddleObj ? categories.filter(c => c.parent_id === selectedMiddleObj.id) : [];
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="prodSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>시리즈</label>
-                  <input 
-                    id="prodSeriesInput"
-                    type="text" 
-                    placeholder="예: 15 시리즈, 맥북 시리즈"
-                    value={prodSeries} 
-                    onChange={(e) => setProdSeries(e.target.value)}
-                    list="series-list"
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="gradeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>안심 등급</label>
-                  <select 
-                    id="gradeSelect"
-                    value={prodGrade} 
-                    onChange={(e) => setProdGrade(e.target.value as 'S' | 'A' | 'B')}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    <option>S</option>
-                    <option>A</option>
-                    <option>B</option>
-                  </select>
-                </div>
-              </div>
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="prodCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>기종 카테고리 (대분류)</label>
+                        <select 
+                          id="prodCategorySelect"
+                          value={prodCategory} 
+                          onChange={(e) => handleProdCategoryChange(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {largeCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          {largeCats.length === 0 && <option value="스마트폰">스마트폰</option>}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="brandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>제조사 (중분류)</label>
+                        <select 
+                          id="brandSelect"
+                          value={prodBrand} 
+                          onChange={(e) => handleProdBrandChange(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {middleCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          <option value="기타">기타</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="prodSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>시리즈 (소분류)</label>
+                        <select 
+                          id="prodSeriesInput"
+                          value={prodSeries} 
+                          onChange={(e) => setProdSeries(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {smallCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          <option value="기타">기타</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="gradeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>안심 등급</label>
+                        <select 
+                          id="gradeSelect"
+                          value={prodGrade} 
+                          onChange={(e) => setProdGrade(e.target.value as 'S' | 'A' | 'B')}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          <option>S</option>
+                          <option>A</option>
+                          <option>B</option>
+                        </select>
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label htmlFor="modelNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>모델 명칭</label>
@@ -5230,17 +5426,32 @@ export default function AdminDashboard() {
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label htmlFor="priceInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매 금액 (원)</label>
-                <input 
-                  id="priceInput"
-                  type="number" 
-                  placeholder="예: 1150000"
-                  value={prodPrice} 
-                  onChange={(e) => setProdPrice(Number(e.target.value))}
-                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="priceInput" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매 금액 (원)</label>
+                  <input 
+                    id="priceInput"
+                    type="number" 
+                    placeholder="예: 1150000"
+                    value={prodPrice} 
+                    onChange={(e) => setProdPrice(Number(e.target.value))}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    required
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label htmlFor="prodStatusSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>판매 상태</label>
+                  <select 
+                    id="prodStatusSelect"
+                    value={prodStatus} 
+                    onChange={(e) => setProdStatus(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  >
+                    <option value="available">판매중 (available)</option>
+                    <option value="reserved">예약중 (reserved)</option>
+                    <option value="sold">품절 (판매완료) (sold)</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
@@ -5390,66 +5601,78 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="ruleCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 카테고리</label>
-                  <select 
-                    id="ruleCategorySelect"
-                    value={ruleCategory} 
-                    onChange={(e) => setRuleCategory(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    {categories.map(c => (
-                      <option key={c.id} value={c.name}>{c.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="ruleBrandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>제조사</label>
-                  <select 
-                    id="ruleBrandSelect"
-                    value={ruleBrand} 
-                    onChange={(e) => setRuleBrand(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                  >
-                    <option>Apple</option>
-                    <option>Samsung</option>
-                    <option>LG</option>
-                    <option>Lenovo</option>
-                    <option>Google</option>
-                    <option>기타</option>
-                  </select>
-                </div>
-              </div>
+              {(() => {
+                const largeCats = categories.filter(c => !c.parent_id);
+                const selectedLargeObj = categories.find(c => c.name === ruleCategory && !c.parent_id);
+                const middleCats = selectedLargeObj ? categories.filter(c => c.parent_id === selectedLargeObj.id) : [];
+                const selectedMiddleObj = selectedLargeObj ? categories.find(c => c.name === ruleBrand && c.parent_id === selectedLargeObj.id) : null;
+                const smallCats = selectedMiddleObj ? categories.filter(c => c.parent_id === selectedMiddleObj.id) : [];
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="ruleSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>시리즈</label>
-                  <input 
-                    id="ruleSeriesInput"
-                    type="text" 
-                    placeholder="예: 15 시리즈, 맥북 시리즈"
-                    value={ruleSeries} 
-                    onChange={(e) => setRuleSeries(e.target.value)}
-                    list="series-list"
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label htmlFor="ruleModelNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 명칭</label>
-                  <input 
-                    id="ruleModelNameInput"
-                    type="text" 
-                    placeholder="예: 아이폰 15 프로"
-                    value={ruleModelName} 
-                    onChange={(e) => setRuleModelName(e.target.value)}
-                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
-                    required
-                    disabled={!!selectedPriceRule} // 기종명은 식별자로 사용되므로 수정 모드일 때 비활성화
-                  />
-                </div>
-              </div>
+                return (
+                  <>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="ruleCategorySelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 카테고리 (대분류)</label>
+                        <select 
+                          id="ruleCategorySelect"
+                          value={ruleCategory} 
+                          onChange={(e) => handleRuleCategoryChange(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {largeCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          {largeCats.length === 0 && <option value="스마트폰">스마트폰</option>}
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="ruleBrandSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>제조사 (중분류)</label>
+                        <select 
+                          id="ruleBrandSelect"
+                          value={ruleBrand} 
+                          onChange={(e) => handleRuleBrandChange(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {middleCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          <option value="기타">기타</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="ruleSeriesInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>시리즈 (소분류)</label>
+                        <select 
+                          id="ruleSeriesInput"
+                          value={ruleSeries} 
+                          onChange={(e) => setRuleSeries(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                        >
+                          {smallCats.map(c => (
+                            <option key={c.id} value={c.name}>{c.name}</option>
+                          ))}
+                          <option value="기타">기타</option>
+                        </select>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <label htmlFor="ruleModelNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>기종 명칭</label>
+                        <input 
+                          id="ruleModelNameInput"
+                          type="text" 
+                          placeholder="예: 아이폰 15 프로"
+                          value={ruleModelName} 
+                          onChange={(e) => setRuleModelName(e.target.value)}
+                          style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                          required
+                          disabled={!!selectedPriceRule} // 기종명은 식별자로 사용되므로 수정 모드일 때 비활성화
+                        />
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -5584,12 +5807,80 @@ export default function AdminDashboard() {
             </div>
 
             <div className={styles.formGrid} style={{ marginTop: '16px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                <label htmlFor="catLevelSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>분류 단계</label>
+                <select
+                  id="catLevelSelect"
+                  value={catLevel}
+                  onChange={(e) => setCatLevel(e.target.value as any)}
+                  style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                >
+                  <option value="large">대분류 (스마트폰, 태블릿 등)</option>
+                  <option value="middle">중분류 (Apple, Samsung 등)</option>
+                  <option value="small">소분류 (아이폰 15 시리즈 등)</option>
+                </select>
+              </div>
+
+              {catLevel === 'middle' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                  <label htmlFor="catParentLargeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 대분류 선택</label>
+                  <select
+                    id="catParentLargeSelect"
+                    value={catParentLargeId}
+                    onChange={(e) => setCatParentLargeId(e.target.value)}
+                    style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                  >
+                    <option value="">-- 대분류 선택 --</option>
+                    {categories.filter(c => !c.parent_id).map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {catLevel === 'small' && (
+                <>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                    <label htmlFor="catParentLargeSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 대분류 선택</label>
+                    <select
+                      id="catParentLargeSelect"
+                      value={catParentLargeId}
+                      onChange={(e) => {
+                        setCatParentLargeId(e.target.value);
+                        setCatParentMiddleId('');
+                      }}
+                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    >
+                      <option value="">-- 대분류 선택 --</option>
+                      {categories.filter(c => !c.parent_id).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginBottom: '10px' }}>
+                    <label htmlFor="catParentMiddleSelect" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>상위 중분류 선택</label>
+                    <select
+                      id="catParentMiddleSelect"
+                      value={catParentMiddleId}
+                      onChange={(e) => setCatParentMiddleId(e.target.value)}
+                      style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
+                    >
+                      <option value="">-- 중분류 선택 --</option>
+                      {categories.filter(c => c.parent_id === catParentLargeId).map(c => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                 <label htmlFor="catNameInput" style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 이름</label>
                 <input 
                   id="catNameInput"
                   type="text" 
-                  placeholder="예: 스마트폰, 태블릿, 노트북..."
+                  placeholder="예: 스마트폰, Apple, 아이폰 15 시리즈..."
                   value={catName} 
                   onChange={(e) => setCatName(e.target.value)}
                   style={{ backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--border-color)', borderRadius: '6px', padding: '10px', color: '#fff' }}
@@ -5597,67 +5888,69 @@ export default function AdminDashboard() {
                 />
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
-                <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 대표 이미지</label>
-                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '4px' }}>
-                  {catImage ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img 
-                      src={catImage} 
-                      alt="미리보기" 
-                      style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }}
-                    />
-                  ) : (
-                    <div style={{
-                      width: '60px',
-                      height: '60px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--bg-tertiary)',
-                      border: '1px dashed var(--border-color)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '10px',
-                      color: 'var(--text-secondary)',
-                      textAlign: 'center',
-                      lineHeight: '1.2'
-                    }}>
-                      사진 없음
-                    </div>
-                  )}
-                  
-                  <div style={{ flex: 1 }}>
-                    <input 
-                      id="catImageFileInput"
-                      type="file" 
-                      accept="image/*"
-                      onChange={handleCategoryFileChange}
-                      style={{ display: 'none' }}
-                    />
-                    <label 
-                      htmlFor="catImageFileInput"
-                      style={{
-                        display: 'inline-block',
+              {catLevel === 'large' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '12px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: '600' }}>카테고리 대표 이미지</label>
+                  <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '4px' }}>
+                    {catImage ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img 
+                        src={catImage} 
+                        alt="미리보기" 
+                        style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '1px solid var(--border-color)' }}
+                      />
+                    ) : (
+                      <div style={{
+                        width: '60px',
+                        height: '60px',
+                        borderRadius: '50%',
                         backgroundColor: 'var(--bg-tertiary)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        padding: '10px 16px',
-                        color: '#fff',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
+                        border: '1px dashed var(--border-color)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '10px',
+                        color: 'var(--text-secondary)',
                         textAlign: 'center',
-                        transition: 'var(--transition-smooth)'
-                      }}
-                    >
-                      {uploadingCatImage ? '업로드 중...' : '사진 선택'}
-                    </label>
-                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
-                      * 원형 아이콘으로 사용될 이미지를 등록해 주세요.
-                    </p>
+                        lineHeight: '1.2'
+                      }}>
+                        사진 없음
+                      </div>
+                    )}
+                    
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        id="catImageFileInput"
+                        type="file" 
+                        accept="image/*"
+                        onChange={handleCategoryFileChange}
+                        style={{ display: 'none' }}
+                      />
+                      <label 
+                        htmlFor="catImageFileInput"
+                        style={{
+                          display: 'inline-block',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '6px',
+                          padding: '10px 16px',
+                          color: '#fff',
+                          fontSize: '12px',
+                          fontWeight: '600',
+                          cursor: 'pointer',
+                          textAlign: 'center',
+                          transition: 'var(--transition-smooth)'
+                        }}
+                      >
+                        {uploadingCatImage ? '업로드 중...' : '사진 선택'}
+                      </label>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                        * 원형 아이콘으로 사용될 이미지를 등록해 주세요.
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div className={styles.btnGroup} style={{ marginTop: '20px' }}>

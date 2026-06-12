@@ -349,6 +349,17 @@ function readMockDB(): MockDB {
       needsWrite = true;
     }
 
+    // 기존 카테고리 레코드의 parent_id 필드 누락 자가 복구
+    if (parsed.categories) {
+      parsed.categories = parsed.categories.map((c: any) => {
+        if (c.parent_id === undefined) {
+          needsWrite = true;
+          return { ...c, parent_id: null };
+        }
+        return c;
+      });
+    }
+
     // 기존 회원 레코드의 주소 필드 누락 자가 복구
     if (parsed.members) {
       parsed.members = parsed.members.map((m: any) => {
@@ -738,6 +749,64 @@ export async function updateOrderStatus(id: string, status: string) {
     db.orders[index].status = status;
     writeMockDB(db);
     return db.orders[index];
+  }
+}
+
+export async function deleteOrder(id: string) {
+  if (supabase) {
+    // 1. Get the order first to check product_id
+    const { data: order, error: fetchErr } = await supabase
+      .from('orders')
+      .select('product_id')
+      .eq('id', id)
+      .maybeSingle();
+      
+    if (fetchErr) throw fetchErr;
+    
+    // 2. Delete the order
+    const { error: delErr } = await supabase
+      .from('orders')
+      .delete()
+      .eq('id', id);
+      
+    if (delErr) throw delErr;
+    
+    // 3. Restock the product if it's currently sold
+    if (order && order.product_id) {
+      const { data: product } = await supabase
+        .from('products')
+        .select('status')
+        .eq('id', order.product_id)
+        .maybeSingle();
+        
+      if (product && product.status === 'sold') {
+        await supabase
+          .from('products')
+          .update({ status: 'available' })
+          .eq('id', order.product_id);
+      }
+    }
+    return true;
+  } else {
+    const db = readMockDB();
+    if (!db.orders) db.orders = [];
+    
+    const order = db.orders.find(o => o.id === id);
+    if (!order) throw new Error("Order not found");
+    
+    // Delete order
+    db.orders = db.orders.filter(o => o.id !== id);
+    
+    // Restock product if status is sold
+    if (order.product_id) {
+      const prodIdx = db.products.findIndex(p => p.id === order.product_id);
+      if (prodIdx !== -1 && db.products[prodIdx].status === 'sold') {
+        db.products[prodIdx].status = 'available';
+      }
+    }
+    
+    writeMockDB(db);
+    return true;
   }
 }
 

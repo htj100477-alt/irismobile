@@ -181,7 +181,7 @@ export default function BuyPage() {
               <span className={styles.categoryName}>전체</span>
             </div>
 
-            {categories.map((cat) => (
+            {categories.filter(cat => !cat.parent_id).map((cat) => (
               <div 
                 key={cat.id} 
                 className={`${styles.categoryCard} ${selectedCategory === cat.name ? styles.categoryCardActive : ''}`}
