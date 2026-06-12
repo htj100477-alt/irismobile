@@ -208,13 +208,13 @@ const HKInventoryRow = memo(function HKInventoryRow({
       </td>
       <td style={{ fontWeight: 'bold', color: 'var(--accent-light)' }}>
         {displayLang === 'zh' ? (
-          `{formatCurrency(Number(item.selling_price || 0), 'HKD')}`
+          `HK${Number(item.selling_price || 0).toLocaleString()}`
         ) : (
           <>
             ₩{Math.round(Number(item.selling_price || 0) * (Number(item.sale_rate) || cnyRate)).toLocaleString()}
             {item.is_sold && (
               <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'normal', marginLeft: '4px' }}>
-                ({formatCurrency(Number(item.selling_price || 0), 'HKD')})
+                (HK${Number(item.selling_price || 0).toLocaleString()})
               </span>
             )}
           </>
