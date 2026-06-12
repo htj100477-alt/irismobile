@@ -334,6 +334,15 @@ function readMockDB(): MockDB {
       parsed.model_pet_names = DEFAULT_MODEL_PET_NAMES;
       writeMockDB(parsed);
     }
+    if (!parsed.admin_menu_permissions) {
+      parsed.admin_menu_permissions = [
+        { role: 'admin', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: true, categories: true, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: true, members: true } },
+        { role: 'manager', permissions: { home: true, 'trade-ins': true, products: true, orders: true, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': true, 'margin-settlement': true, 'model-pet-names': true, scanner: true, permissions: false, members: false } },
+        { role: 'staff', permissions: { home: true, 'trade-ins': true, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': true, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } },
+        { role: 'general', permissions: { home: true, 'trade-ins': false, products: false, orders: false, prices: false, categories: false, 'hongkong-inventory': false, 'completed-sales': false, 'margin-settlement': false, 'model-pet-names': false, scanner: true, permissions: false, members: false } }
+      ];
+      writeMockDB(parsed);
+    }
     return parsed;
   } catch (error) {
     console.error("Mock DB Read Error: ", error);

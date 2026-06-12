@@ -613,10 +613,24 @@ export default function AdminDashboard() {
     }));
   };
 
-  const handleSavePermissions = () => {
-    localStorage.setItem('admin_menu_permissions', JSON.stringify(tempPermissions));
-    setPermissions(tempPermissions);
-    alert(displayLang === 'zh' ? '权限设置已保存！' : '권한 설정이 저장되었습니다!');
+  const handleSavePermissions = async () => {
+    try {
+      const roles = ['admin', 'manager', 'staff', 'general'];
+      await Promise.all(roles.map(role => 
+        fetch('/api/permissions', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role, permissions: tempPermissions[role] })
+        })
+      ));
+      
+      localStorage.setItem('admin_menu_permissions', JSON.stringify(tempPermissions));
+      setPermissions(tempPermissions);
+      alert(displayLang === 'zh' ? '权限设置已保存！' : '권한 설정이 저장되었습니다!');
+    } catch (e) {
+      console.error(e);
+      alert(displayLang === 'zh' ? '保存失败' : '권한 저장 중 오류가 발생했습니다.');
+    }
   };
 
   const handleResetPermissions = () => {
@@ -1084,7 +1098,7 @@ export default function AdminDashboard() {
     setLoading(true);
     try {
       // 모든 API 요청을 병렬(Parallel)로 동시에 시작하여 로딩 시간 단축
-      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes, memberRes] = await Promise.all([
+      const [tradeRes, prodRes, orderRes, priceRes, catRes, hkRes, rateRes, petRes, memberRes, permRes] = await Promise.all([
         fetch('/api/trade-ins'),
         fetch('/api/products'),
         fetch('/api/orders'),
@@ -1093,11 +1107,12 @@ export default function AdminDashboard() {
         fetch('/api/hongkong-inventory'),
         fetch('/api/exchange-rate'),
         fetch('/api/model-pet-names'),
-        fetch('/api/members')
+        fetch('/api/members'),
+        fetch('/api/permissions')
       ]);
 
       // 응답 JSON 파싱도 병렬로 처리
-      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData, memberData] = await Promise.all([
+      const [tradeData, prodData, orderData, priceData, catData, hkData, rateData, petData, memberData, permData] = await Promise.all([
         tradeRes.json(),
         prodRes.json(),
         orderRes.json(),
@@ -1106,7 +1121,8 @@ export default function AdminDashboard() {
         hkRes.json(),
         rateRes.json(),
         petRes.json(),
-        memberRes.json()
+        memberRes.json(),
+        permRes.json()
       ]);
 
       if (tradeData.success) setTradeIns(tradeData.data);
@@ -1123,6 +1139,18 @@ export default function AdminDashboard() {
       }
       if (petData.success) setModelPetNames(petData.data);
       if (memberData.success) setMembers(memberData.data);
+
+      if (permData?.success && permData.data && permData.data.length > 0) {
+        const permRecord: Record<string, Record<string, boolean>> = {};
+        permData.data.forEach((item: any) => {
+          permRecord[item.role] = item.permissions;
+        });
+        setPermissions(prev => ({
+          ...DEFAULT_PERMISSIONS,
+          ...prev,
+          ...permRecord
+        }));
+      }
     } catch (err) {
       console.error(err);
     } finally {
